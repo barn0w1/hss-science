@@ -1,4 +1,5 @@
 import type { Route } from "./+types/_index";
+import { Layout } from "~/components/layout/Layout";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -13,7 +14,7 @@ export function loader({ context }: Route.LoaderArgs) {
 
 export default function Home({ loaderData }: Route.ComponentProps) {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <Layout>
       <main className="container mx-auto px-4 py-16">
         <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
           {loaderData.message}
@@ -22,6 +23,6 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           科学部の公式ホームページです
         </p>
       </main>
-    </div>
+    </Layout>
   );
 }

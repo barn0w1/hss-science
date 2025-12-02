@@ -3,6 +3,8 @@
 /node_modules/
 *.tsbuildinfo
 
+/llm/
+
 # React Router
 /.react-router/
 /build/
