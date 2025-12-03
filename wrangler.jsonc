@@ -7,12 +7,26 @@
 	"name": "hss-science",
 	"compatibility_date": "2025-04-04",
 	"main": "./workers/app.ts",
+	"workers_dev": false,
 	"vars": {
 		"VALUE_FROM_CLOUDFLARE": "Hello from Cloudflare"
 	},
 	"observability": {
 		"enabled": true
-	}
+	},
+	"d1_databases": [
+		{
+			"binding": "hss_science_db",
+			"database_name": "hss-science-db",
+			"database_id": "055c70d6-fa20-4aa1-9daf-f78a6fb9769b"
+		}
+	],
+	"r2_buckets": [
+		{
+			"bucket_name": "hss-science-media",
+			"binding": "hss_science_media"
+		}
+	]
 	/**
 	 * Smart Placement
 	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
