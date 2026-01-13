@@ -7,6 +7,7 @@ import (
 
 	// Generated Code
 	accountsv1 "github.com/barn0w1/hss-science/server/gen/public/accounts/v1"
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 
 	// Platform
 	"github.com/barn0w1/hss-science/server/platform/config"
@@ -34,23 +35,30 @@ func main() {
 
 	slog.Info("Starting Accounts Service", "env", cfg.Env)
 
-	// 3. Server Manager Setup
-	mgr := server.New(server.Config{
+	// 3. Server Config
+	srvCfg := server.Config{
 		GRPCPort: 9090,
 		HTTPPort: 8080,
 		IsDev:    cfg.Env == "dev",
-	})
+	}
 
-	// 4. Register gRPC
-	mgr.AddGRPC(func(s *grpc.Server) {
-		accountsv1.RegisterAccountsServiceServer(s, &authServer{})
-	})
+	// 4. Run Server
+	// platform/server.Run はブロック呼び出しなので、
+	// 設定とハンドラ登録関数を渡して起動します。
+	err := server.Run(
+		context.Background(),
+		srvCfg,
+		// gRPC Service Registerer
+		func(s *grpc.Server) {
+			accountsv1.RegisterAccountsServiceServer(s, &authServer{})
+		},
+		// Gateway Handler Registerer
+		func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error {
+			return accountsv1.RegisterAccountsServiceHandler(ctx, mux, conn)
+		},
+	)
 
-	// 5. Register Gateway
-	mgr.AddGateway(accountsv1.RegisterAccountsServiceHandler)
-
-	// 6. Run
-	if err := mgr.Run(context.Background()); err != nil {
+	if err != nil {
 		slog.Error("Server stopped with error", "error", err)
 		os.Exit(1)
 	}
