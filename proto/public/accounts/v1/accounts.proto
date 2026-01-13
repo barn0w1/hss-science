@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package hss_science.accounts.v1;
+
+option go_package = "github.com/barn0w1/hss-science/server/gen/accounts/v1;accountsv1";
+
+// AccountsService provides authentication and session management
+// for hss-science.org platform via OAuth (Discord).
+service AccountsService {
+  // Generate OAuth login URL (Discord).
+  // Server validates redirect destination.
+  rpc GetLoginUrl(GetLoginUrlRequest) returns (GetLoginUrlResponse);
+
+  // Handle OAuth callback and establish a session.
+  rpc OAuthCallback(OAuthCallbackRequest) returns (OAuthCallbackResponse);
+
+  // Destroy current session.
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+
+  // Refresh session using refresh token (cookie-based).
+  rpc Refresh(RefreshRequest) returns (RefreshResponse);
+
+  // Get current session information.
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+}
+
+// ===== Requests / Responses =====
+
+message GetLoginUrlRequest {
+  // Requested redirect destination after login.
+  // This value is validated against server-side allowlist.
+  // Examples:
+  //   - https://drive.hss-science.org
+  //   - drive
+  string redirect_to = 1;
+}
+
+message GetLoginUrlResponse {
+  // Fully qualified OAuth authorization URL.
+  string url = 1;
+}
+
+message OAuthCallbackRequest {
+  // OAuth authorization code.
+  string code = 1;
+
+  // OAuth state parameter (CSRF protection, contains redirect info).
+  string state = 2;
+}
+
+message OAuthCallbackResponse {
+  Session session = 1;
+}
+
+message LogoutRequest {}
+
+message LogoutResponse {}
+
+message RefreshRequest {}
+
+message RefreshResponse {
+  Session session = 1;
+}
+
+message GetSessionRequest {}
+
+message GetSessionResponse {
+  Session session = 1;
+}
+
+// ===== Data Models =====
+
+// Session represents an authenticated user context for UI purposes.
+// This does NOT contain authorization or permission data.
+message Session {
+  // Internal user identifier.
+  string user_id = 1;
+
+  // Display name derived from OAuth provider (Discord).
+  string display_name = 2;
+
+  // Avatar image URL (may be empty).
+  string avatar_url = 3;
+}

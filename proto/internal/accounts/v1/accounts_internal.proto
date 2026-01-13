@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package hss_science.accounts.v1;
+
+option go_package = "github.com/barn0w1/hss-science/server/gen/accounts/v1;accountsv1";
+
+// internal-only APIs for accounts service
+service AccountsInternalService {
+  // example
+  // rpc ValidateSession(ValidateSessionRequest) returns (ValidateSessionResponse);
+}
