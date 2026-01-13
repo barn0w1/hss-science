@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
 
@@ -15,30 +14,17 @@ import (
 	"github.com/barn0w1/hss-science/server/platform/logger"
 	"github.com/barn0w1/hss-science/server/platform/server"
 
+	// App
+	"github.com/barn0w1/hss-science/server/apps/accounts/internal/handler"
+	"github.com/barn0w1/hss-science/server/apps/accounts/internal/repository"
+	"github.com/barn0w1/hss-science/server/apps/accounts/internal/service"
+
+	// DB
+	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
+
 	"google.golang.org/grpc"
 )
-
-// authServer implements the AccountsService gRPC interface.
-// Ideally, this should be moved to internal/handler/grpc/server.go in the future.
-type authServer struct {
-	accountsv1.UnimplementedAccountsServiceServer
-}
-
-// GetLoginUrl handles the request to generate a Discord OAuth URL.
-// It logs the request and returns a constructed URL.
-func (s *authServer) GetLoginUrl(ctx context.Context, req *accountsv1.GetLoginUrlRequest) (*accountsv1.GetLoginUrlResponse, error) {
-	slog.Info("GetLoginUrl called", "redirect_to", req.RedirectTo)
-
-	// TODO: Replace with actual Discord Client ID and logic from the service layer.
-	mockURL := fmt.Sprintf(
-		"https://discord.com/oauth2/authorize?client_id=FAKE_CLIENT_ID&redirect_uri=%s&response_type=code&scope=identify",
-		req.RedirectTo,
-	)
-
-	return &accountsv1.GetLoginUrlResponse{
-		Url: mockURL,
-	}, nil
-}
 
 func main() {
 	// 1. Load Configuration
@@ -52,20 +38,39 @@ func main() {
 
 	slog.Info("Starting Accounts Service", "env", cfg.Env)
 
-	// 3. Configure Server
+	// 3. Connect to Database
+	dbDSN := os.Getenv("DATABASE_URL")
+	if dbDSN == "" {
+		// Fallback for development if not set
+		dbDSN = "postgres://user:password@localhost:5432/accounts?sslmode=disable"
+	}
+
+	db, err := sqlx.Connect("postgres", dbDSN)
+	if err != nil {
+		slog.Error("Failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	// 4. Initialize Domain Layers
+	repo := repository.NewPostgresRepo(db)
+	svc := service.NewAuthService(repo)
+	h := handler.NewGrpcServer(svc)
+
+	// 5. Configure Server
 	srvCfg := server.Config{
 		GRPCPort: 9090,
 		HTTPPort: 8080,
 		IsDev:    cfg.Env == "dev",
 	}
 
-	// 4. Run Server (Blocking)
-	err := server.Run(
+	// 6. Run Server (Blocking)
+	err = server.Run(
 		context.Background(),
 		srvCfg,
 		// Register gRPC Service
 		func(s *grpc.Server) {
-			accountsv1.RegisterAccountsServiceServer(s, &authServer{})
+			accountsv1.RegisterAccountsServiceServer(s, h)
 		},
 		// Register HTTP Gateway Handler
 		func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error {
