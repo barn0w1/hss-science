@@ -1,4 +1,4 @@
-.PHONY: all gen dev up down db-gen
+.PHONY: all gen 
 
 # Default target
 all: gen
