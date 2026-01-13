@@ -544,7 +544,7 @@ const file_public_accounts_v1_accounts_proto_rawDesc = "" +
 	"\x06Logout\x12&.hss_science.accounts.v1.LogoutRequest\x1a'.hss_science.accounts.v1.LogoutResponse\x12\\\n" +
 	"\aRefresh\x12'.hss_science.accounts.v1.RefreshRequest\x1a(.hss_science.accounts.v1.RefreshResponse\x12e\n" +
 	"\n" +
-	"GetSession\x12*.hss_science.accounts.v1.GetSessionRequest\x1a+.hss_science.accounts.v1.GetSessionResponseBBZ@github.com/barn0w1/hss-science/server/gen/accounts/v1;accountsv1b\x06proto3"
+	"GetSession\x12*.hss_science.accounts.v1.GetSessionRequest\x1a+.hss_science.accounts.v1.GetSessionResponseBIZGgithub.com/barn0w1/hss-science/server/gen/public/accounts/v1;accountsv1b\x06proto3"
 
 var (
 	file_public_accounts_v1_accounts_proto_rawDescOnce sync.Once

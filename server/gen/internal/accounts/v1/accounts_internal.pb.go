@@ -25,7 +25,7 @@ var File_internal_accounts_v1_accounts_internal_proto protoreflect.FileDescripto
 const file_internal_accounts_v1_accounts_internal_proto_rawDesc = "" +
 	"\n" +
 	",internal/accounts/v1/accounts_internal.proto\x12\x17hss_science.accounts.v12\x19\n" +
-	"\x17AccountsInternalServiceBBZ@github.com/barn0w1/hss-science/server/gen/accounts/v1;accountsv1b\x06proto3"
+	"\x17AccountsInternalServiceBKZIgithub.com/barn0w1/hss-science/server/gen/internal/accounts/v1;accountsv1b\x06proto3"
 
 var file_internal_accounts_v1_accounts_internal_proto_goTypes = []any{}
 var file_internal_accounts_v1_accounts_internal_proto_depIdxs = []int32{
