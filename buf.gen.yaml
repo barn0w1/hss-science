@@ -4,19 +4,24 @@ inputs:
   - directory: proto
 
 plugins:
-  # 1. Go Structs
+  # 1. Go Structs (Type Definitions)
   - remote: buf.build/protocolbuffers/go
     out: server/gen
     opt: paths=source_relative
 
-  # 2. Go gRPC Communication Code
+  # 2. Go gRPC Communication Code (Server/Client)
   - remote: buf.build/grpc/go
     out: server/gen
     opt: paths=source_relative
 
-  # 3. OpenAPI (Swagger) JSON
-  # Frontend (SPA) API Definition
-  # Merge multiple proto files into a single "api.swagger.json"
+  # 3. Go gRPC Gateway (REST API Conversion Proxy)
+  # Required to start the REST Gateway in main.go
+  - remote: buf.build/grpc-ecosystem/gateway
+    out: server/gen
+    opt: paths=source_relative
+
+  # 4. OpenAPI (Swagger) JSON
+  # API Definition for the Frontend (SPA)
   - remote: buf.build/grpc-ecosystem/openapiv2
     out: web/packages/api/openapi
     opt:
