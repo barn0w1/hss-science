@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -17,17 +18,33 @@ import (
 	"google.golang.org/grpc"
 )
 
-// Implementation (本来は internal/handler/grpc/server.go などに書く)
+// authServer implements the AccountsService gRPC interface.
+// Ideally, this should be moved to internal/handler/grpc/server.go in the future.
 type authServer struct {
 	accountsv1.UnimplementedAccountsServiceServer
 }
 
+// GetLoginUrl handles the request to generate a Discord OAuth URL.
+// It logs the request and returns a constructed URL.
+func (s *authServer) GetLoginUrl(ctx context.Context, req *accountsv1.GetLoginUrlRequest) (*accountsv1.GetLoginUrlResponse, error) {
+	slog.Info("GetLoginUrl called", "redirect_to", req.RedirectTo)
+
+	// TODO: Replace with actual Discord Client ID and logic from the service layer.
+	mockURL := fmt.Sprintf(
+		"https://discord.com/oauth2/authorize?client_id=FAKE_CLIENT_ID&redirect_uri=%s&response_type=code&scope=identify",
+		req.RedirectTo,
+	)
+
+	return &accountsv1.GetLoginUrlResponse{
+		Url: mockURL,
+	}, nil
+}
+
 func main() {
-	// 1. Config Load
+	// 1. Load Configuration
 	cfg := config.Load()
 
-	// 2. Logger Setup (★ここを修正)
-	// Configパッケージの値を、LoggerパッケージのConfig型に詰め替えて渡す
+	// 2. Setup Logger
 	logger.Setup(logger.Config{
 		LogLevel:  cfg.LogLevel,
 		LogFormat: cfg.LogFormat,
@@ -35,24 +52,22 @@ func main() {
 
 	slog.Info("Starting Accounts Service", "env", cfg.Env)
 
-	// 3. Server Config
+	// 3. Configure Server
 	srvCfg := server.Config{
 		GRPCPort: 9090,
 		HTTPPort: 8080,
 		IsDev:    cfg.Env == "dev",
 	}
 
-	// 4. Run Server
-	// platform/server.Run はブロック呼び出しなので、
-	// 設定とハンドラ登録関数を渡して起動します。
+	// 4. Run Server (Blocking)
 	err := server.Run(
 		context.Background(),
 		srvCfg,
-		// gRPC Service Registerer
+		// Register gRPC Service
 		func(s *grpc.Server) {
 			accountsv1.RegisterAccountsServiceServer(s, &authServer{})
 		},
-		// Gateway Handler Registerer
+		// Register HTTP Gateway Handler
 		func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error {
 			return accountsv1.RegisterAccountsServiceHandler(ctx, mux, conn)
 		},
