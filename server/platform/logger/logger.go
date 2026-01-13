@@ -3,33 +3,45 @@ package logger
 import (
 	"log/slog"
 	"os"
+	"strings"
 )
 
+// Config holds the configuration for the logger.
 type Config struct {
-	IsDev bool
+	LogLevel  string // "debug", "info", "warn", "error"
+	LogFormat string // "json", "text"
 }
 
-// Setup はグローバルロガーを設定します
-// アプリ起動時に1回だけ呼び出してください
+// Setup initializes the global logger based on the provided config.
 func Setup(cfg Config) {
 	var handler slog.Handler
 
-	if cfg.IsDev {
-		// 開発時: 人間が読みやすいテキスト形式 & DEBUGレベルまで出す
-		// 例: time=... level=INFO msg="Hello"
-		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-			Level: slog.LevelDebug,
-		})
-	} else {
-		// 本番時: 機械が読みやすいJSON形式 & INFOレベル以上
-		// 例: {"time":"...", "level":"INFO", "msg":"Hello"}
-		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-			Level: slog.LevelInfo,
-		})
+	// Parse level string to slog.Level
+	var level slog.Level
+	switch strings.ToLower(cfg.LogLevel) {
+	case "debug":
+		level = slog.LevelDebug
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	default:
+		level = slog.LevelInfo
 	}
 
-	// グローバルのデフォルトロガーを上書きする
-	// これにより、slog.Info() と書くだけでこの設定が適用される
+	opts := &slog.HandlerOptions{
+		Level: level,
+	}
+
+	// Select handler based on format
+	switch strings.ToLower(cfg.LogFormat) {
+	case "text":
+		handler = slog.NewTextHandler(os.Stdout, opts)
+	default:
+		// Default to JSON for production/cloud environments
+		handler = slog.NewJSONHandler(os.Stdout, opts)
+	}
+
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 }
