@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"strings"
+
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -24,9 +26,24 @@ func NewMux() *runtime.ServeMux {
 				DiscardUnknown: true,
 			},
 		}),
-		// gRPCメタデータからHTTPヘッダーへの変換フック (Cookie, Redirect用)
+		// HTTPヘッダー -> gRPCメタデータの変換ルール (IPやUAを通すため)
+		runtime.WithIncomingHeaderMatcher(customHeaderMatcher),
+		// gRPCメタデータ -> HTTPヘッダーへの変換フック (Cookie, Redirect用)
 		runtime.WithForwardResponseOption(httpResponseModifier),
 	)
+}
+
+// customHeaderMatcher は、HTTPヘッダーをgRPCメタデータに変換する際のルールを定義します。
+// デフォルトでは変換されない重要なヘッダー(IPアドレス等)を通過させます。
+func customHeaderMatcher(key string) (string, bool) {
+	switch strings.ToLower(key) {
+	case "x-forwarded-for", "x-real-ip":
+		return key, true
+	case "user-agent", "x-user-agent":
+		return key, true
+	default:
+		return runtime.DefaultHeaderMatcher(key)
+	}
 }
 
 // httpResponseModifier は gRPC メタデータを HTTP レスポンスヘッダーに変換します。
