@@ -4,47 +4,59 @@ package hss_science.accounts.v1;
 
 option go_package = "github.com/barn0w1/hss-science/server/gen/public/accounts/v1;accountsv1";
 
-// AccountsService provides authentication and session management
-// for hss-science.org platform via OAuth (Discord).
+import "google/api/annotations.proto";
+
 service AccountsService {
-  // Generate OAuth login URL (Discord).
-  // Server validates redirect destination.
-  rpc GetLoginUrl(GetLoginUrlRequest) returns (GetLoginUrlResponse);
+  // GET /v1/auth/login-url?redirect_to=...
+  rpc GetLoginUrl(GetLoginUrlRequest) returns (GetLoginUrlResponse) {
+    option (google.api.http) = {
+      get: "/v1/auth/login-url"
+    };
+  }
 
-  // Handle OAuth callback and establish a session.
-  rpc OAuthCallback(OAuthCallbackRequest) returns (OAuthCallbackResponse);
+  // POST /v1/auth/callback
+  // Body: { "code": "...", "state": "..." }
+  rpc OAuthCallback(OAuthCallbackRequest) returns (OAuthCallbackResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/callback"
+      body: "*"
+    };
+  }
 
-  // Destroy current session.
-  rpc Logout(LogoutRequest) returns (LogoutResponse);
+  // POST /v1/auth/logout
+  rpc Logout(LogoutRequest) returns (LogoutResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/logout"
+    };
+  }
 
-  // Refresh session using refresh token (cookie-based).
-  rpc Refresh(RefreshRequest) returns (RefreshResponse);
+  // POST /v1/auth/refresh
+  rpc Refresh(RefreshRequest) returns (RefreshResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/refresh"
+    };
+  }
 
-  // Get current session information.
-  rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+  // GET /v1/auth/session
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse) {
+    option (google.api.http) = {
+      get: "/v1/auth/session"
+    };
+  }
 }
 
 // ===== Requests / Responses =====
 
 message GetLoginUrlRequest {
-  // Requested redirect destination after login.
-  // This value is validated against server-side allowlist.
-  // Examples:
-  //   - https://drive.hss-science.org
-  //   - drive
   string redirect_to = 1;
 }
 
 message GetLoginUrlResponse {
-  // Fully qualified OAuth authorization URL.
   string url = 1;
 }
 
 message OAuthCallbackRequest {
-  // OAuth authorization code.
   string code = 1;
-
-  // OAuth state parameter (CSRF protection, contains redirect info).
   string state = 2;
 }
 
@@ -53,32 +65,22 @@ message OAuthCallbackResponse {
 }
 
 message LogoutRequest {}
-
 message LogoutResponse {}
 
 message RefreshRequest {}
-
 message RefreshResponse {
   Session session = 1;
 }
 
 message GetSessionRequest {}
-
 message GetSessionResponse {
   Session session = 1;
 }
 
 // ===== Data Models =====
 
-// Session represents an authenticated user context for UI purposes.
-// This does NOT contain authorization or permission data.
 message Session {
-  // Internal user identifier.
   string user_id = 1;
-
-  // Display name derived from OAuth provider (Discord).
   string display_name = 2;
-
-  // Avatar image URL (may be empty).
   string avatar_url = 3;
 }

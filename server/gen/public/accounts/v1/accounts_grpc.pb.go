@@ -29,20 +29,17 @@ const (
 // AccountsServiceClient is the client API for AccountsService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// AccountsService provides authentication and session management
-// for hss-science.org platform via OAuth (Discord).
 type AccountsServiceClient interface {
-	// Generate OAuth login URL (Discord).
-	// Server validates redirect destination.
+	// GET /v1/auth/login-url?redirect_to=...
 	GetLoginUrl(ctx context.Context, in *GetLoginUrlRequest, opts ...grpc.CallOption) (*GetLoginUrlResponse, error)
-	// Handle OAuth callback and establish a session.
+	// POST /v1/auth/callback
+	// Body: { "code": "...", "state": "..." }
 	OAuthCallback(ctx context.Context, in *OAuthCallbackRequest, opts ...grpc.CallOption) (*OAuthCallbackResponse, error)
-	// Destroy current session.
+	// POST /v1/auth/logout
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
-	// Refresh session using refresh token (cookie-based).
+	// POST /v1/auth/refresh
 	Refresh(ctx context.Context, in *RefreshRequest, opts ...grpc.CallOption) (*RefreshResponse, error)
-	// Get current session information.
+	// GET /v1/auth/session
 	GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*GetSessionResponse, error)
 }
 
@@ -107,20 +104,17 @@ func (c *accountsServiceClient) GetSession(ctx context.Context, in *GetSessionRe
 // AccountsServiceServer is the server API for AccountsService service.
 // All implementations must embed UnimplementedAccountsServiceServer
 // for forward compatibility.
-//
-// AccountsService provides authentication and session management
-// for hss-science.org platform via OAuth (Discord).
 type AccountsServiceServer interface {
-	// Generate OAuth login URL (Discord).
-	// Server validates redirect destination.
+	// GET /v1/auth/login-url?redirect_to=...
 	GetLoginUrl(context.Context, *GetLoginUrlRequest) (*GetLoginUrlResponse, error)
-	// Handle OAuth callback and establish a session.
+	// POST /v1/auth/callback
+	// Body: { "code": "...", "state": "..." }
 	OAuthCallback(context.Context, *OAuthCallbackRequest) (*OAuthCallbackResponse, error)
-	// Destroy current session.
+	// POST /v1/auth/logout
 	Logout(context.Context, *LogoutRequest) (*LogoutResponse, error)
-	// Refresh session using refresh token (cookie-based).
+	// POST /v1/auth/refresh
 	Refresh(context.Context, *RefreshRequest) (*RefreshResponse, error)
-	// Get current session information.
+	// GET /v1/auth/session
 	GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error)
 	mustEmbedUnimplementedAccountsServiceServer()
 }

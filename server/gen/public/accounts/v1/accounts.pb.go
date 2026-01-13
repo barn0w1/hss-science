@@ -7,6 +7,7 @@
 package accountsv1
 
 import (
+	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -22,13 +23,8 @@ const (
 )
 
 type GetLoginUrlRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Requested redirect destination after login.
-	// This value is validated against server-side allowlist.
-	// Examples:
-	//   - https://drive.hss-science.org
-	//   - drive
-	RedirectTo    string `protobuf:"bytes,1,opt,name=redirect_to,json=redirectTo,proto3" json:"redirect_to,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RedirectTo    string                 `protobuf:"bytes,1,opt,name=redirect_to,json=redirectTo,proto3" json:"redirect_to,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -71,9 +67,8 @@ func (x *GetLoginUrlRequest) GetRedirectTo() string {
 }
 
 type GetLoginUrlResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Fully qualified OAuth authorization URL.
-	Url           string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Url           string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -116,11 +111,9 @@ func (x *GetLoginUrlResponse) GetUrl() string {
 }
 
 type OAuthCallbackRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// OAuth authorization code.
-	Code string `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
-	// OAuth state parameter (CSRF protection, contains redirect info).
-	State         string `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
+	State         string                 `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -445,16 +438,11 @@ func (x *GetSessionResponse) GetSession() *Session {
 	return nil
 }
 
-// Session represents an authenticated user context for UI purposes.
-// This does NOT contain authorization or permission data.
 type Session struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Internal user identifier.
-	UserId string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	// Display name derived from OAuth provider (Discord).
-	DisplayName string `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	// Avatar image URL (may be empty).
-	AvatarUrl     string `protobuf:"bytes,3,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	AvatarUrl     string                 `protobuf:"bytes,3,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -514,7 +502,7 @@ var File_public_accounts_v1_accounts_proto protoreflect.FileDescriptor
 
 const file_public_accounts_v1_accounts_proto_rawDesc = "" +
 	"\n" +
-	"!public/accounts/v1/accounts.proto\x12\x17hss_science.accounts.v1\"5\n" +
+	"!public/accounts/v1/accounts.proto\x12\x17hss_science.accounts.v1\x1a\x1cgoogle/api/annotations.proto\"5\n" +
 	"\x12GetLoginUrlRequest\x12\x1f\n" +
 	"\vredirect_to\x18\x01 \x01(\tR\n" +
 	"redirectTo\"'\n" +
@@ -537,14 +525,14 @@ const file_public_accounts_v1_accounts_proto_rawDesc = "" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x1d\n" +
 	"\n" +
-	"avatar_url\x18\x03 \x01(\tR\tavatarUrl2\x8b\x04\n" +
-	"\x0fAccountsService\x12h\n" +
-	"\vGetLoginUrl\x12+.hss_science.accounts.v1.GetLoginUrlRequest\x1a,.hss_science.accounts.v1.GetLoginUrlResponse\x12n\n" +
-	"\rOAuthCallback\x12-.hss_science.accounts.v1.OAuthCallbackRequest\x1a..hss_science.accounts.v1.OAuthCallbackResponse\x12Y\n" +
-	"\x06Logout\x12&.hss_science.accounts.v1.LogoutRequest\x1a'.hss_science.accounts.v1.LogoutResponse\x12\\\n" +
-	"\aRefresh\x12'.hss_science.accounts.v1.RefreshRequest\x1a(.hss_science.accounts.v1.RefreshResponse\x12e\n" +
+	"avatar_url\x18\x03 \x01(\tR\tavatarUrl2\x94\x05\n" +
+	"\x0fAccountsService\x12\x84\x01\n" +
+	"\vGetLoginUrl\x12+.hss_science.accounts.v1.GetLoginUrlRequest\x1a,.hss_science.accounts.v1.GetLoginUrlResponse\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/auth/login-url\x12\x8c\x01\n" +
+	"\rOAuthCallback\x12-.hss_science.accounts.v1.OAuthCallbackRequest\x1a..hss_science.accounts.v1.OAuthCallbackResponse\"\x1c\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/auth/callback\x12r\n" +
+	"\x06Logout\x12&.hss_science.accounts.v1.LogoutRequest\x1a'.hss_science.accounts.v1.LogoutResponse\"\x17\x82\xd3\xe4\x93\x02\x11\"\x0f/v1/auth/logout\x12v\n" +
+	"\aRefresh\x12'.hss_science.accounts.v1.RefreshRequest\x1a(.hss_science.accounts.v1.RefreshResponse\"\x18\x82\xd3\xe4\x93\x02\x12\"\x10/v1/auth/refresh\x12\x7f\n" +
 	"\n" +
-	"GetSession\x12*.hss_science.accounts.v1.GetSessionRequest\x1a+.hss_science.accounts.v1.GetSessionResponseBIZGgithub.com/barn0w1/hss-science/server/gen/public/accounts/v1;accountsv1b\x06proto3"
+	"GetSession\x12*.hss_science.accounts.v1.GetSessionRequest\x1a+.hss_science.accounts.v1.GetSessionResponse\"\x18\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/auth/sessionBIZGgithub.com/barn0w1/hss-science/server/gen/public/accounts/v1;accountsv1b\x06proto3"
 
 var (
 	file_public_accounts_v1_accounts_proto_rawDescOnce sync.Once
