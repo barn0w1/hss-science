@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 
 	// Protoの生成コード
 	"github.com/barn0w1/hss-science/server/apps/accounts/internal/service"
@@ -15,6 +16,18 @@ type GrpcServer struct {
 
 func NewGrpcServer(svc *service.AuthService) *GrpcServer {
 	return &GrpcServer{svc: svc}
+}
+
+func (h *GrpcServer) GetLoginUrl(ctx context.Context, req *pb.GetLoginUrlRequest) (*pb.GetLoginUrlResponse, error) {
+	// TODO: Replace with actual Discord Client ID and logic from the service layer.
+	mockURL := fmt.Sprintf(
+		"https://discord.com/oauth2/authorize?client_id=FAKE_CLIENT_ID&redirect_uri=%s&response_type=code&scope=identify",
+		req.RedirectTo,
+	)
+
+	return &pb.GetLoginUrlResponse{
+		Url: mockURL,
+	}, nil
 }
 
 func (h *GrpcServer) GetSession(ctx context.Context, req *pb.GetSessionRequest) (*pb.GetSessionResponse, error) {
