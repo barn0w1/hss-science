@@ -2,76 +2,59 @@
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
-> **HSS Science のための統合クラウド基盤**
+> **HSS Science クラウドプラットフォーム**
 
 [ [English](./README.md) | **日本語** ]
 
-## 概要
+## Overview
 
-**hss-science** は、HSS Science のコラボレーションワークフローを支えるために設計されたプライベートクラウドプラットフォームです。
+**HSS Science Platform（hss-science）** は、HSS Science が利用する内部クラウド基盤です。
 
-複数のツールを使い分けることは柔軟性をもたらしますが、ツール間の連携不足はしばしばボトルネックになります。ファイルの保存、処理の自動化、計算リソースの確保—これらを異なるサービスで管理すると、認証の重複、データの分散、遅延が避けられません。
+認証・ストレージ・計算といった基本的な機能を  
+**小さく独立したサービスとして実装**し、それらを組み合わせることで  
+柔軟で拡張可能なシステムを構成します。
 
-本プラットフォームは、認証・ストレージ・計算を統合することで、**パフォーマンス**、**データ主権**、**シンプルな開発体験**を実現します。マイクロサービスアーキテクチャにより、新しい機能を段階的に追加・改善することで、ワークフローの拡張に対応します。
+システムの成長に伴い、複雑さは不可避に増加します。  
+本プラットフォームでは、責務の境界を明確に保ち、  
+各コンポーネントを可能な限り単純に維持することで、  
+全体の複雑性と運用コストの増大を抑制します。
 
-## サービス構成
+## Services
 
-本システムはgRPCマイクロサービスアーキテクチャで構築されており、REST API（gRPC-Gateway経由）を提供します。
+各サービスは gRPC ベースのマイクロサービスとして実装されています。  
+gRPC-Gateway を通じて REST API も提供されます。
 
-| サービス | エンドポイント | 概要 |
+| Service | Endpoint | Description |
 | :--- | :--- | :--- |
-| **Auth** | `accounts.hss-science.org` | **認証・セッション管理**。<br>Discord OAuth による一元的な認証基盤。JWT 発行およびセッション管理を担当します。 |
-| **Drive** | `drive.hss-science.org` | **統合ストレージ**。<br>Cloudflare R2 をバックエンドとする Content Addressable Storage。ファイルの不変性と効率的な重複排除を実現します。 |
-| **Compute** | `compute.hss-science.org` | **動的計算基盤**。<br>GPU / CPU インスタンスをオーケストレーション。Blender レンダリング、データ処理、ファームウェアコンパイルなどの高負荷ワークロードを実行します。 |
+| **Auth** | `accounts.hss-science.org` | 認証およびセッション管理。Discord OAuth を用いて JWT を発行します。 |
+| **Drive** | `drive.hss-science.org` | Cloudflare R2 をバックエンドとする Content Addressable Storage。 |
+| **Compute** | `compute.hss-science.org` | CPU / GPU リソースを管理し、計算集約型ワークロードを実行します。 |
 
-## アーキテクチャ
+## Technology Stack
 
-### 設計原則
+- **Backend**: Go 1.25+, gRPC, sqlx  
+- **Frontend**: TypeScript, React, pnpm workspaces  
+- **Infrastructure**: PostgreSQL, Redis, Cloudflare R2, Docker  
 
-**スキーマ駆動開発**  
-API定義はすべて `proto/` に集約。Protocol Buffersから自動的にGo（サーバー）とTypeScript（クライアント）のコードを生成し、型安全性を保証します。
+## Development
 
-**サービス隔離**  
-各サービスはドメイン境界で完全に分離。サービス間通信は gRPC のみです。
-
-**明示的な設定**  
-依存関係や環境設定をコード上に明示的に記述。暗黙的な動作を排除し、可読性を維持します。
-
-### 技術スタック
-
-- **Backend**: Go 1.25+, gRPC, sqlx
-- **Frontend**: TypeScript, React, pnpm workspaces
-- **Infrastructure**: PostgreSQL, Redis, Cloudflare R2, Docker
-
-## 開発を始める
-
-### 前提条件
+### Requirements
 
 - Go 1.25+
-- Docker & Docker Compose
-- `buf`（Protocol Buffersコード生成ツール）
+- Docker / Docker Compose
+- buf
 
-### クイックスタート
+### Getting Started
 
-**1. Proto定義からコードを生成**
 ```bash
 make gen
-```
-
-**2. ローカル開発環境を起動**
-```bash
-make infra-up    # PostgreSQL, Redis を起動
-make infra-down  # 停止
-```
-
-**3. バックエンドサービスを実行**
-```bash
+make infra-up
 make server-run
-```
+````
 
-詳細は [Makefile](./Makefile) を参照してください。
+詳細なコマンドについては [Makefile](./Makefile) を参照してください。
 
-## ライセンス
+## License
 
-GNU Affero General Public License v3.0 (AGPL-3.0)  
+GNU Affero General Public License v3.0 (AGPL-3.0)
 詳細は [LICENSE](./LICENSE) を参照してください。
