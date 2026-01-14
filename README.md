@@ -1,65 +1,78 @@
 # HSS Science Platform
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go)](https://go.dev/)
 
-[ **English** | [日本語](#-日本語-japanese) ]
+> **The private cloud infrastructure for HSS Science.**
 
-The unified distributed platform for the HSS Science community.
-Designed to maintain structural integrity and minimize complexity through strict architectural discipline.
+[ **English** | [日本語](./README.ja.md) ]
 
-## Philosophy
+## Overview
 
-Our goal is to build a robust, scalable system by reducing entropy in software development.
+**hss-science** is a private cloud platform engineered to support the collaborative workflows of HSS Science.
 
-- **Single Source of Truth**: A monorepo structure to ensure consistency across all services and infrastructure.
-- **Do One Thing Well**: Strictly decoupled microservices (`apps`) sharing a standardized foundation (`pkg`).
-- **Simplicity and Performance**: Powered by Go to enforce type safety and efficiency.
+Using multiple tools brings flexibility, but the lack of integration between them often becomes a bottleneck. Managing file storage, processing automation, and compute resources across different services creates redundant authentication, data fragmentation, and latency.
+
+This platform unifies identity, storage, and compute to deliver **performance**, **data sovereignty**, and **simple developer experience**. Built on microservices architecture, it evolves through incremental feature additions and improvements to support expanding workflows.
+
+## Services
+
+The platform operates as a set of gRPC microservices, exposed to the frontend via a unified REST API (gRPC-Gateway).
+
+| Service | Endpoint | Description |
+| :--- | :--- | :--- |
+| **Auth** | `accounts.hss-science.org` | **Identity & Session Management.** Centralized authentication via Discord OAuth. Handles JWT issuance and session management. |
+| **Drive** | `drive.hss-science.org` | **Unified Storage.** A Content Addressable Storage (CAS) system backed by Cloudflare R2, ensuring data immutability and efficient deduplication. |
+| **Compute** | `compute.hss-science.org` | **Dynamic Compute Foundation.** Orchestrates ephemeral GPU/CPU instances to execute heavy workloads such as rendering, data processing, and firmware compilation. |
 
 ## Architecture
 
-This repository hosts the entire ecosystem, orchestrated as a distributed system:
+### Design Principles
 
-### Core Services
-- **`apps/auth`**: Identity Provider (IdP) and SSO foundation based on JWT.
-- **`apps/drive`**: Content Addressable Storage (CAS) for immutable data management.
-- **`apps/render`**: Controller for the distributed render farm, orchestrating GPU instances.
+**Schema-Driven Development**  
+All API definitions are centralized in `proto/`. Go servers and TypeScript clients are automatically generated from these definitions, ensuring type safety across the stack.
 
-### Infrastructure
-- **`pkg`**: Shared standard libraries (Logger, Config, Audit).
-- **`proto`**: gRPC definitions serving as the immutable contract between services.
+**Service Isolation**  
+Each service is completely decoupled at domain boundaries. Inter-service communication uses gRPC exclusively.
 
-## Status
+**Explicit Configuration**  
+Dependencies and settings are explicitly declared in code. No implicit behavior—clarity over convenience.
 
-**Under active development.**
+### Tech Stack
 
----
+- **Backend**: Go 1.25+, gRPC, sqlx
+- **Frontend**: TypeScript, React, pnpm workspaces
+- **Infrastructure**: PostgreSQL, Redis, Cloudflare R2, Docker
 
-## 🇯🇵 日本語 (Japanese)
+## Getting Started
 
-HSS Science コミュニティのための統合分散プラットフォームです。
-厳格なアーキテクチャ規律を通じて複雑性を排除し、システムの整合性を保つよう設計されています。
+### Prerequisites
 
-### 設計思想
+- Go 1.25+
+- Docker & Docker Compose
+- `buf` (Protocol Buffers code generation tool)
 
-ソフトウェア開発におけるエントロピー（無秩序）の増大を抑制し、堅牢でスケーラブルなシステムを構築します。
+### Quick Start
 
-- **Single Source of Truth**: モノレポ構成により、全サービスとインフラの一貫性を保証します。
-- **Do One Thing Well**: マイクロサービス（`apps`）は単一の責務を持ち、共通基盤（`pkg`）を利用します。
-- **Simplicity and Performance**: Go言語を採用し、型安全性と高いパフォーマンスを実現します。
+**1. Generate code from Proto definitions**
+```bash
+make gen
+```
 
-### アーキテクチャ
+**2. Start the local development environment**
+```bash
+make infra-up    # Start PostgreSQL, Redis
+make infra-down  # Stop
+```
 
-このリポジトリは、分散システムとして動作するエコシステム全体を管理します。
+**3. Run backend services**
+```bash
+make server-run
+```
 
-#### コアサービス
-- **`apps/auth`**: 認証基盤 (IdP)。JWTベースのSSOを提供します。
-- **`apps/drive`**: ストレージ基盤。CAS（Content Addressable Storage）によりデータの不変性を担保します。
-- **`apps/render`**: 分散レンダーファームのコントローラー。GPUインスタンスのオーケストレーションを行います。
+See [Makefile](./Makefile) for additional commands.
 
-#### インフラストラクチャ
-- **`pkg`**: 共通標準ライブラリ（ロガー、設定管理、監査ログなど）。
-- **`proto`**: gRPC定義ファイル。サービス間の不変の契約（コントラクト）として機能します。
+## License
 
-### ステータス
-
-**開発中 (Pre-alpha)**
+GNU Affero General Public License v3.0 (AGPL-3.0)  
+See [LICENSE](./LICENSE) for details.
