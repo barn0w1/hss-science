@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	// Protoの生成コード
-	"github.com/barn0w1/hss-science/server/apps/accounts/internal/service"
 	pb "github.com/barn0w1/hss-science/server/gen/public/accounts/v1"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/service"
 )
 
 type GrpcServer struct {

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/barn0w1/hss-science/server/apps/accounts/internal/domain"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/domain"
 	"github.com/jmoiron/sqlx"
 )
 

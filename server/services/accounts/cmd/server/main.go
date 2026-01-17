@@ -15,9 +15,9 @@ import (
 	"github.com/barn0w1/hss-science/server/platform/server"
 
 	// App
-	"github.com/barn0w1/hss-science/server/apps/accounts/internal/handler"
-	"github.com/barn0w1/hss-science/server/apps/accounts/internal/repository"
-	"github.com/barn0w1/hss-science/server/apps/accounts/internal/service"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/handler"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/repository"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/service"
 
 	// DB
 	"github.com/jmoiron/sqlx"
@@ -28,7 +28,7 @@ import (
 
 func main() {
 	// 1. Load Configuration
-	cfg := config.Load()
+	cfg := config.LoadBase()
 
 	// 2. Setup Logger
 	logger.Setup(logger.Config{

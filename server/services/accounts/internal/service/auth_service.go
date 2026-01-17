@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	"github.com/barn0w1/hss-science/server/apps/accounts/internal/domain"
-	"github.com/barn0w1/hss-science/server/apps/accounts/internal/repository"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/domain"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/repository"
 )
 
 type AuthService struct {
