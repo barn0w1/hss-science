@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/domain/model"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/domain/repository"
 )
 
 // userDTO is the internal struct for database mapping.
@@ -46,6 +47,8 @@ func fromDomainUser(u *model.User) *userDTO {
 }
 
 const (
+	userColumns = "id, discord_id, name, avatar_url, role, created_at, updated_at"
+
 	queryCreateUser = `
 		INSERT INTO users (id, discord_id, name, avatar_url, role, created_at, updated_at)
 		VALUES (:id, :discord_id, :name, :avatar_url, :role, :created_at, :updated_at)
@@ -56,10 +59,10 @@ const (
 		WHERE id = :id
 	`
 	queryGetUserByID = `
-		SELECT * FROM users WHERE id = $1
+		SELECT ` + userColumns + ` FROM users WHERE id = $1
 	`
 	queryGetUserByDiscordID = `
-		SELECT * FROM users WHERE discord_id = $1
+		SELECT ` + userColumns + ` FROM users WHERE discord_id = $1
 	`
 )
 
@@ -89,7 +92,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*model.User, e
 	var dto userDTO
 	if err := r.db.GetContext(ctx, &dto, queryGetUserByID, id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("user not found: %w", err)
+			return nil, repository.ErrNotFound
 		}
 		return nil, fmt.Errorf("failed to get user by id: %w", err)
 	}
@@ -101,8 +104,7 @@ func (r *UserRepository) GetByDiscordID(ctx context.Context, discordID string) (
 	var dto userDTO
 	if err := r.db.GetContext(ctx, &dto, queryGetUserByDiscordID, discordID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			// As per UseCase logic: Return nil, nil if not found
-			return nil, nil
+			return nil, repository.ErrNotFound
 		}
 		return nil, fmt.Errorf("failed to get user by discord id: %w", err)
 	}

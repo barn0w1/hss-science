@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/domain/model"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/domain/repository"
 )
 
+// tokenDTO maps the database row to the domain model.
 type tokenDTO struct {
 	TokenHash string     `db:"token_hash"`
 	UserID    string     `db:"user_id"`
@@ -45,12 +47,14 @@ func fromDomainToken(t *model.RefreshToken) *tokenDTO {
 }
 
 const (
+	tokenColumns = "token_hash, user_id, expires_at, created_at, revoked_at, user_agent, ip_address"
+
 	querySaveToken = `
 		INSERT INTO refresh_tokens (token_hash, user_id, expires_at, created_at, revoked_at, user_agent, ip_address)
 		VALUES (:token_hash, :user_id, :expires_at, :created_at, :revoked_at, :user_agent, :ip_address)
 	`
 	queryGetToken = `
-		SELECT * FROM refresh_tokens WHERE token_hash = $1
+		SELECT ` + tokenColumns + ` FROM refresh_tokens WHERE token_hash = $1
 	`
 	queryRevokeToken = `
 		UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_hash = $1
@@ -68,6 +72,7 @@ func (r *TokenRepository) Save(ctx context.Context, token *model.RefreshToken) e
 	dto := fromDomainToken(token)
 	_, err := r.db.NamedExecContext(ctx, querySaveToken, dto)
 	if err != nil {
+		// 必要であればここで Error code を見て ErrDuplicate 等へ変換する
 		return fmt.Errorf("failed to save token: %w", err)
 	}
 	return nil
@@ -78,7 +83,7 @@ func (r *TokenRepository) Get(ctx context.Context, tokenHash string) (*model.Ref
 	var dto tokenDTO
 	if err := r.db.GetContext(ctx, &dto, queryGetToken, tokenHash); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("token not found: %w", err)
+			return nil, repository.ErrNotFound
 		}
 		return nil, fmt.Errorf("failed to get token: %w", err)
 	}
@@ -87,19 +92,9 @@ func (r *TokenRepository) Get(ctx context.Context, tokenHash string) (*model.Ref
 
 // Revoke marks a token as revoked.
 func (r *TokenRepository) Revoke(ctx context.Context, tokenHash string) error {
-	res, err := r.db.ExecContext(ctx, queryRevokeToken, tokenHash)
+	_, err := r.db.ExecContext(ctx, queryRevokeToken, tokenHash)
 	if err != nil {
 		return fmt.Errorf("failed to revoke token: %w", err)
-	}
-
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		// すでに存在しないか、ハッシュが合わない場合。
-		// エラーにするかどうかは要件次第だが、冪等性を考えるとnilでも良い
-		return errors.New("token not found or already revoked")
 	}
 	return nil
 }
@@ -114,9 +109,8 @@ func (r *TokenRepository) RevokeByUserID(ctx context.Context, userID string) err
 }
 
 // CleanupExpired deletes old tokens.
-func (r *TokenRepository) CleanupExpired(ctx context.Context) error {
-	// 現在時刻より前に期限が切れたものを削除
-	_, err := r.db.ExecContext(ctx, queryCleanupExpired, time.Now())
+func (r *TokenRepository) CleanupExpired(ctx context.Context, cutoff time.Time) error {
+	_, err := r.db.ExecContext(ctx, queryCleanupExpired, cutoff)
 	if err != nil {
 		return fmt.Errorf("failed to cleanup expired tokens: %w", err)
 	}
