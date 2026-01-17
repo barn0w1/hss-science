@@ -42,26 +42,26 @@ type DBConfig struct {
 // Services should embed AppConfig into their own Config struct and call this.
 func LoadBase() AppConfig {
 	return AppConfig{
-		Env:         getEnv("ENV", "dev"),
-		ServiceName: getEnv("SERVICE_NAME", "unknown-service"),
+		Env:         GetEnv("ENV", "dev"),
+		ServiceName: GetEnv("SERVICE_NAME", "unknown-service"),
 
 		// Default ports: 8080 for HTTP/Gateway, 50051 for gRPC
-		HTTPPort: getEnvAsInt("HTTP_PORT", 8080),
-		GRPCPort: getEnvAsInt("GRPC_PORT", 50051),
+		HTTPPort: GetEnvAsInt("HTTP_PORT", 8080),
+		GRPCPort: GetEnvAsInt("GRPC_PORT", 50051),
 
 		// Default to allow all ("*") in dev, but should be explicit in prod
-		AllowedOrigins: getEnvAsSlice("CORS_ALLOWED_ORIGINS", []string{"*"}),
+		AllowedOrigins: GetEnvAsSlice("CORS_ALLOWED_ORIGINS", []string{"*"}),
 
-		LogLevel:  getEnv("LOG_LEVEL", "info"),
-		LogFormat: getEnv("LOG_FORMAT", "json"),
+		LogLevel:  GetEnv("LOG_LEVEL", "info"),
+		LogFormat: GetEnv("LOG_FORMAT", "json"),
 
 		DB: DBConfig{
-			Host:     getEnvRequired("DB_HOST"),
-			Port:     getEnvAsInt("DB_PORT", 5432),
-			User:     getEnvRequired("DB_USER"),
-			Password: getEnvRequired("DB_PASSWORD"),
-			Name:     getEnvRequired("DB_NAME"),
-			SSLMode:  getEnv("DB_SSLMODE", "disable"),
+			Host:     GetEnvRequired("DB_HOST"),
+			Port:     GetEnvAsInt("DB_PORT", 5432),
+			User:     GetEnvRequired("DB_USER"),
+			Password: GetEnvRequired("DB_PASSWORD"),
+			Name:     GetEnvRequired("DB_NAME"),
+			SSLMode:  GetEnv("DB_SSLMODE", "disable"),
 		},
 	}
 }
@@ -76,16 +76,16 @@ func (c *DBConfig) DSN() string {
 
 // --- Helpers ---
 
-func getEnv(key, defaultVal string) string {
+func GetEnv(key, defaultVal string) string {
 	if value, exists := os.LookupEnv(key); exists {
 		return value
 	}
 	return defaultVal
 }
 
-// getEnvRequired panics if the key is missing.
+// GetEnvRequired panics if the key is missing.
 // This enforces the "Fail Fast" principle for critical infrastructure config.
-func getEnvRequired(key string) string {
+func GetEnvRequired(key string) string {
 	value, exists := os.LookupEnv(key)
 	if !exists {
 		panic(fmt.Sprintf("FATAL: Environment variable %s is required but not set.", key))
@@ -93,17 +93,17 @@ func getEnvRequired(key string) string {
 	return value
 }
 
-func getEnvAsInt(key string, defaultVal int) int {
-	valueStr := getEnv(key, "")
+func GetEnvAsInt(key string, defaultVal int) int {
+	valueStr := GetEnv(key, "")
 	if value, err := strconv.Atoi(valueStr); err == nil {
 		return value
 	}
 	return defaultVal
 }
 
-// getEnvAsSlice splits a comma-separated environment variable into a slice.
-func getEnvAsSlice(key string, defaultVal []string) []string {
-	valueStr := getEnv(key, "")
+// GetEnvAsSlice splits a comma-separated environment variable into a slice.
+func GetEnvAsSlice(key string, defaultVal []string) []string {
+	valueStr := GetEnv(key, "")
 	if valueStr == "" {
 		return defaultVal
 	}
