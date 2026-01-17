@@ -88,3 +88,19 @@ migrate-drive: ## Drive用のマイグレーション実行
 
 gen: ## ProtoからGoコードを生成
 	buf generate
+
+
+# ==============================================================================
+# Run Services (Local Development)
+# ==============================================================================
+.PHONY: run-accounts
+
+run-accounts:
+	@echo "Starting Accounts Service..."
+	@( \
+		set -a; \
+		[ -f infra/envs/dev/.env ] && . infra/envs/dev/.env; \
+		[ -f server/services/accounts/.env ] && . server/services/accounts/.env; \
+		set +a; \
+		cd server && go run services/accounts/cmd/server/main.go \
+	)
