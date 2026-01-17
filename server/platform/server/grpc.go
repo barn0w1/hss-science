@@ -13,7 +13,7 @@ import (
 )
 
 func newGRPCServer() *grpc.Server {
-	// ここに将来的にInterceptor（Auth, Logging, Recovery）を追加する
+	// 将来的なInterceptor（Auth, Logging, Recovery）用
 	opts := []grpc.ServerOption{
 		grpc.UnaryInterceptor(loggingInterceptor),
 	}
@@ -22,7 +22,9 @@ func newGRPCServer() *grpc.Server {
 
 func (s *Server) runGRPC(ctx context.Context) error {
 	addr := fmt.Sprintf(":%d", s.cfg.GRPCPort)
-	lis, err := net.Listen("tcp", addr)
+
+	lc := net.ListenConfig{}
+	lis, err := lc.Listen(ctx, "tcp", addr)
 	if err != nil {
 		return fmt.Errorf("failed to listen on gRPC port %s: %w", addr, err)
 	}
