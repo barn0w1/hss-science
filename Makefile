@@ -1,9 +1,14 @@
-.PHONY: all gen 
+.PHONY: dev-up dev-down migrate-up proto-gen
 
-# Default target
-all: gen
+dev-up:
+	docker compose -f infra/envs/dev/compose.yaml up -d
 
-# Code generation target
-gen:
-	@echo "Generating code..."
+dev-down:
+	docker compose -f infra/envs/dev/compose.yaml down
+
+migrate-up:
+	docker run --rm -v $(PWD)/server/apps/accounts/db/migrations:/migrations --network host migrate/migrate \
+		-path=/migrations/ -database "postgres://user:password@localhost:5432/accounts_db?sslmode=disable" up
+
+proto-gen:
 	buf generate
