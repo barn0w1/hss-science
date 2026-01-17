@@ -2,35 +2,42 @@ package model
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
 
-// Role defines user permissions
-type Role string
+// GlobalRole defines system-wide permissions.
+// Service-specific permissions (e.g. Drive read/write) should be handled in respective services
+// or mapped from these global roles.
+type GlobalRole string
 
 const (
-	RoleAdmin  Role = "admin"
-	RoleMember Role = "member"
+	RoleSystemAdmin GlobalRole = "system_admin" // System Administrator
+	RoleModerator   GlobalRole = "moderator"    // Community Moderator / Manager
+	RoleUser        GlobalRole = "user"         // General Member
 )
 
-// User represents a registered user in the system.
+// User represents a registered user in the system (Identity).
 type User struct {
-	ID        string // HSS内部でのUUID (他サービスからはこれを参照する)
-	DiscordID string // Discord側のユニークID (Snowflake)
-	Name      string // DiscordのUsername (表示用)
-	AvatarURL string // DiscordのAvatar URL (表示用)
-	Role      Role   // 権限
+	ID        string     // HSS internal UUID
+	DiscordID string     // Unique Discord ID
+	Name      string     // Discord Username
+	AvatarURL string     // Discord Avatar URL
+	Role      GlobalRole // System-wide permissions
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
-// NewUser creates a user instance with default role.
+// NewUser creates a user instance with a generated UUID.
 func NewUser(discordID, name, avatarURL string) *User {
+	newID := uuid.New().String()
+
 	return &User{
-		// IDはRepository保存時に生成するか、ここでUUIDライブラリで生成する
+		ID:        newID,
 		DiscordID: discordID,
 		Name:      name,
 		AvatarURL: avatarURL,
-		Role:      RoleMember, // デフォルトはメンバー
+		Role:      RoleUser, // Default is general user
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -38,7 +45,9 @@ func NewUser(discordID, name, avatarURL string) *User {
 
 // UpdateProfile updates mutable fields from Discord info.
 func (u *User) UpdateProfile(name, avatarURL string) {
-	u.Name = name
-	u.AvatarURL = avatarURL
-	u.UpdatedAt = time.Now()
+	if u.Name != name || u.AvatarURL != avatarURL {
+		u.Name = name
+		u.AvatarURL = avatarURL
+		u.UpdatedAt = time.Now()
+	}
 }
