@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	pb "github.com/barn0w1/hss-science/server/gen/public/accounts/v1" // 生成されたGoコードのパスに合わせてください
+	pb "github.com/barn0w1/hss-science/server/gen/public/accounts/v1"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/usecase"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
