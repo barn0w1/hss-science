@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/domain/model"
 )
@@ -23,5 +24,5 @@ type TokenRepository interface {
 
 	// CleanupExpired deletes tokens that are expired AND older than retention period.
 	// This should be called by a background worker/cron.
-	CleanupExpired(ctx context.Context) error
+	CleanupExpired(ctx context.Context, cutoff time.Time) error
 }

@@ -16,8 +16,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// ErrUserNotFound should be defined in domain/repository or here to handle "not found" robustly.
-// For simplicity, we assume repository returns a specific error or nil.
+// ErrInvalidToken is returned when token validation fails.
 var ErrInvalidToken = errors.New("invalid or expired token")
 
 type AuthUsecase struct {
@@ -58,9 +57,12 @@ func (u *AuthUsecase) Login(ctx context.Context, code string, ip, userAgent stri
 
 	// 2. Find or Create User
 	user, err := u.userRepo.GetByDiscordID(ctx, discordUser.DiscordID)
-
 	if err != nil {
-		return nil, fmt.Errorf("database error during user lookup: %w", err)
+		if errors.Is(err, repository.ErrNotFound) {
+			user = nil
+		} else {
+			return nil, fmt.Errorf("database error during user lookup: %w", err)
+		}
 	}
 
 	if user == nil {
