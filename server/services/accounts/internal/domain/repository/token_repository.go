@@ -14,9 +14,14 @@ type TokenRepository interface {
 	// Get retrieves a refresh token by its hash.
 	Get(ctx context.Context, tokenHash string) (*model.RefreshToken, error)
 
-	// Delete removes a refresh token (Logout).
-	Delete(ctx context.Context, tokenHash string) error
+	// Revoke marks a refresh token as revoked (Logout).
+	// Instead of physical deletion, we update the revoked_at timestamp.
+	Revoke(ctx context.Context, tokenHash string) error
 
-	// DeleteByUserID removes all tokens for a user (Revoke all sessions).
-	DeleteByUserID(ctx context.Context, userID string) error
+	// RevokeByUserID marks all tokens for a user as revoked (Revoke all sessions).
+	RevokeByUserID(ctx context.Context, userID string) error
+
+	// CleanupExpired deletes tokens that are expired AND older than retention period.
+	// This should be called by a background worker/cron.
+	CleanupExpired(ctx context.Context) error
 }
