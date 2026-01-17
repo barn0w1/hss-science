@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
@@ -49,7 +50,7 @@ func main() {
 	// DB Connection settings (optional but recommended)
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(25)
-	db.SetConnMaxLifetime(5 * 60) // 5 minutes
+	db.SetConnMaxLifetime(5 * time.Minute) // 5 minutes
 
 	slog.Info("Database connected", "host", cfg.DB.Host)
 
