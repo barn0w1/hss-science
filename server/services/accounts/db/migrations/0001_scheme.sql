@@ -10,19 +10,27 @@ CREATE TABLE users (
     updated_at  TIMESTAMPTZ NOT NULL
 );
 
--- (WHERE discord_id = ?)
+-- For efficient lookup by Discord ID
 CREATE INDEX idx_users_discord_id ON users(discord_id);
 
 -- Refresh Tokens Table
 CREATE TABLE refresh_tokens (
     token_hash  VARCHAR(255) PRIMARY KEY,
     user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
     expires_at  TIMESTAMPTZ NOT NULL,
     created_at  TIMESTAMPTZ NOT NULL,
     
+    -- NULL = valid, otherwise considered revoked (logged out) at that time
+    revoked_at  TIMESTAMPTZ,
+    
+    -- For audit logs
     user_agent  TEXT,
     ip_address  VARCHAR(45)
 );
 
--- (WHERE user_id = ?)
+-- For listing sessions per user and bulk logout
 CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+
+-- For efficient cleanup of expired tokens by a periodic job
+CREATE INDEX idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
