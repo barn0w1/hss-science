@@ -2,116 +2,73 @@ package server
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"log/slog"
-	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/barn0w1/hss-science/server/platform/config"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
-// Config holds the server startup configuration.
-type Config struct {
-	GRPCPort int
-	HTTPPort int  // If 0, the HTTP Gateway will not start.
-	IsDev    bool // Controls CORS and logging verbosity.
+// Server manages both the gRPC server and the HTTP Gateway server.
+type Server struct {
+	cfg        config.AppConfig
+	grpcServer *grpc.Server
+	// Gateway registration function
+	gatewayReg func(context.Context, *runtime.ServeMux, string, []grpc.DialOption) error
 }
 
-// Run starts the gRPC server and optional HTTP Gateway.
-// It blocks until a signal (SIGINT/SIGTERM) is received.
-func Run(
-	ctx context.Context,
-	cfg Config,
-	registerGRPC func(*grpc.Server),
-	registerGateway func(context.Context, *runtime.ServeMux, *grpc.ClientConn) error,
-) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	// 1. Initialize gRPC Server
-	grpcServer := newGRPCServer()
-	registerGRPC(grpcServer)
-
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPCPort))
-	if err != nil {
-		return fmt.Errorf("failed to listen on grpc port %d: %w", cfg.GRPCPort, err)
+// New creates a new Server manager.
+func New(cfg config.AppConfig) *Server {
+	return &Server{
+		cfg:        cfg,
+		grpcServer: newGRPCServer(), // defined in grpc.go
 	}
+}
 
-	// 2. Orchestration
+// GrpcServer returns the internal gRPC server to register services.
+func (s *Server) GrpcServer() *grpc.Server {
+	return s.grpcServer
+}
+
+// RegisterGateway sets the registration function for the HTTP Gateway.
+// The callback usually calls pb.RegisterServiceHandlerFromEndpoint.
+func (s *Server) RegisterGateway(fn func(context.Context, *runtime.ServeMux, string, []grpc.DialOption) error) {
+	s.gatewayReg = fn
+}
+
+// Run starts both servers and waits for a termination signal.
+func (s *Server) Run() error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	g, ctx := errgroup.WithContext(ctx)
 
-	// --- Start gRPC ---
+	// 1. Start gRPC Server
 	g.Go(func() error {
-		slog.Info("🚀 gRPC Server started", "port", cfg.GRPCPort)
-		if err := grpcServer.Serve(lis); err != nil && err != grpc.ErrServerStopped {
-			return err
-		}
-		return nil
+		return s.runGRPC(ctx) // defined in grpc.go
 	})
 
-	// --- Start Gateway (Optional) ---
-	if cfg.HTTPPort > 0 && registerGateway != nil {
-		// Create a client connection to the local gRPC server
-		conn, err := grpc.NewClient(
-			fmt.Sprintf("localhost:%d", cfg.GRPCPort),
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-		)
-		if err != nil {
-			return fmt.Errorf("failed to dial internal grpc: %w", err)
-		}
-		defer conn.Close()
-
-		mux := newGatewayMux()
-		if err := registerGateway(ctx, mux, conn); err != nil {
-			return fmt.Errorf("failed to register gateway handler: %w", err)
-		}
-
-		httpServer := &http.Server{
-			Addr:    fmt.Sprintf(":%d", cfg.HTTPPort),
-			Handler: withCORS(mux, cfg.IsDev),
-		}
-
-		// Gateway Listener
-		g.Go(func() error {
-			slog.Info("🌍 HTTP Gateway started", "port", cfg.HTTPPort)
-			if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				return err
-			}
-			return nil
-		})
-
-		// Gateway Shutdown Handler
-		g.Go(func() error {
-			<-ctx.Done()
-			slog.Info("Shutting down HTTP Gateway...")
-			shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancelShutdown()
-			return httpServer.Shutdown(shutdownCtx)
-		})
-	}
-
-	// 3. Signal Listener (Graceful Shutdown)
+	// 2. Start HTTP Gateway (depends on gRPC)
 	g.Go(func() error {
-		quit := make(chan os.Signal, 1)
-		signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+		// Wait a bit for gRPC to start (optional but safer in local dev)
+		time.Sleep(100 * time.Millisecond)
+		return s.runGateway(ctx) // defined in gateway.go
+	})
 
-		select {
-		case s := <-quit:
-			slog.Info("Signal received, initiating shutdown...", "signal", s)
-			cancel()
-		case <-ctx.Done():
-		}
+	// 3. Wait for signal and shutdown
+	g.Go(func() error {
+		<-ctx.Done()
+		slog.Info("Shutdown signal received")
 
-		slog.Info("Stopping gRPC Server...")
-		grpcServer.GracefulStop()
+		// Shutdown Gracefully
+		s.grpcServer.GracefulStop()
+		// HTTP shutdown is handled in runGateway via server.Shutdown(ctx)
+
 		return nil
 	})
 

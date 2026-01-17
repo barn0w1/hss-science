@@ -2,48 +2,63 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"net"
+	"time"
 
-	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
-	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 )
 
-// newGRPCServer creates a gRPC server with standard interceptors.
-// It enforces logging and panic recovery for all services.
 func newGRPCServer() *grpc.Server {
-	// Logger adapter to bridge slog with grpc-middleware
-	loggerOpts := []logging.Option{
-		logging.WithLogOnEvents(logging.StartCall, logging.FinishCall),
-	}
-
+	// ここに将来的にInterceptor（Auth, Logging, Recovery）を追加する
 	opts := []grpc.ServerOption{
-		grpc.ChainUnaryInterceptor(
-			recovery.UnaryServerInterceptor(recovery.WithRecoveryHandler(recoveryHandler)),
-			logging.UnaryServerInterceptor(interceptorLogger(slog.Default()), loggerOpts...),
-		),
+		grpc.UnaryInterceptor(loggingInterceptor),
+	}
+	return grpc.NewServer(opts...)
+}
+
+func (s *Server) runGRPC(ctx context.Context) error {
+	addr := fmt.Sprintf(":%d", s.cfg.GRPCPort)
+	lis, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("failed to listen on gRPC port %s: %w", addr, err)
 	}
 
-	s := grpc.NewServer(opts...)
+	slog.Info("Starting gRPC server", "addr", addr)
 
-	// Enable Server Reflection for tools like grpcurl/Postman
-	reflection.Register(s)
-
-	return s
+	// Serve blocks until Stop() is called or error occurs
+	if err := s.grpcServer.Serve(lis); err != nil {
+		return err
+	}
+	return nil
 }
 
-// interceptorLogger adapts slog to the logging interceptor interface.
-func interceptorLogger(l *slog.Logger) logging.Logger {
-	return logging.LoggerFunc(func(ctx context.Context, lvl logging.Level, msg string, fields ...any) {
-		l.Log(ctx, slog.Level(lvl), msg, fields...)
-	})
-}
+// Simple logging interceptor using slog
+func loggingInterceptor(
+	ctx context.Context,
+	req interface{},
+	info *grpc.UnaryServerInfo,
+	handler grpc.UnaryHandler,
+) (interface{}, error) {
+	start := time.Now()
+	resp, err := handler(ctx, req)
+	duration := time.Since(start)
 
-// recoveryHandler ensures the server returns a proper error code instead of crashing on panic.
-func recoveryHandler(p any) (err error) {
-	slog.Error("Recovered from panic", "panic", p)
-	return status.Errorf(codes.Internal, "internal server error")
+	code := codes.OK
+	if err != nil {
+		code = status.Code(err)
+	}
+
+	// Structured logging
+	slog.Info("gRPC Request",
+		"method", info.FullMethod,
+		"code", code.String(),
+		"duration", duration,
+		"error", err,
+	)
+
+	return resp, err
 }
