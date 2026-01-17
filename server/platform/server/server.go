@@ -26,7 +26,7 @@ type Server struct {
 func New(cfg config.AppConfig) *Server {
 	return &Server{
 		cfg:        cfg,
-		grpcServer: newGRPCServer(), // defined in grpc.go
+		grpcServer: newGRPCServer(cfg), // defined in grpc.go
 	}
 }
 

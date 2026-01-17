@@ -7,17 +7,29 @@ import (
 	"net"
 	"time"
 
+	"github.com/barn0w1/hss-science/server/platform/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 )
 
-func newGRPCServer() *grpc.Server {
+// 引数に cfg を追加
+func newGRPCServer(cfg config.AppConfig) *grpc.Server {
 	// 将来的なInterceptor（Auth, Logging, Recovery）用
 	opts := []grpc.ServerOption{
 		grpc.UnaryInterceptor(loggingInterceptor),
 	}
-	return grpc.NewServer(opts...)
+
+	s := grpc.NewServer(opts...)
+
+	// ENVが "dev" の場合のみReflectionを有効化
+	if cfg.Env == "dev" {
+		reflection.Register(s)
+		slog.Info("gRPC Reflection enabled (env=dev)")
+	}
+
+	return s
 }
 
 func (s *Server) runGRPC(ctx context.Context) error {
