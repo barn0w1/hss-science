@@ -19,7 +19,7 @@ type AppConfig struct {
 	GRPCPort int // Port for gRPC Service (Internal communication). Default: 50051
 
 	// CORS Configuration (Essential for SPA)
-	AllowedOrigins []string // List of allowed origins for CORS (e.g. "https://hss-science.org")
+	AllowedOrigins []string // List of allowed origins for CORS
 
 	// Logging
 	LogLevel  string

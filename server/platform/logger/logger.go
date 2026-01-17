@@ -6,10 +6,10 @@ import (
 	"strings"
 )
 
-// Config holds the configuration for the logger.
 type Config struct {
-	LogLevel  string // "debug", "info", "warn", "error"
-	LogFormat string // "json", "text"
+	ServiceName string // e.g., "accounts", "billing"
+	LogLevel    string // "debug", "info", "warn", "error"
+	LogFormat   string // "json", "text"
 }
 
 // Setup initializes the global logger based on the provided config.
@@ -31,6 +31,8 @@ func Setup(cfg Config) {
 
 	opts := &slog.HandlerOptions{
 		Level: level,
+		// Output file name and line number only at Debug level to aid debugging
+		AddSource: level == slog.LevelDebug,
 	}
 
 	// Select handler based on format
@@ -42,6 +44,9 @@ func Setup(cfg Config) {
 		handler = slog.NewJSONHandler(os.Stdout, opts)
 	}
 
-	logger := slog.New(handler)
+	// The key point: Attach attributes like "service": "accounts" to the created Logger from the start.
+	logger := slog.New(handler).With("service", cfg.ServiceName)
+
+	// Overwrite the global default logger
 	slog.SetDefault(logger)
 }
