@@ -7,80 +7,55 @@ option go_package = "github.com/barn0w1/hss-science/server/gen/public/accounts/v
 import "google/api/annotations.proto";
 
 service AccountsService {
-  // GET /v1/auth/login-url?redirect_to=...
-  rpc GetLoginUrl(GetLoginUrlRequest) returns (GetLoginUrlResponse) {
+  // DiscordのOAuth Codeを受け取り、アクセストークン一式を返す
+  rpc Login(LoginRequest) returns (LoginResponse) {
     option (google.api.http) = {
-      get: "/v1/auth/login-url"
-    };
-  }
-
-  // POST /v1/auth/callback
-  // Body: { "code": "...", "state": "..." }
-  rpc OAuthCallback(OAuthCallbackRequest) returns (OAuthCallbackResponse) {
-    option (google.api.http) = {
-      post: "/v1/auth/callback"
+      post: "/v1/auth/login"
       body: "*"
     };
   }
 
-  // POST /v1/auth/logout
+  // Refresh Tokenを受け取り、新しいアクセストークン一式を返す
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/refresh"
+      body: "*"
+    };
+  }
+
+  // Refresh Tokenを無効化（ログアウト）する
   rpc Logout(LogoutRequest) returns (LogoutResponse) {
     option (google.api.http) = {
       post: "/v1/auth/logout"
-    };
-  }
-
-  // POST /v1/auth/refresh
-  rpc Refresh(RefreshRequest) returns (RefreshResponse) {
-    option (google.api.http) = {
-      post: "/v1/auth/refresh"
-    };
-  }
-
-  // GET /v1/auth/session
-  rpc GetSession(GetSessionRequest) returns (GetSessionResponse) {
-    option (google.api.http) = {
-      get: "/v1/auth/session"
+      body: "*"
     };
   }
 }
 
 // ===== Requests / Responses =====
 
-message GetLoginUrlRequest {
-  string redirect_to = 1;
+message LoginRequest {
+  string code = 1; // Discordから返ってきたAuth Code
 }
 
-message GetLoginUrlResponse {
-  string url = 1;
+message LoginResponse {
+  string access_token = 1;  // JWT
+  string refresh_token = 2; // Opaque Token
+  int32 expires_in = 3;     // 秒数
 }
 
-message OAuthCallbackRequest {
-  string code = 1;
-  string state = 2;
+message RefreshTokenRequest {
+  string refresh_token = 1;
 }
 
-message OAuthCallbackResponse {
-  Session session = 1;
+message RefreshTokenResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  int32 expires_in = 3;
 }
 
-message LogoutRequest {}
+message LogoutRequest {
+  string refresh_token = 1; // 無効化対象のトークン
+}
+
 message LogoutResponse {}
-
-message RefreshRequest {}
-message RefreshResponse {
-  Session session = 1;
-}
-
-message GetSessionRequest {}
-message GetSessionResponse {
-  Session session = 1;
-}
-
-// ===== Data Models =====
-
-message Session {
-  string user_id = 1;
-  string display_name = 2;
-  string avatar_url = 3;
-}

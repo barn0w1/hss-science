@@ -16,15 +16,15 @@
     "application/json"
   ],
   "paths": {
-    "/v1/auth/callback": {
+    "/v1/auth/login": {
       "post": {
-        "summary": "POST /v1/auth/callback\nBody: { \"code\": \"...\", \"state\": \"...\" }",
-        "operationId": "AccountsService_OAuthCallback",
+        "summary": "DiscordのOAuth Codeを受け取り、アクセストークン一式を返す",
+        "operationId": "AccountsService_Login",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1OAuthCallbackResponse"
+              "$ref": "#/definitions/v1LoginResponse"
             }
           },
           "default": {
@@ -40,39 +40,8 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/v1OAuthCallbackRequest"
+              "$ref": "#/definitions/v1LoginRequest"
             }
-          }
-        ],
-        "tags": [
-          "AccountsService"
-        ]
-      }
-    },
-    "/v1/auth/login-url": {
-      "get": {
-        "summary": "GET /v1/auth/login-url?redirect_to=...",
-        "operationId": "AccountsService_GetLoginUrl",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1GetLoginUrlResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "redirect_to",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -82,7 +51,7 @@
     },
     "/v1/auth/logout": {
       "post": {
-        "summary": "POST /v1/auth/logout",
+        "summary": "Refresh Tokenを無効化（ログアウト）する",
         "operationId": "AccountsService_Logout",
         "responses": {
           "200": {
@@ -98,6 +67,16 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1LogoutRequest"
+            }
+          }
+        ],
         "tags": [
           "AccountsService"
         ]
@@ -105,13 +84,13 @@
     },
     "/v1/auth/refresh": {
       "post": {
-        "summary": "POST /v1/auth/refresh",
-        "operationId": "AccountsService_Refresh",
+        "summary": "Refresh Tokenを受け取り、新しいアクセストークン一式を返す",
+        "operationId": "AccountsService_RefreshToken",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1RefreshResponse"
+              "$ref": "#/definitions/v1RefreshTokenResponse"
             }
           },
           "default": {
@@ -121,29 +100,16 @@
             }
           }
         },
-        "tags": [
-          "AccountsService"
-        ]
-      }
-    },
-    "/v1/auth/session": {
-      "get": {
-        "summary": "GET /v1/auth/session",
-        "operationId": "AccountsService_GetSession",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
             "schema": {
-              "$ref": "#/definitions/v1GetSessionResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
+              "$ref": "#/definitions/v1RefreshTokenRequest"
             }
           }
-        },
+        ],
         "tags": [
           "AccountsService"
         ]
@@ -179,63 +145,65 @@
         }
       }
     },
-    "v1GetLoginUrlResponse": {
+    "v1LoginRequest": {
       "type": "object",
       "properties": {
-        "url": {
-          "type": "string"
+        "code": {
+          "type": "string",
+          "title": "Discordから返ってきたAuth Code"
         }
       }
     },
-    "v1GetSessionResponse": {
+    "v1LoginResponse": {
       "type": "object",
       "properties": {
-        "session": {
-          "$ref": "#/definitions/v1Session"
+        "access_token": {
+          "type": "string",
+          "title": "JWT"
+        },
+        "refresh_token": {
+          "type": "string",
+          "title": "Opaque Token"
+        },
+        "expires_in": {
+          "type": "integer",
+          "format": "int32",
+          "title": "秒数"
+        }
+      }
+    },
+    "v1LogoutRequest": {
+      "type": "object",
+      "properties": {
+        "refresh_token": {
+          "type": "string",
+          "title": "無効化対象のトークン"
         }
       }
     },
     "v1LogoutResponse": {
       "type": "object"
     },
-    "v1OAuthCallbackRequest": {
+    "v1RefreshTokenRequest": {
       "type": "object",
       "properties": {
-        "code": {
-          "type": "string"
-        },
-        "state": {
+        "refresh_token": {
           "type": "string"
         }
       }
     },
-    "v1OAuthCallbackResponse": {
+    "v1RefreshTokenResponse": {
       "type": "object",
       "properties": {
-        "session": {
-          "$ref": "#/definitions/v1Session"
-        }
-      }
-    },
-    "v1RefreshResponse": {
-      "type": "object",
-      "properties": {
-        "session": {
-          "$ref": "#/definitions/v1Session"
-        }
-      }
-    },
-    "v1Session": {
-      "type": "object",
-      "properties": {
-        "user_id": {
+        "access_token": {
           "type": "string"
         },
-        "display_name": {
+        "refresh_token": {
           "type": "string"
         },
-        "avatar_url": {
-          "type": "string"
+        "expires_in": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     }

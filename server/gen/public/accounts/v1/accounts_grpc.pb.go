@@ -19,28 +19,21 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AccountsService_GetLoginUrl_FullMethodName   = "/hss_science.accounts.v1.AccountsService/GetLoginUrl"
-	AccountsService_OAuthCallback_FullMethodName = "/hss_science.accounts.v1.AccountsService/OAuthCallback"
-	AccountsService_Logout_FullMethodName        = "/hss_science.accounts.v1.AccountsService/Logout"
-	AccountsService_Refresh_FullMethodName       = "/hss_science.accounts.v1.AccountsService/Refresh"
-	AccountsService_GetSession_FullMethodName    = "/hss_science.accounts.v1.AccountsService/GetSession"
+	AccountsService_Login_FullMethodName        = "/hss_science.accounts.v1.AccountsService/Login"
+	AccountsService_RefreshToken_FullMethodName = "/hss_science.accounts.v1.AccountsService/RefreshToken"
+	AccountsService_Logout_FullMethodName       = "/hss_science.accounts.v1.AccountsService/Logout"
 )
 
 // AccountsServiceClient is the client API for AccountsService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AccountsServiceClient interface {
-	// GET /v1/auth/login-url?redirect_to=...
-	GetLoginUrl(ctx context.Context, in *GetLoginUrlRequest, opts ...grpc.CallOption) (*GetLoginUrlResponse, error)
-	// POST /v1/auth/callback
-	// Body: { "code": "...", "state": "..." }
-	OAuthCallback(ctx context.Context, in *OAuthCallbackRequest, opts ...grpc.CallOption) (*OAuthCallbackResponse, error)
-	// POST /v1/auth/logout
+	// DiscordのOAuth Codeを受け取り、アクセストークン一式を返す
+	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
+	// Refresh Tokenを受け取り、新しいアクセストークン一式を返す
+	RefreshToken(ctx context.Context, in *RefreshTokenRequest, opts ...grpc.CallOption) (*RefreshTokenResponse, error)
+	// Refresh Tokenを無効化（ログアウト）する
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
-	// POST /v1/auth/refresh
-	Refresh(ctx context.Context, in *RefreshRequest, opts ...grpc.CallOption) (*RefreshResponse, error)
-	// GET /v1/auth/session
-	GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*GetSessionResponse, error)
 }
 
 type accountsServiceClient struct {
@@ -51,20 +44,20 @@ func NewAccountsServiceClient(cc grpc.ClientConnInterface) AccountsServiceClient
 	return &accountsServiceClient{cc}
 }
 
-func (c *accountsServiceClient) GetLoginUrl(ctx context.Context, in *GetLoginUrlRequest, opts ...grpc.CallOption) (*GetLoginUrlResponse, error) {
+func (c *accountsServiceClient) Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetLoginUrlResponse)
-	err := c.cc.Invoke(ctx, AccountsService_GetLoginUrl_FullMethodName, in, out, cOpts...)
+	out := new(LoginResponse)
+	err := c.cc.Invoke(ctx, AccountsService_Login_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *accountsServiceClient) OAuthCallback(ctx context.Context, in *OAuthCallbackRequest, opts ...grpc.CallOption) (*OAuthCallbackResponse, error) {
+func (c *accountsServiceClient) RefreshToken(ctx context.Context, in *RefreshTokenRequest, opts ...grpc.CallOption) (*RefreshTokenResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(OAuthCallbackResponse)
-	err := c.cc.Invoke(ctx, AccountsService_OAuthCallback_FullMethodName, in, out, cOpts...)
+	out := new(RefreshTokenResponse)
+	err := c.cc.Invoke(ctx, AccountsService_RefreshToken_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -81,41 +74,16 @@ func (c *accountsServiceClient) Logout(ctx context.Context, in *LogoutRequest, o
 	return out, nil
 }
 
-func (c *accountsServiceClient) Refresh(ctx context.Context, in *RefreshRequest, opts ...grpc.CallOption) (*RefreshResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RefreshResponse)
-	err := c.cc.Invoke(ctx, AccountsService_Refresh_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *accountsServiceClient) GetSession(ctx context.Context, in *GetSessionRequest, opts ...grpc.CallOption) (*GetSessionResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetSessionResponse)
-	err := c.cc.Invoke(ctx, AccountsService_GetSession_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // AccountsServiceServer is the server API for AccountsService service.
 // All implementations must embed UnimplementedAccountsServiceServer
 // for forward compatibility.
 type AccountsServiceServer interface {
-	// GET /v1/auth/login-url?redirect_to=...
-	GetLoginUrl(context.Context, *GetLoginUrlRequest) (*GetLoginUrlResponse, error)
-	// POST /v1/auth/callback
-	// Body: { "code": "...", "state": "..." }
-	OAuthCallback(context.Context, *OAuthCallbackRequest) (*OAuthCallbackResponse, error)
-	// POST /v1/auth/logout
+	// DiscordのOAuth Codeを受け取り、アクセストークン一式を返す
+	Login(context.Context, *LoginRequest) (*LoginResponse, error)
+	// Refresh Tokenを受け取り、新しいアクセストークン一式を返す
+	RefreshToken(context.Context, *RefreshTokenRequest) (*RefreshTokenResponse, error)
+	// Refresh Tokenを無効化（ログアウト）する
 	Logout(context.Context, *LogoutRequest) (*LogoutResponse, error)
-	// POST /v1/auth/refresh
-	Refresh(context.Context, *RefreshRequest) (*RefreshResponse, error)
-	// GET /v1/auth/session
-	GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error)
 	mustEmbedUnimplementedAccountsServiceServer()
 }
 
@@ -126,20 +94,14 @@ type AccountsServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedAccountsServiceServer struct{}
 
-func (UnimplementedAccountsServiceServer) GetLoginUrl(context.Context, *GetLoginUrlRequest) (*GetLoginUrlResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetLoginUrl not implemented")
+func (UnimplementedAccountsServiceServer) Login(context.Context, *LoginRequest) (*LoginResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Login not implemented")
 }
-func (UnimplementedAccountsServiceServer) OAuthCallback(context.Context, *OAuthCallbackRequest) (*OAuthCallbackResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method OAuthCallback not implemented")
+func (UnimplementedAccountsServiceServer) RefreshToken(context.Context, *RefreshTokenRequest) (*RefreshTokenResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RefreshToken not implemented")
 }
 func (UnimplementedAccountsServiceServer) Logout(context.Context, *LogoutRequest) (*LogoutResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Logout not implemented")
-}
-func (UnimplementedAccountsServiceServer) Refresh(context.Context, *RefreshRequest) (*RefreshResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method Refresh not implemented")
-}
-func (UnimplementedAccountsServiceServer) GetSession(context.Context, *GetSessionRequest) (*GetSessionResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetSession not implemented")
 }
 func (UnimplementedAccountsServiceServer) mustEmbedUnimplementedAccountsServiceServer() {}
 func (UnimplementedAccountsServiceServer) testEmbeddedByValue()                         {}
@@ -162,38 +124,38 @@ func RegisterAccountsServiceServer(s grpc.ServiceRegistrar, srv AccountsServiceS
 	s.RegisterService(&AccountsService_ServiceDesc, srv)
 }
 
-func _AccountsService_GetLoginUrl_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetLoginUrlRequest)
+func _AccountsService_Login_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LoginRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccountsServiceServer).GetLoginUrl(ctx, in)
+		return srv.(AccountsServiceServer).Login(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AccountsService_GetLoginUrl_FullMethodName,
+		FullMethod: AccountsService_Login_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountsServiceServer).GetLoginUrl(ctx, req.(*GetLoginUrlRequest))
+		return srv.(AccountsServiceServer).Login(ctx, req.(*LoginRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AccountsService_OAuthCallback_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(OAuthCallbackRequest)
+func _AccountsService_RefreshToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RefreshTokenRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccountsServiceServer).OAuthCallback(ctx, in)
+		return srv.(AccountsServiceServer).RefreshToken(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AccountsService_OAuthCallback_FullMethodName,
+		FullMethod: AccountsService_RefreshToken_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountsServiceServer).OAuthCallback(ctx, req.(*OAuthCallbackRequest))
+		return srv.(AccountsServiceServer).RefreshToken(ctx, req.(*RefreshTokenRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -216,42 +178,6 @@ func _AccountsService_Logout_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AccountsService_Refresh_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RefreshRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AccountsServiceServer).Refresh(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AccountsService_Refresh_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountsServiceServer).Refresh(ctx, req.(*RefreshRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AccountsService_GetSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetSessionRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AccountsServiceServer).GetSession(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AccountsService_GetSession_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountsServiceServer).GetSession(ctx, req.(*GetSessionRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // AccountsService_ServiceDesc is the grpc.ServiceDesc for AccountsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -260,24 +186,16 @@ var AccountsService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*AccountsServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetLoginUrl",
-			Handler:    _AccountsService_GetLoginUrl_Handler,
+			MethodName: "Login",
+			Handler:    _AccountsService_Login_Handler,
 		},
 		{
-			MethodName: "OAuthCallback",
-			Handler:    _AccountsService_OAuthCallback_Handler,
+			MethodName: "RefreshToken",
+			Handler:    _AccountsService_RefreshToken_Handler,
 		},
 		{
 			MethodName: "Logout",
 			Handler:    _AccountsService_Logout_Handler,
-		},
-		{
-			MethodName: "Refresh",
-			Handler:    _AccountsService_Refresh_Handler,
-		},
-		{
-			MethodName: "GetSession",
-			Handler:    _AccountsService_GetSession_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
