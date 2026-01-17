@@ -59,11 +59,6 @@ func (u *AuthUsecase) Login(ctx context.Context, code string, ip, userAgent stri
 	// 2. Find or Create User
 	user, err := u.userRepo.GetByDiscordID(ctx, discordUser.DiscordID)
 
-	// Repositoryの実装規約:
-	// - 見つかった場合: user != nil, err == nil
-	// - 見つからない場合: user == nil, err == nil (または特定のErrNotFound)
-	// - DBエラー: user == nil, err != nil
-
 	if err != nil {
 		return nil, fmt.Errorf("database error during user lookup: %w", err)
 	}
@@ -94,8 +89,6 @@ func (u *AuthUsecase) RefreshTokens(ctx context.Context, rawRefreshToken, ip, us
 
 	refreshToken, err := u.tokenRepo.Get(ctx, tokenHash)
 	if err != nil {
-		// Security: Don't reveal why it failed (DB error vs Not Found) to the client, but log it.
-		// ここではドメインエラーとして "Invalid Token" を返す
 		return nil, ErrInvalidToken
 	}
 
@@ -114,7 +107,6 @@ func (u *AuthUsecase) RefreshTokens(ctx context.Context, rawRefreshToken, ip, us
 	}
 
 	// 4. Revoke the OLD refresh token (Token Rotation)
-	// リフレッシュに使ったトークンは即座に無効化する
 	if err := u.tokenRepo.Revoke(ctx, tokenHash); err != nil {
 		return nil, fmt.Errorf("failed to revoke old token: %w", err)
 	}
