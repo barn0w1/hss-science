@@ -24,7 +24,15 @@ func (s *Server) runGateway(ctx context.Context) error {
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}
 
-	mux := runtime.NewServeMux()
+	// Configure ServeMux to pass "Cookie" headers to gRPC metadata
+	mux := runtime.NewServeMux(
+		runtime.WithIncomingHeaderMatcher(func(key string) (string, bool) {
+			if key == "Cookie" {
+				return "cookie", true
+			}
+			return runtime.DefaultHeaderMatcher(key)
+		}),
+	)
 
 	// Call the registered callback to wire up the specific service proto
 	if err := s.gatewayReg(ctx, mux, grpcEndpoint, opts); err != nil {
@@ -56,10 +64,10 @@ func (s *Server) runGateway(ctx context.Context) error {
 // CORS Middleware
 func corsMiddleware(h http.Handler, allowedOrigins []string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Simple logic: If origin is in allowed list (or *), allow it.
 		origin := r.Header.Get("Origin")
 		allow := false
 
+		// Check allowed origins
 		for _, o := range allowedOrigins {
 			if o == "*" || o == origin {
 				allow = true
@@ -68,9 +76,12 @@ func corsMiddleware(h http.Handler, allowedOrigins []string) http.Handler {
 		}
 
 		if allow {
+			// Note: When Allow-Credentials is true, Allow-Origin cannot be "*" in standard browsers.
+			// However, since we set it to the request "origin", it works fine.
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Cookie")
+			w.Header().Set("Access-Control-Allow-Credentials", "true") // Important for Cookies (Refresh Token)
 		}
 
 		if r.Method == "OPTIONS" {
