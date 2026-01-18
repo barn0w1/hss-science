@@ -28,15 +28,13 @@ func (m *AuthMiddleware) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 		}
 
 		// 2. Authenticate
-		userID, err := m.authenticate(ctx)
+		_, err := m.authenticate(ctx)
 		if err != nil {
 			return nil, err
 		}
 
-		// 3. Inject UserID into Context (optional, but good practice)
-		// type contextKey string
-		// const userIDKey contextKey = "user_id"
-		// ctx = context.WithValue(ctx, userIDKey, userID)
+		// 将来的にContextにIDを入れる場合はここで処理する
+		// ctx = context.WithValue(ctx, "user_id", userID)
 
 		return handler(ctx, req)
 	}
