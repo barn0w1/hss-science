@@ -9,11 +9,11 @@ accounts.hss-science.org {
 
     # --- Backend Services ---
     handle /api/* {
-        reverse_proxy accounts_server:3000
+        reverse_proxy accounts-server:3000
     }
 
     # --- Frontend SPA ---
     handle {
-        reverse_proxy accounts_web:80
+        reverse_proxy accounts-web:80
     }
 }
