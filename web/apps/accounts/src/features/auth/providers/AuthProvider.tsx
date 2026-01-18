@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useAccountsServiceRefreshToken, useAccountsServiceLogout } from '@hss-science/api';
 import { setAccessToken } from '../../../lib/axios';
@@ -18,19 +18,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const refreshTokenMutation = useAccountsServiceRefreshToken();
   const logoutMutation = useAccountsServiceLogout();
+  const effectRan = useRef(false);
 
   useEffect(() => {
+    if (effectRan.current) return;
+    
     const initAuth = async () => {
+      effectRan.current = true;
       try {
         // Attempt silent refresh
         const response = await refreshTokenMutation.mutateAsync({ data: {} });
         if (response.access_token) {
           setAccessToken(response.access_token);
           setIsAuthenticated(true);
+        } else {
+          // Token missing in response
+          setAccessToken(null);
+          setIsAuthenticated(false);
         }
       } catch (error) {
         // Silent refresh failed - user is not logged in
-        // We don't log error to console to keep it clean, as this is expected for new users
         setAccessToken(null);
         setIsAuthenticated(false);
       } finally {

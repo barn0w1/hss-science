@@ -11,13 +11,23 @@ export const AXIOS_INSTANCE = axios.create({
   },
 });
 
+let _accessToken: string | null = null;
+
 export const setAccessToken = (token: string | null) => {
-  if (token) {
-    AXIOS_INSTANCE.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-  } else {
-    delete AXIOS_INSTANCE.defaults.headers.common['Authorization'];
-  }
+  _accessToken = token;
 };
+
+export const getAccessToken = () => _accessToken;
+
+AXIOS_INSTANCE.interceptors.request.use(
+  (config) => {
+    if (_accessToken) {
+      config.headers.Authorization = `Bearer ${_accessToken}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 // Orvalが使用するカスタム関数
 export const customInstance = <T>(
