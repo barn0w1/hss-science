@@ -40,7 +40,6 @@ export const Login = () => {
     return (
         <AuthLayout 
             title="Sign in"
-            subtitle="HSS Science"
         >
             <div className="space-y-5">
                 <Button
@@ -51,10 +50,6 @@ export const Login = () => {
                 >
                     {isFetching ? 'Connecting to Discord...' : 'Continue with Discord'}
                 </Button>
-
-                <p className="text-[11px] text-slate-400 text-center">
-                    Single Sign-On for *.hss-science.org
-                </p>
             </div>
         </AuthLayout>
     );
