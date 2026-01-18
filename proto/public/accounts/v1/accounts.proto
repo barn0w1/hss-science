@@ -7,7 +7,14 @@ option go_package = "github.com/barn0w1/hss-science/server/gen/public/accounts/v
 import "google/api/annotations.proto";
 
 service AccountsService {
-  // DiscordのOAuth Codeを受け取り、アクセストークン一式を返す
+  // Get authentication URL for Discord OAuth2
+  rpc GetAuthUrl(GetAuthUrlRequest) returns (GetAuthUrlResponse) {
+    option (google.api.http) = {
+      get: "/v1/auth/url"
+    };
+  }
+
+  // Exchange Discord OAuth Code for access tokens
   rpc Login(LoginRequest) returns (LoginResponse) {
     option (google.api.http) = {
       post: "/v1/auth/login"
@@ -15,7 +22,7 @@ service AccountsService {
     };
   }
 
-  // Refresh Tokenを受け取り、新しいアクセストークン一式を返す
+  // Refresh Access Token using Refresh Token
   rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse) {
     option (google.api.http) = {
       post: "/v1/auth/refresh"
@@ -23,25 +30,41 @@ service AccountsService {
     };
   }
 
-  // Refresh Tokenを無効化（ログアウト）する
+  // Invalidate Refresh Token (Logout)
   rpc Logout(LogoutRequest) returns (LogoutResponse) {
     option (google.api.http) = {
       post: "/v1/auth/logout"
       body: "*"
     };
   }
+
+  // Get own user information (requires Access Token)
+  rpc GetMe(GetMeRequest) returns (User) {
+    option (google.api.http) = {
+      get: "/v1/users/me"
+    };
+  }
 }
 
 // ===== Requests / Responses =====
 
+message GetAuthUrlRequest {
+  string redirect_url = 1;
+}
+
+message GetAuthUrlResponse {
+  // Discord authentication URL (includes client_id, scope, state, etc.)
+  string url = 1;
+}
+
 message LoginRequest {
-  string code = 1; // Discordから返ってきたAuth Code
+  string code = 1; // Auth Code returned from Discord
 }
 
 message LoginResponse {
   string access_token = 1;  // JWT
   string refresh_token = 2; // Opaque Token
-  int32 expires_in = 3;     // 秒数
+  int32 expires_in = 3;     // seconds
 }
 
 message RefreshTokenRequest {
@@ -55,7 +78,18 @@ message RefreshTokenResponse {
 }
 
 message LogoutRequest {
-  string refresh_token = 1; // 無効化対象のトークン
+  string refresh_token = 1;
 }
 
 message LogoutResponse {}
+
+message GetMeRequest {}
+
+// ===== Data Models =====
+
+message User {
+  string id = 1;           // Internal UUID
+  string name = 2;         // Display Name
+  string avatar_url = 3;   // Icon Image URL
+  string role = 4;         // "admin", "moderator", "user"
+}
