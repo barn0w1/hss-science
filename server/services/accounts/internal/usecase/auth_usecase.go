@@ -47,6 +47,51 @@ type LoginResult struct {
 	ExpiresIn    int // Seconds
 }
 
+// GetAuthURL generates the OAuth authorization URL with state parameter.
+func (u *AuthUsecase) GetAuthURL(ctx context.Context, redirectURL string) (string, error) {
+	// State生成（簡易的にランダム文字列）
+	state, err := generateRandomString(16)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate state: %w", err)
+	}
+
+	url := u.oauthProvider.GetAuthURL(redirectURL, state)
+	return url, nil
+}
+
+// GetMe retrieves the user profile based on the ID.
+func (u *AuthUsecase) GetMe(ctx context.Context, userID string) (*model.User, error) {
+	user, err := u.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+	return user, nil
+}
+
+// VerifyAccessToken validates the JWT access token and returns the user ID (sub claim).
+func (u *AuthUsecase) VerifyAccessToken(tokenString string) (string, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// アルゴリズム検証
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(u.cfg.JWTSecret), nil
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		if sub, ok := claims["sub"].(string); ok {
+			return sub, nil
+		}
+		return "", errors.New("sub claim missing")
+	}
+
+	return "", errors.New("invalid token")
+}
+
 // Login handles the OAuth callback, user creation/update, and token issuance.
 func (u *AuthUsecase) Login(ctx context.Context, code string, ip, userAgent string) (*LoginResult, error) {
 	// 1. Exchange code for user info from Discord
