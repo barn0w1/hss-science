@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"runtime/debug"
 	"time"
 
 	"github.com/barn0w1/hss-science/server/platform/config"
@@ -14,11 +15,20 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// 引数に cfg を追加
-func newGRPCServer(cfg config.AppConfig) *grpc.Server {
-	// 将来的なInterceptor（Auth, Logging, Recovery）用
+// customInterceptors allows services to inject their own middleware (e.g. Auth).
+func newGRPCServer(cfg config.AppConfig, customInterceptors ...grpc.UnaryServerInterceptor) *grpc.Server {
+	// 1. 標準インターセプター (実行順序: Recovery -> Logging -> Custom...)
+	interceptors := []grpc.UnaryServerInterceptor{
+		recoveryInterceptor, // 最優先: パニックキャッチ
+		loggingInterceptor,  // 次点: ログ記録
+	}
+
+	// 2. サービス固有のインターセプターを追加 (Authなど)
+	interceptors = append(interceptors, customInterceptors...)
+
+	// 3. Chainを使って一括登録
 	opts := []grpc.ServerOption{
-		grpc.UnaryInterceptor(loggingInterceptor),
+		grpc.ChainUnaryInterceptor(interceptors...),
 	}
 
 	s := grpc.NewServer(opts...)
@@ -50,7 +60,8 @@ func (s *Server) runGRPC(ctx context.Context) error {
 	return nil
 }
 
-// Simple logging interceptor using slog
+// --- Interceptors ---
+
 func loggingInterceptor(
 	ctx context.Context,
 	req interface{},
@@ -75,4 +86,24 @@ func loggingInterceptor(
 	)
 
 	return resp, err
+}
+
+// recoveryInterceptor catches panics and converts them to gRPC Internal error.
+func recoveryInterceptor(
+	ctx context.Context,
+	req interface{},
+	info *grpc.UnaryServerInfo,
+	handler grpc.UnaryHandler,
+) (resp interface{}, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("gRPC Panic Recovered",
+				"method", info.FullMethod,
+				"panic", r,
+				"stack", string(debug.Stack()),
+			)
+			err = status.Errorf(codes.Internal, "internal server error")
+		}
+	}()
+	return handler(ctx, req)
 }
