@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	pb "github.com/barn0w1/hss-science/server/gen/public/accounts/v1"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/config" // Configのimport
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/usecase"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -18,17 +19,19 @@ import (
 type AuthHandler struct {
 	pb.UnimplementedAccountsServiceServer
 	usecase *usecase.AuthUsecase
+	cfg     *config.Config // Configフィールド追加
 }
 
-func NewAuthHandler(usecase *usecase.AuthUsecase) *AuthHandler {
+// Configを引数に追加
+func NewAuthHandler(usecase *usecase.AuthUsecase, cfg *config.Config) *AuthHandler {
 	return &AuthHandler{
 		usecase: usecase,
+		cfg:     cfg,
 	}
 }
 
 // GetAuthUrl generates the OAuth authorization URL.
 func (h *AuthHandler) GetAuthUrl(ctx context.Context, req *pb.GetAuthUrlRequest) (*pb.GetAuthUrlResponse, error) {
-
 	url, err := h.usecase.GetAuthURL(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to generate url: %v", err)
@@ -51,8 +54,8 @@ func (h *AuthHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 		return nil, status.Errorf(codes.Internal, "login failed: %v", err)
 	}
 
-	// Refresh TokenをHttpOnly Cookieに設定
-	setRefreshTokenCookie(ctx, result.RefreshToken)
+	// メソッド呼び出しに変更 (h.setRefreshTokenCookie)
+	h.setRefreshTokenCookie(ctx, result.RefreshToken)
 
 	return &pb.LoginResponse{
 		AccessToken:  result.AccessToken,
@@ -63,10 +66,8 @@ func (h *AuthHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 
 // RefreshToken handles token refresh request using Cookie.
 func (h *AuthHandler) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequest) (*pb.RefreshTokenResponse, error) {
-	// 1. Cookieから取得を試みる
 	refreshToken := getRefreshTokenFromCookie(ctx)
 
-	// 2. なければBodyから取得 (Fallback)
 	if refreshToken == "" {
 		refreshToken = req.RefreshToken
 	}
@@ -86,26 +87,24 @@ func (h *AuthHandler) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequ
 		return nil, status.Errorf(codes.Internal, "refresh failed: %v", err)
 	}
 
-	// 新しいRefresh TokenをCookieに再設定 (Rotation)
-	setRefreshTokenCookie(ctx, result.RefreshToken)
+	// メソッド呼び出しに変更
+	h.setRefreshTokenCookie(ctx, result.RefreshToken)
 
 	return &pb.RefreshTokenResponse{
 		AccessToken:  result.AccessToken,
 		ExpiresIn:    int32(result.ExpiresIn),
-		RefreshToken: "", // Cookieに入れたのでBodyには含めない
+		RefreshToken: "",
 	}, nil
 }
 
 // Logout handles logout request.
 func (h *AuthHandler) Logout(ctx context.Context, req *pb.LogoutRequest) (*pb.LogoutResponse, error) {
-	// Cookieから取得
 	refreshToken := getRefreshTokenFromCookie(ctx)
 	if refreshToken == "" {
 		refreshToken = req.RefreshToken
 	}
 
 	if refreshToken == "" {
-		// すでにない場合は成功として返す
 		return &pb.LogoutResponse{}, nil
 	}
 
@@ -113,16 +112,14 @@ func (h *AuthHandler) Logout(ctx context.Context, req *pb.LogoutRequest) (*pb.Lo
 		return nil, status.Errorf(codes.Internal, "logout failed: %v", err)
 	}
 
-	// Cookieを削除 (Max-Age=0)
-	clearRefreshTokenCookie(ctx)
+	// メソッド呼び出しに変更
+	h.clearRefreshTokenCookie(ctx)
 
 	return &pb.LogoutResponse{}, nil
 }
 
 // GetMe returns the current user info.
 func (h *AuthHandler) GetMe(ctx context.Context, req *pb.GetMeRequest) (*pb.User, error) {
-	// Middlewareですでに検証済みだが、UserIDを抽出するために再度検証
-	// (本来はContextから取り出すのが良いが、簡略化のためここで再Parse)
 	userID, err := h.extractUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -146,31 +143,47 @@ func (h *AuthHandler) GetMe(ctx context.Context, req *pb.GetMeRequest) (*pb.User
 
 // --- Helpers ---
 
-func setRefreshTokenCookie(ctx context.Context, token string) {
-	// Pathを /v1/auth に限定し、リフレッシュ時のみ送信されるようにする
-	// Secure; SameSite=Lax; HttpOnly
-	// 30 days = 2592000 seconds
-	cookie := fmt.Sprintf("refresh_token=%s; Path=/v1/auth; HttpOnly; Secure; SameSite=Lax; Max-Age=%d",
-		token, 30*24*60*60)
+// Configの値を使ってCookieを設定するメソッドに変更
+func (h *AuthHandler) setRefreshTokenCookie(ctx context.Context, token string) {
+	// 基本属性
+	cookie := fmt.Sprintf("refresh_token=%s; Path=/v1/auth; HttpOnly; SameSite=%s; Max-Age=%d",
+		token, h.cfg.CookieSameSite, 30*24*60*60) // 30 days
 
-	// Gatewayがこれを Set-Cookie ヘッダーに変換する
+	// Secure属性 (Prod環境のみ)
+	if h.cfg.CookieSecure {
+		cookie += "; Secure"
+	}
+
+	// Domain属性 (SSO用)
+	if h.cfg.CookieDomain != "" {
+		cookie += fmt.Sprintf("; Domain=%s", h.cfg.CookieDomain)
+	}
+
 	grpc.SendHeader(ctx, metadata.Pairs("Set-Cookie", cookie))
 }
 
-func clearRefreshTokenCookie(ctx context.Context) {
-	cookie := "refresh_token=; Path=/v1/auth; HttpOnly; Secure; SameSite=Lax; Max-Age=0"
+// 削除用も同様に属性を合わせる
+func (h *AuthHandler) clearRefreshTokenCookie(ctx context.Context) {
+	cookie := fmt.Sprintf("refresh_token=; Path=/v1/auth; HttpOnly; SameSite=%s; Max-Age=0", h.cfg.CookieSameSite)
+
+	if h.cfg.CookieSecure {
+		cookie += "; Secure"
+	}
+	if h.cfg.CookieDomain != "" {
+		cookie += fmt.Sprintf("; Domain=%s", h.cfg.CookieDomain)
+	}
+
 	grpc.SendHeader(ctx, metadata.Pairs("Set-Cookie", cookie))
 }
 
+// 以下は変更なし（関数として利用）
 func getRefreshTokenFromCookie(ctx context.Context) string {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return ""
 	}
-	// "cookie" key comes from gateway matcher
 	cookies := md.Get("cookie")
 	for _, c := range cookies {
-		// Simple parsing: "key=value; key2=value2"
 		parts := strings.Split(c, ";")
 		for _, part := range parts {
 			kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
