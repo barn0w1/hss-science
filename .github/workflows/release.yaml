@@ -1,4 +1,4 @@
-name: Deploy Production
+name: Release (Build & Push)
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  REPO_NAME: ${{ github.repository }}
 
 jobs:
   build-and-push:
@@ -16,6 +16,21 @@ jobs:
     permissions:
       contents: read
       packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # --- Accounts Service ---
+          - name: accounts-server
+            dockerfile: ./server/services/accounts/Dockerfile
+            image-name: accounts-server
+            type: backend
+
+          - name: accounts-web
+            dockerfile: ./web/apps/accounts/Dockerfile
+            image-name: accounts-web
+            type: frontend
 
     steps:
       - name: Checkout repository
@@ -28,24 +43,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Accounts Backend
-      - name: Build and push Backend
-        uses: docker/build-push-action@v5
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
         with:
-          context: .
-          file: ./server/services/accounts/Dockerfile
-          push: true
+          images: ${{ env.REGISTRY }}/${{ env.REPO_NAME }}/${{ matrix.image-name }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/accounts-server:${{ github.ref_name }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/accounts-server:latest
+            type=ref,event=tag
+            type=raw,value=latest,enable={{is_default_branch}}
 
-      # Accounts Web Frontend
-      - name: Build and push Frontend
+      # Build & Push
+      - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./web/apps/accounts/Dockerfile
+          file: ${{ matrix.dockerfile }}
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/accounts-web:${{ github.ref_name }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/accounts-web:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
