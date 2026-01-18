@@ -18,7 +18,7 @@
   "paths": {
     "/v1/auth/login": {
       "post": {
-        "summary": "DiscordのOAuth Codeを受け取り、アクセストークン一式を返す",
+        "summary": "Exchange Discord OAuth Code for access tokens",
         "operationId": "AccountsService_Login",
         "responses": {
           "200": {
@@ -51,7 +51,7 @@
     },
     "/v1/auth/logout": {
       "post": {
-        "summary": "Refresh Tokenを無効化（ログアウト）する",
+        "summary": "Invalidate Refresh Token (Logout)",
         "operationId": "AccountsService_Logout",
         "responses": {
           "200": {
@@ -84,7 +84,7 @@
     },
     "/v1/auth/refresh": {
       "post": {
-        "summary": "Refresh Tokenを受け取り、新しいアクセストークン一式を返す",
+        "summary": "Refresh Access Token using Refresh Token",
         "operationId": "AccountsService_RefreshToken",
         "responses": {
           "200": {
@@ -110,6 +110,60 @@
             }
           }
         ],
+        "tags": [
+          "AccountsService"
+        ]
+      }
+    },
+    "/v1/auth/url": {
+      "get": {
+        "summary": "Get authentication URL for Discord OAuth2",
+        "operationId": "AccountsService_GetAuthUrl",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetAuthUrlResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "redirect_url",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AccountsService"
+        ]
+      }
+    },
+    "/v1/users/me": {
+      "get": {
+        "summary": "Get own user information (requires Access Token)",
+        "operationId": "AccountsService_GetMe",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1User"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
         "tags": [
           "AccountsService"
         ]
@@ -145,12 +199,21 @@
         }
       }
     },
+    "v1GetAuthUrlResponse": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "title": "Discord authentication URL (includes client_id, scope, state, etc.)"
+        }
+      }
+    },
     "v1LoginRequest": {
       "type": "object",
       "properties": {
         "code": {
           "type": "string",
-          "title": "Discordから返ってきたAuth Code"
+          "title": "Auth Code returned from Discord"
         }
       }
     },
@@ -168,7 +231,7 @@
         "expires_in": {
           "type": "integer",
           "format": "int32",
-          "title": "秒数"
+          "title": "seconds"
         }
       }
     },
@@ -176,8 +239,7 @@
       "type": "object",
       "properties": {
         "refresh_token": {
-          "type": "string",
-          "title": "無効化対象のトークン"
+          "type": "string"
         }
       }
     },
@@ -204,6 +266,27 @@
         "expires_in": {
           "type": "integer",
           "format": "int32"
+        }
+      }
+    },
+    "v1User": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "title": "Internal UUID"
+        },
+        "name": {
+          "type": "string",
+          "title": "Display Name"
+        },
+        "avatar_url": {
+          "type": "string",
+          "title": "Icon Image URL"
+        },
+        "role": {
+          "type": "string",
+          "title": "\"admin\", \"moderator\", \"user\""
         }
       }
     }

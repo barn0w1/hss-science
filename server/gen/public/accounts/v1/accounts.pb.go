@@ -22,16 +22,105 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type GetAuthUrlRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RedirectUrl   string                 `protobuf:"bytes,1,opt,name=redirect_url,json=redirectUrl,proto3" json:"redirect_url,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAuthUrlRequest) Reset() {
+	*x = GetAuthUrlRequest{}
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAuthUrlRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAuthUrlRequest) ProtoMessage() {}
+
+func (x *GetAuthUrlRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAuthUrlRequest.ProtoReflect.Descriptor instead.
+func (*GetAuthUrlRequest) Descriptor() ([]byte, []int) {
+	return file_public_accounts_v1_accounts_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *GetAuthUrlRequest) GetRedirectUrl() string {
+	if x != nil {
+		return x.RedirectUrl
+	}
+	return ""
+}
+
+type GetAuthUrlResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Discord authentication URL (includes client_id, scope, state, etc.)
+	Url           string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAuthUrlResponse) Reset() {
+	*x = GetAuthUrlResponse{}
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAuthUrlResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAuthUrlResponse) ProtoMessage() {}
+
+func (x *GetAuthUrlResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAuthUrlResponse.ProtoReflect.Descriptor instead.
+func (*GetAuthUrlResponse) Descriptor() ([]byte, []int) {
+	return file_public_accounts_v1_accounts_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *GetAuthUrlResponse) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
 type LoginRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"` // Discordから返ってきたAuth Code
+	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"` // Auth Code returned from Discord
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LoginRequest) Reset() {
 	*x = LoginRequest{}
-	mi := &file_public_accounts_v1_accounts_proto_msgTypes[0]
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -43,7 +132,7 @@ func (x *LoginRequest) String() string {
 func (*LoginRequest) ProtoMessage() {}
 
 func (x *LoginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_public_accounts_v1_accounts_proto_msgTypes[0]
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56,7 +145,7 @@ func (x *LoginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginRequest.ProtoReflect.Descriptor instead.
 func (*LoginRequest) Descriptor() ([]byte, []int) {
-	return file_public_accounts_v1_accounts_proto_rawDescGZIP(), []int{0}
+	return file_public_accounts_v1_accounts_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *LoginRequest) GetCode() string {
@@ -70,14 +159,14 @@ type LoginResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AccessToken   string                 `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`    // JWT
 	RefreshToken  string                 `protobuf:"bytes,2,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"` // Opaque Token
-	ExpiresIn     int32                  `protobuf:"varint,3,opt,name=expires_in,json=expiresIn,proto3" json:"expires_in,omitempty"`         // 秒数
+	ExpiresIn     int32                  `protobuf:"varint,3,opt,name=expires_in,json=expiresIn,proto3" json:"expires_in,omitempty"`         // seconds
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LoginResponse) Reset() {
 	*x = LoginResponse{}
-	mi := &file_public_accounts_v1_accounts_proto_msgTypes[1]
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -89,7 +178,7 @@ func (x *LoginResponse) String() string {
 func (*LoginResponse) ProtoMessage() {}
 
 func (x *LoginResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_public_accounts_v1_accounts_proto_msgTypes[1]
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -102,7 +191,7 @@ func (x *LoginResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginResponse.ProtoReflect.Descriptor instead.
 func (*LoginResponse) Descriptor() ([]byte, []int) {
-	return file_public_accounts_v1_accounts_proto_rawDescGZIP(), []int{1}
+	return file_public_accounts_v1_accounts_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *LoginResponse) GetAccessToken() string {
@@ -135,7 +224,7 @@ type RefreshTokenRequest struct {
 
 func (x *RefreshTokenRequest) Reset() {
 	*x = RefreshTokenRequest{}
-	mi := &file_public_accounts_v1_accounts_proto_msgTypes[2]
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -147,7 +236,7 @@ func (x *RefreshTokenRequest) String() string {
 func (*RefreshTokenRequest) ProtoMessage() {}
 
 func (x *RefreshTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_public_accounts_v1_accounts_proto_msgTypes[2]
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -160,7 +249,7 @@ func (x *RefreshTokenRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefreshTokenRequest.ProtoReflect.Descriptor instead.
 func (*RefreshTokenRequest) Descriptor() ([]byte, []int) {
-	return file_public_accounts_v1_accounts_proto_rawDescGZIP(), []int{2}
+	return file_public_accounts_v1_accounts_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *RefreshTokenRequest) GetRefreshToken() string {
@@ -181,7 +270,7 @@ type RefreshTokenResponse struct {
 
 func (x *RefreshTokenResponse) Reset() {
 	*x = RefreshTokenResponse{}
-	mi := &file_public_accounts_v1_accounts_proto_msgTypes[3]
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -193,7 +282,7 @@ func (x *RefreshTokenResponse) String() string {
 func (*RefreshTokenResponse) ProtoMessage() {}
 
 func (x *RefreshTokenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_public_accounts_v1_accounts_proto_msgTypes[3]
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -206,7 +295,7 @@ func (x *RefreshTokenResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefreshTokenResponse.ProtoReflect.Descriptor instead.
 func (*RefreshTokenResponse) Descriptor() ([]byte, []int) {
-	return file_public_accounts_v1_accounts_proto_rawDescGZIP(), []int{3}
+	return file_public_accounts_v1_accounts_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *RefreshTokenResponse) GetAccessToken() string {
@@ -232,14 +321,14 @@ func (x *RefreshTokenResponse) GetExpiresIn() int32 {
 
 type LogoutRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	RefreshToken  string                 `protobuf:"bytes,1,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"` // 無効化対象のトークン
+	RefreshToken  string                 `protobuf:"bytes,1,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LogoutRequest) Reset() {
 	*x = LogoutRequest{}
-	mi := &file_public_accounts_v1_accounts_proto_msgTypes[4]
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -251,7 +340,7 @@ func (x *LogoutRequest) String() string {
 func (*LogoutRequest) ProtoMessage() {}
 
 func (x *LogoutRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_public_accounts_v1_accounts_proto_msgTypes[4]
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -264,7 +353,7 @@ func (x *LogoutRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogoutRequest.ProtoReflect.Descriptor instead.
 func (*LogoutRequest) Descriptor() ([]byte, []int) {
-	return file_public_accounts_v1_accounts_proto_rawDescGZIP(), []int{4}
+	return file_public_accounts_v1_accounts_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *LogoutRequest) GetRefreshToken() string {
@@ -282,7 +371,7 @@ type LogoutResponse struct {
 
 func (x *LogoutResponse) Reset() {
 	*x = LogoutResponse{}
-	mi := &file_public_accounts_v1_accounts_proto_msgTypes[5]
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -294,7 +383,7 @@ func (x *LogoutResponse) String() string {
 func (*LogoutResponse) ProtoMessage() {}
 
 func (x *LogoutResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_public_accounts_v1_accounts_proto_msgTypes[5]
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -307,14 +396,122 @@ func (x *LogoutResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogoutResponse.ProtoReflect.Descriptor instead.
 func (*LogoutResponse) Descriptor() ([]byte, []int) {
-	return file_public_accounts_v1_accounts_proto_rawDescGZIP(), []int{5}
+	return file_public_accounts_v1_accounts_proto_rawDescGZIP(), []int{7}
+}
+
+type GetMeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetMeRequest) Reset() {
+	*x = GetMeRequest{}
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetMeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMeRequest) ProtoMessage() {}
+
+func (x *GetMeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMeRequest.ProtoReflect.Descriptor instead.
+func (*GetMeRequest) Descriptor() ([]byte, []int) {
+	return file_public_accounts_v1_accounts_proto_rawDescGZIP(), []int{8}
+}
+
+type User struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                // Internal UUID
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                            // Display Name
+	AvatarUrl     string                 `protobuf:"bytes,3,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"` // Icon Image URL
+	Role          string                 `protobuf:"bytes,4,opt,name=role,proto3" json:"role,omitempty"`                            // "admin", "moderator", "user"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *User) Reset() {
+	*x = User{}
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *User) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*User) ProtoMessage() {}
+
+func (x *User) ProtoReflect() protoreflect.Message {
+	mi := &file_public_accounts_v1_accounts_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use User.ProtoReflect.Descriptor instead.
+func (*User) Descriptor() ([]byte, []int) {
+	return file_public_accounts_v1_accounts_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *User) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *User) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *User) GetAvatarUrl() string {
+	if x != nil {
+		return x.AvatarUrl
+	}
+	return ""
+}
+
+func (x *User) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
 }
 
 var File_public_accounts_v1_accounts_proto protoreflect.FileDescriptor
 
 const file_public_accounts_v1_accounts_proto_rawDesc = "" +
 	"\n" +
-	"!public/accounts/v1/accounts.proto\x12\x17hss_science.accounts.v1\x1a\x1cgoogle/api/annotations.proto\"\"\n" +
+	"!public/accounts/v1/accounts.proto\x12\x17hss_science.accounts.v1\x1a\x1cgoogle/api/annotations.proto\"6\n" +
+	"\x11GetAuthUrlRequest\x12!\n" +
+	"\fredirect_url\x18\x01 \x01(\tR\vredirectUrl\"&\n" +
+	"\x12GetAuthUrlResponse\x12\x10\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\"\"\n" +
 	"\fLoginRequest\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\"v\n" +
 	"\rLoginResponse\x12!\n" +
@@ -331,11 +528,21 @@ const file_public_accounts_v1_accounts_proto_rawDesc = "" +
 	"expires_in\x18\x03 \x01(\x05R\texpiresIn\"4\n" +
 	"\rLogoutRequest\x12#\n" +
 	"\rrefresh_token\x18\x01 \x01(\tR\frefreshToken\"\x10\n" +
-	"\x0eLogoutResponse2\x86\x03\n" +
-	"\x0fAccountsService\x12q\n" +
+	"\x0eLogoutResponse\"\x0e\n" +
+	"\fGetMeRequest\"]\n" +
+	"\x04User\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1d\n" +
+	"\n" +
+	"avatar_url\x18\x03 \x01(\tR\tavatarUrl\x12\x12\n" +
+	"\x04role\x18\x04 \x01(\tR\x04role2\xe8\x04\n" +
+	"\x0fAccountsService\x12{\n" +
+	"\n" +
+	"GetAuthUrl\x12*.hss_science.accounts.v1.GetAuthUrlRequest\x1a+.hss_science.accounts.v1.GetAuthUrlResponse\"\x14\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/auth/url\x12q\n" +
 	"\x05Login\x12%.hss_science.accounts.v1.LoginRequest\x1a&.hss_science.accounts.v1.LoginResponse\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/v1/auth/login\x12\x88\x01\n" +
 	"\fRefreshToken\x12,.hss_science.accounts.v1.RefreshTokenRequest\x1a-.hss_science.accounts.v1.RefreshTokenResponse\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/auth/refresh\x12u\n" +
-	"\x06Logout\x12&.hss_science.accounts.v1.LogoutRequest\x1a'.hss_science.accounts.v1.LogoutResponse\"\x1a\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/auth/logoutBIZGgithub.com/barn0w1/hss-science/server/gen/public/accounts/v1;accountsv1b\x06proto3"
+	"\x06Logout\x12&.hss_science.accounts.v1.LogoutRequest\x1a'.hss_science.accounts.v1.LogoutResponse\"\x1a\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/auth/logout\x12c\n" +
+	"\x05GetMe\x12%.hss_science.accounts.v1.GetMeRequest\x1a\x1d.hss_science.accounts.v1.User\"\x14\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/users/meBIZGgithub.com/barn0w1/hss-science/server/gen/public/accounts/v1;accountsv1b\x06proto3"
 
 var (
 	file_public_accounts_v1_accounts_proto_rawDescOnce sync.Once
@@ -349,24 +556,32 @@ func file_public_accounts_v1_accounts_proto_rawDescGZIP() []byte {
 	return file_public_accounts_v1_accounts_proto_rawDescData
 }
 
-var file_public_accounts_v1_accounts_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_public_accounts_v1_accounts_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_public_accounts_v1_accounts_proto_goTypes = []any{
-	(*LoginRequest)(nil),         // 0: hss_science.accounts.v1.LoginRequest
-	(*LoginResponse)(nil),        // 1: hss_science.accounts.v1.LoginResponse
-	(*RefreshTokenRequest)(nil),  // 2: hss_science.accounts.v1.RefreshTokenRequest
-	(*RefreshTokenResponse)(nil), // 3: hss_science.accounts.v1.RefreshTokenResponse
-	(*LogoutRequest)(nil),        // 4: hss_science.accounts.v1.LogoutRequest
-	(*LogoutResponse)(nil),       // 5: hss_science.accounts.v1.LogoutResponse
+	(*GetAuthUrlRequest)(nil),    // 0: hss_science.accounts.v1.GetAuthUrlRequest
+	(*GetAuthUrlResponse)(nil),   // 1: hss_science.accounts.v1.GetAuthUrlResponse
+	(*LoginRequest)(nil),         // 2: hss_science.accounts.v1.LoginRequest
+	(*LoginResponse)(nil),        // 3: hss_science.accounts.v1.LoginResponse
+	(*RefreshTokenRequest)(nil),  // 4: hss_science.accounts.v1.RefreshTokenRequest
+	(*RefreshTokenResponse)(nil), // 5: hss_science.accounts.v1.RefreshTokenResponse
+	(*LogoutRequest)(nil),        // 6: hss_science.accounts.v1.LogoutRequest
+	(*LogoutResponse)(nil),       // 7: hss_science.accounts.v1.LogoutResponse
+	(*GetMeRequest)(nil),         // 8: hss_science.accounts.v1.GetMeRequest
+	(*User)(nil),                 // 9: hss_science.accounts.v1.User
 }
 var file_public_accounts_v1_accounts_proto_depIdxs = []int32{
-	0, // 0: hss_science.accounts.v1.AccountsService.Login:input_type -> hss_science.accounts.v1.LoginRequest
-	2, // 1: hss_science.accounts.v1.AccountsService.RefreshToken:input_type -> hss_science.accounts.v1.RefreshTokenRequest
-	4, // 2: hss_science.accounts.v1.AccountsService.Logout:input_type -> hss_science.accounts.v1.LogoutRequest
-	1, // 3: hss_science.accounts.v1.AccountsService.Login:output_type -> hss_science.accounts.v1.LoginResponse
-	3, // 4: hss_science.accounts.v1.AccountsService.RefreshToken:output_type -> hss_science.accounts.v1.RefreshTokenResponse
-	5, // 5: hss_science.accounts.v1.AccountsService.Logout:output_type -> hss_science.accounts.v1.LogoutResponse
-	3, // [3:6] is the sub-list for method output_type
-	0, // [0:3] is the sub-list for method input_type
+	0, // 0: hss_science.accounts.v1.AccountsService.GetAuthUrl:input_type -> hss_science.accounts.v1.GetAuthUrlRequest
+	2, // 1: hss_science.accounts.v1.AccountsService.Login:input_type -> hss_science.accounts.v1.LoginRequest
+	4, // 2: hss_science.accounts.v1.AccountsService.RefreshToken:input_type -> hss_science.accounts.v1.RefreshTokenRequest
+	6, // 3: hss_science.accounts.v1.AccountsService.Logout:input_type -> hss_science.accounts.v1.LogoutRequest
+	8, // 4: hss_science.accounts.v1.AccountsService.GetMe:input_type -> hss_science.accounts.v1.GetMeRequest
+	1, // 5: hss_science.accounts.v1.AccountsService.GetAuthUrl:output_type -> hss_science.accounts.v1.GetAuthUrlResponse
+	3, // 6: hss_science.accounts.v1.AccountsService.Login:output_type -> hss_science.accounts.v1.LoginResponse
+	5, // 7: hss_science.accounts.v1.AccountsService.RefreshToken:output_type -> hss_science.accounts.v1.RefreshTokenResponse
+	7, // 8: hss_science.accounts.v1.AccountsService.Logout:output_type -> hss_science.accounts.v1.LogoutResponse
+	9, // 9: hss_science.accounts.v1.AccountsService.GetMe:output_type -> hss_science.accounts.v1.User
+	5, // [5:10] is the sub-list for method output_type
+	0, // [0:5] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -383,7 +598,7 @@ func file_public_accounts_v1_accounts_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_public_accounts_v1_accounts_proto_rawDesc), len(file_public_accounts_v1_accounts_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -19,21 +19,27 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	AccountsService_GetAuthUrl_FullMethodName   = "/hss_science.accounts.v1.AccountsService/GetAuthUrl"
 	AccountsService_Login_FullMethodName        = "/hss_science.accounts.v1.AccountsService/Login"
 	AccountsService_RefreshToken_FullMethodName = "/hss_science.accounts.v1.AccountsService/RefreshToken"
 	AccountsService_Logout_FullMethodName       = "/hss_science.accounts.v1.AccountsService/Logout"
+	AccountsService_GetMe_FullMethodName        = "/hss_science.accounts.v1.AccountsService/GetMe"
 )
 
 // AccountsServiceClient is the client API for AccountsService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AccountsServiceClient interface {
-	// DiscordのOAuth Codeを受け取り、アクセストークン一式を返す
+	// Get authentication URL for Discord OAuth2
+	GetAuthUrl(ctx context.Context, in *GetAuthUrlRequest, opts ...grpc.CallOption) (*GetAuthUrlResponse, error)
+	// Exchange Discord OAuth Code for access tokens
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
-	// Refresh Tokenを受け取り、新しいアクセストークン一式を返す
+	// Refresh Access Token using Refresh Token
 	RefreshToken(ctx context.Context, in *RefreshTokenRequest, opts ...grpc.CallOption) (*RefreshTokenResponse, error)
-	// Refresh Tokenを無効化（ログアウト）する
+	// Invalidate Refresh Token (Logout)
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
+	// Get own user information (requires Access Token)
+	GetMe(ctx context.Context, in *GetMeRequest, opts ...grpc.CallOption) (*User, error)
 }
 
 type accountsServiceClient struct {
@@ -42,6 +48,16 @@ type accountsServiceClient struct {
 
 func NewAccountsServiceClient(cc grpc.ClientConnInterface) AccountsServiceClient {
 	return &accountsServiceClient{cc}
+}
+
+func (c *accountsServiceClient) GetAuthUrl(ctx context.Context, in *GetAuthUrlRequest, opts ...grpc.CallOption) (*GetAuthUrlResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetAuthUrlResponse)
+	err := c.cc.Invoke(ctx, AccountsService_GetAuthUrl_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *accountsServiceClient) Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error) {
@@ -74,16 +90,30 @@ func (c *accountsServiceClient) Logout(ctx context.Context, in *LogoutRequest, o
 	return out, nil
 }
 
+func (c *accountsServiceClient) GetMe(ctx context.Context, in *GetMeRequest, opts ...grpc.CallOption) (*User, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(User)
+	err := c.cc.Invoke(ctx, AccountsService_GetMe_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AccountsServiceServer is the server API for AccountsService service.
 // All implementations must embed UnimplementedAccountsServiceServer
 // for forward compatibility.
 type AccountsServiceServer interface {
-	// DiscordのOAuth Codeを受け取り、アクセストークン一式を返す
+	// Get authentication URL for Discord OAuth2
+	GetAuthUrl(context.Context, *GetAuthUrlRequest) (*GetAuthUrlResponse, error)
+	// Exchange Discord OAuth Code for access tokens
 	Login(context.Context, *LoginRequest) (*LoginResponse, error)
-	// Refresh Tokenを受け取り、新しいアクセストークン一式を返す
+	// Refresh Access Token using Refresh Token
 	RefreshToken(context.Context, *RefreshTokenRequest) (*RefreshTokenResponse, error)
-	// Refresh Tokenを無効化（ログアウト）する
+	// Invalidate Refresh Token (Logout)
 	Logout(context.Context, *LogoutRequest) (*LogoutResponse, error)
+	// Get own user information (requires Access Token)
+	GetMe(context.Context, *GetMeRequest) (*User, error)
 	mustEmbedUnimplementedAccountsServiceServer()
 }
 
@@ -94,6 +124,9 @@ type AccountsServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedAccountsServiceServer struct{}
 
+func (UnimplementedAccountsServiceServer) GetAuthUrl(context.Context, *GetAuthUrlRequest) (*GetAuthUrlResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAuthUrl not implemented")
+}
 func (UnimplementedAccountsServiceServer) Login(context.Context, *LoginRequest) (*LoginResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Login not implemented")
 }
@@ -102,6 +135,9 @@ func (UnimplementedAccountsServiceServer) RefreshToken(context.Context, *Refresh
 }
 func (UnimplementedAccountsServiceServer) Logout(context.Context, *LogoutRequest) (*LogoutResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Logout not implemented")
+}
+func (UnimplementedAccountsServiceServer) GetMe(context.Context, *GetMeRequest) (*User, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetMe not implemented")
 }
 func (UnimplementedAccountsServiceServer) mustEmbedUnimplementedAccountsServiceServer() {}
 func (UnimplementedAccountsServiceServer) testEmbeddedByValue()                         {}
@@ -122,6 +158,24 @@ func RegisterAccountsServiceServer(s grpc.ServiceRegistrar, srv AccountsServiceS
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&AccountsService_ServiceDesc, srv)
+}
+
+func _AccountsService_GetAuthUrl_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAuthUrlRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountsServiceServer).GetAuthUrl(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountsService_GetAuthUrl_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountsServiceServer).GetAuthUrl(ctx, req.(*GetAuthUrlRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _AccountsService_Login_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -178,6 +232,24 @@ func _AccountsService_Logout_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccountsService_GetMe_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountsServiceServer).GetMe(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountsService_GetMe_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountsServiceServer).GetMe(ctx, req.(*GetMeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AccountsService_ServiceDesc is the grpc.ServiceDesc for AccountsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -185,6 +257,10 @@ var AccountsService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "hss_science.accounts.v1.AccountsService",
 	HandlerType: (*AccountsServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetAuthUrl",
+			Handler:    _AccountsService_GetAuthUrl_Handler,
+		},
 		{
 			MethodName: "Login",
 			Handler:    _AccountsService_Login_Handler,
@@ -196,6 +272,10 @@ var AccountsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Logout",
 			Handler:    _AccountsService_Logout_Handler,
+		},
+		{
+			MethodName: "GetMe",
+			Handler:    _AccountsService_GetMe_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
