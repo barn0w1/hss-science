@@ -1,45 +1,66 @@
 services:
-  # --- Frontend(SPA) ---
+  # Ingress / Reverse Proxy
+  gateway:
+    image: caddy:2-alpine
+    container_name: gateway
+    restart: always
+    ports:
+      - "443:443"  
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./certs:/etc/caddy/certs
+    depends_on:
+      - accounts_web
+      - accounts_server
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # Frontend (SPA)
   accounts_web:
     image: ghcr.io/barn0w1/hss-science/accounts-web:latest
     container_name: accounts_web
     restart: always
-    ports:
-      - "127.0.0.1:8080:80"
     depends_on:
       - accounts_server
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
-  # --- Backend ---
+  # Backend Services
   accounts_server:
     image: ghcr.io/barn0w1/hss-science/accounts-server:latest
     container_name: accounts_server
     restart: always
-    env_file: .env
+    env_file:
+      - ./envs/global.env # Common envs (e.g., DB connection info)
+      - ./envs/accounts.env # Service-specific envs
     depends_on:
       - postgres
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
-  # --- Database ---
+  # Database
   postgres:
     image: postgres:16-alpine
     container_name: postgres_prod
     restart: always
-    env_file: .env
+    env_file:
+      - ./envs/postgres.env
     volumes:
       - pg_data:/var/lib/postgresql/data
     labels:
+      # Do not automatically restart or update the database
       - "com.centurylinklabs.watchtower.enable=false"
 
-  # --- Auto Deploy Agent (Watchtower) ---
+  # Auto Deploy Agent (Watchtower)
   watchtower:
     image: containrrr/watchtower
     container_name: watchtower
     restart: always
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    env_file:
+      - ./envs/global.env
     environment:
       - WATCHTOWER_CLEANUP=true
       - WATCHTOWER_POLL_INTERVAL=60
