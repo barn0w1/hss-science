@@ -1,36 +1,29 @@
-# use web/ as build context
 FROM node:24-alpine AS builder
-
-# Enable pnpm
-RUN corepack enable
 
 WORKDIR /app
 
-# Copy worksapce config
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+RUN corepack enable
 
-# Copy all source code (Respect .dockerignore to skip node_modules)
-COPY . .
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./web/
+COPY web/apps/accounts/package.json ./web/apps/accounts/
+COPY web/packages/api/package.json ./web/packages/api/
 
-# Install dependencies
+WORKDIR /app/web
 RUN pnpm install --frozen-lockfile
 
-# Build variables (Passed via --build-arg in GH Actions)
-ARG VITE_API_BASE_URL
-ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+WORKDIR /app
+COPY web ./web
 
-# Build the specific app
-# Assuming the package name in web/apps/accounts/package.json is "accounts"
-RUN pnpm --filter accounts build
+WORKDIR /app/web/apps/accounts
 
-# Runtime Stage
+RUN pnpm build
+
+# Run Stage
 FROM nginx:alpine
 
-# Copy nginx config
-COPY apps/accounts/nginx.conf /etc/nginx/conf.d/default.conf
+COPY web/apps/accounts/nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy built assets
-COPY --from=builder /app/apps/accounts/dist /usr/share/nginx/html
+COPY --from=builder /app/web/apps/accounts/dist /usr/share/nginx/html
 
 EXPOSE 80
 
