@@ -18,7 +18,6 @@ import type {
   UseQueryResult
 } from '@tanstack/react-query'
 import type {
-  AccountsServiceGetAuthUrlParams,
   RpcStatus,
   V1GetAuthUrlResponse,
   V1LoginRequest,
@@ -210,34 +209,33 @@ export const useAccountsServiceRefreshToken = <TError = RpcStatus,
  * @summary Get authentication URL for Discord OAuth2
  */
 export const accountsServiceGetAuthUrl = (
-    params?: AccountsServiceGetAuthUrlParams,
+    
  options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
 ) => {
       
       
       return customInstance<V1GetAuthUrlResponse>(
-      {url: `/v1/auth/url`, method: 'GET',
-        params, signal
+      {url: `/v1/auth/url`, method: 'GET', signal
     },
       options);
     }
   
 
-export const getAccountsServiceGetAuthUrlQueryKey = (params?: AccountsServiceGetAuthUrlParams,) => {
-    return [`/v1/auth/url`, ...(params ? [params]: [])] as const;
+export const getAccountsServiceGetAuthUrlQueryKey = () => {
+    return [`/v1/auth/url`] as const;
     }
 
     
-export const getAccountsServiceGetAuthUrlQueryOptions = <TData = Awaited<ReturnType<typeof accountsServiceGetAuthUrl>>, TError = RpcStatus>(params?: AccountsServiceGetAuthUrlParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof accountsServiceGetAuthUrl>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+export const getAccountsServiceGetAuthUrlQueryOptions = <TData = Awaited<ReturnType<typeof accountsServiceGetAuthUrl>>, TError = RpcStatus>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof accountsServiceGetAuthUrl>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getAccountsServiceGetAuthUrlQueryKey(params);
+  const queryKey =  queryOptions?.queryKey ?? getAccountsServiceGetAuthUrlQueryKey();
 
   
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof accountsServiceGetAuthUrl>>> = ({ signal }) => accountsServiceGetAuthUrl(params, requestOptions, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof accountsServiceGetAuthUrl>>> = ({ signal }) => accountsServiceGetAuthUrl(requestOptions, signal);
 
       
 
@@ -253,11 +251,11 @@ export type AccountsServiceGetAuthUrlQueryError = RpcStatus
  * @summary Get authentication URL for Discord OAuth2
  */
 export const useAccountsServiceGetAuthUrl = <TData = Awaited<ReturnType<typeof accountsServiceGetAuthUrl>>, TError = RpcStatus>(
- params?: AccountsServiceGetAuthUrlParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof accountsServiceGetAuthUrl>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof accountsServiceGetAuthUrl>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
 
   ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } => {
 
-  const queryOptions = getAccountsServiceGetAuthUrlQueryOptions(params,options)
+  const queryOptions = getAccountsServiceGetAuthUrlQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
