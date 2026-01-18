@@ -5,45 +5,66 @@ export const DashboardPage = () => {
     const { logout } = useAuth();
     const { data: user, isLoading, error } = useAccountsServiceGetMe();
 
+    if (isLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <div className="text-red-500">Failed to load account information.</div>
+            </div>
+        );
+    }
+
     return (
-        <div className="min-h-screen bg-gray-50 p-8">
-            <div className="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-sm border border-gray-100">
-                <div className="flex justify-between items-center mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-                    <button 
-                        onClick={logout}
-                        className="bg-white text-gray-700 border border-gray-200 py-2 px-4 rounded-lg hover:bg-gray-50 hover:text-red-600 hover:border-red-200 transition-colors text-sm font-medium"
-                    >
-                        Logout
-                    </button>
+        <div className="min-h-screen bg-white flex flex-col items-center pt-20">
+            <div className="w-full max-w-md p-6">
+                <div className="text-center mb-8">
+                    <h1 className="text-2xl font-normal text-gray-900">Account</h1>
+                    <p className="text-gray-500 mt-2">Manage your account info</p>
                 </div>
 
-                {isLoading ? (
-                    <div className="text-gray-500 animate-pulse">Loading user profile...</div>
-                ) : error ? (
-                    <div className="p-4 bg-red-50 text-red-700 rounded-lg">
-                        Failed to load user profile.
-                    </div>
-                ) : (
-                    <div className="flex items-center space-x-6 p-6 bg-gray-50 rounded-lg">
-                        {user?.avatar_url ? (
+                <div className="bg-white border text-center border-gray-200 rounded-2xl p-8 shadow-sm">
+                    <div className="relative inline-block mb-4">
+                         {user?.avatar_url ? (
                             <img 
                                 src={user.avatar_url} 
-                                alt={`${user.name}'s avatar`} 
-                                className="w-20 h-20 rounded-full border-4 border-white shadow-sm"
+                                alt={user.name} 
+                                className="w-24 h-24 rounded-full object-cover"
                             />
                         ) : (
-                            <div className="w-20 h-20 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-500 text-2xl font-bold border-4 border-white shadow-sm">
-                                {user?.name?.charAt(0) || 'U'}
+                            <div className="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-white text-3xl font-medium mx-auto">
+                                {user?.name?.charAt(0).toUpperCase()}
                             </div>
                         )}
-                        <div>
-                            <h2 className="text-2xl font-bold text-gray-900">{user?.name}</h2>
-                            <p className="text-gray-500">{user?.role}</p>
-                            <div className="mt-2 text-xs text-gray-400 font-mono">ID: {user?.id}</div>
+                    </div>
+                    
+                    <h2 className="text-xl font-medium text-gray-900 mb-1">{user?.name}</h2>
+                    <p className="text-gray-500 text-sm mb-6 uppercase tracking-wider text-xs font-semibold bg-gray-100 inline-block px-2 py-1 rounded">
+                        {user?.role || 'User'}
+                    </p>
+
+                    <div className="border-t border-gray-100 pt-6 mt-2">
+                        <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-500">ID</span>
+                            <span className="font-mono text-gray-700">{user?.id}</span>
                         </div>
                     </div>
-                )}
+                </div>
+
+                <div className="mt-8 flex justify-center">
+                    <button 
+                        onClick={logout}
+                        className="text-gray-600 hover:text-gray-900 font-medium text-sm border border-gray-300 px-6 py-2 rounded md:w-auto hover:bg-gray-50 transition-colors"
+                    >
+                        Sign out
+                    </button>
+                </div>
             </div>
         </div>
     );

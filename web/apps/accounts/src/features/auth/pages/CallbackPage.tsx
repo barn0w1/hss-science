@@ -49,10 +49,10 @@ export const CallbackPage = () => {
                         } catch (e) {
                              // Fallback if invalid URL
                              console.warn('Invalid redirect URL:', redirectTo);
-                             navigate('/dashboard');
+                             navigate('/');
                         }
                     } else {
-                        navigate('/dashboard');
+                        navigate('/');
                     }
                 }
             }).catch((error) => {
