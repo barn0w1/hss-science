@@ -55,7 +55,9 @@ func (h *AuthHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 	}
 
 	// メソッド呼び出しに変更 (h.setRefreshTokenCookie)
-	h.setRefreshTokenCookie(ctx, result.RefreshToken)
+	if err := h.setRefreshTokenCookie(ctx, result.RefreshToken); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to set cookie: %v", err)
+	}
 
 	return &pb.LoginResponse{
 		AccessToken:  result.AccessToken,
@@ -88,7 +90,9 @@ func (h *AuthHandler) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequ
 	}
 
 	// メソッド呼び出しに変更
-	h.setRefreshTokenCookie(ctx, result.RefreshToken)
+	if err := h.setRefreshTokenCookie(ctx, result.RefreshToken); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to set cookie: %v", err)
+	}
 
 	return &pb.RefreshTokenResponse{
 		AccessToken:  result.AccessToken,
@@ -111,7 +115,9 @@ func (h *AuthHandler) Logout(ctx context.Context, req *pb.LogoutRequest) (*pb.Lo
 	if err := h.usecase.Logout(ctx, refreshToken); err != nil {
 		return nil, status.Errorf(codes.Internal, "logout failed: %v", err)
 	}
-
+	if err := h.clearRefreshTokenCookie(ctx); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to clear cookie: %v", err)
+	}
 	// メソッド呼び出しに変更
 	h.clearRefreshTokenCookie(ctx)
 
@@ -143,7 +149,7 @@ func (h *AuthHandler) GetMe(ctx context.Context, req *pb.GetMeRequest) (*pb.User
 
 // --- Helpers ---
 
-func (h *AuthHandler) setRefreshTokenCookie(ctx context.Context, token string) {
+func (h *AuthHandler) setRefreshTokenCookie(ctx context.Context, token string) error {
 	// 修正ポイント1: Path を "/" に変更 (API全体でCookieを有効にするため)
 	// 修正ポイント2: 属性の順番やフォーマットを標準に合わせる
 	cookie := fmt.Sprintf("refresh_token=%s; Path=/; HttpOnly; SameSite=%s; Max-Age=%d",
@@ -160,10 +166,10 @@ func (h *AuthHandler) setRefreshTokenCookie(ctx context.Context, token string) {
 		cookie += fmt.Sprintf("; Domain=%s", h.cfg.CookieDomain)
 	}
 
-	grpc.SendHeader(ctx, metadata.Pairs("Set-Cookie", cookie))
+	return grpc.SetHeader(ctx, metadata.Pairs("Set-Cookie", cookie))
 }
 
-func (h *AuthHandler) clearRefreshTokenCookie(ctx context.Context) {
+func (h *AuthHandler) clearRefreshTokenCookie(ctx context.Context) error {
 	// 修正ポイント: ここも Path を "/" に合わせる（そうしないと削除できない）
 	cookie := fmt.Sprintf("refresh_token=; Path=/; HttpOnly; SameSite=%s; Max-Age=0", h.cfg.CookieSameSite)
 
@@ -174,7 +180,7 @@ func (h *AuthHandler) clearRefreshTokenCookie(ctx context.Context) {
 		cookie += fmt.Sprintf("; Domain=%s", h.cfg.CookieDomain)
 	}
 
-	grpc.SendHeader(ctx, metadata.Pairs("Set-Cookie", cookie))
+	return grpc.SetHeader(ctx, metadata.Pairs("Set-Cookie", cookie))
 }
 
 // 以下は変更なし（関数として利用）
