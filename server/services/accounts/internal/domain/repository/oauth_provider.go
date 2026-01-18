@@ -15,4 +15,6 @@ type OAuthUserInfo struct {
 type OAuthProvider interface {
 	// GetUserInfo exchanges the auth code for an access token and retrieves user info.
 	GetUserInfo(ctx context.Context, code string) (*OAuthUserInfo, error)
+	// GetAuthURL constructs the authorization URL for initiating the OAuth flow.
+	GetAuthURL(redirectURL, state string) string
 }

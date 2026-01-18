@@ -47,6 +47,15 @@ type discordUserResponse struct {
 	// Discriminator is deprecated but might be useful if strictly needed
 }
 
+func (p *discordProvider) GetAuthURL(redirectURL, state string) string {
+	// Use AuthCodeOption to dynamically override the Redirect URL
+	// This allows support for both localhost and production domains
+	opts := []oauth2.AuthCodeOption{
+		oauth2.SetAuthURLParam("redirect_uri", redirectURL),
+	}
+	return p.oauthConfig.AuthCodeURL(state, opts...)
+}
+
 // GetUserInfo exchanges the auth code for a token and retrieves user info.
 func (p *discordProvider) GetUserInfo(ctx context.Context, code string) (*repository.OAuthUserInfo, error) {
 	// 1. Exchange Code for Token
