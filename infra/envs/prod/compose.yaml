@@ -1,15 +1,13 @@
 services:
   # --- Backend ---
   accounts-server:
-    # ユーザー名部分は実際のリポジトリオーナーに合わせてください
     image: ghcr.io/barn0w1/hss-science/accounts-server:${APP_VERSION}
     restart: always
     ports:
-      - "3000:3000"   # HTTP
+      - "3000:3000"
       # - "50051:50051" # gRPC (Needed usually internal only, but expose if needed)
     environment:
       ENV: production
-      # DB Connection
       DB_HOST: ${DB_HOST}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
