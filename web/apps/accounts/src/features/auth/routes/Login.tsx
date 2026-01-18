@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAccountsServiceGetAuthUrl } from '@hss-science/api';
-import { AuthLayout, Button } from '@hss-science/ui';
+import { AuthLayout } from '../../../components/layouts/AuthLayout';
+import { Button } from '../../../components/ui/Button';
 import { STORAGE_KEY_REDIRECT_TO } from '../../../utils/constants';
 
 const DiscordIcon = () => (
@@ -38,25 +39,23 @@ export const Login = () => {
 
     return (
         <AuthLayout 
-            title="Welcome Back" 
-            subtitle="Sign in to your account"
+            title="Sign in"
+            subtitle="HSS Science Single Sign-On"
         >
-             <div className="space-y-6 pt-4">                 
+            <div className="space-y-5">
                 <Button
                     onClick={handleLogin}
                     isLoading={isFetching}
-                    className="w-full bg-[#5865F2] hover:bg-[#4752C4] text-white border-transparent"
+                    className="w-full bg-slate-900 hover:bg-slate-800 text-white border-transparent"
                     leftIcon={<DiscordIcon />}
                 >
-                    {isFetching ? 'Connecting to Discord...' : 'Sign in with Discord'}
+                    {isFetching ? 'Connecting to Discord...' : 'Continue with Discord'}
                 </Button>
 
-                <div className="text-center">
-                    <p className="text-sm text-gray-500">
-                        Don't have an account? <a href="#" className="font-medium text-[#0055ff] hover:underline">Sign up</a>
-                    </p>
-                </div>
-             </div>
+                <p className="text-xs text-slate-500 text-center">
+                    Secure access for all *.hss-science.org services
+                </p>
+            </div>
         </AuthLayout>
     );
 };

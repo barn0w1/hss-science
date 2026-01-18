@@ -1,7 +1,6 @@
 import React from 'react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
   isLoading?: boolean;
   leftIcon?: React.ReactNode;
 }
@@ -9,26 +8,16 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 export const Button: React.FC<ButtonProps> = ({
   children,
   className = '',
-  variant = 'primary',
   isLoading = false,
   leftIcon,
   disabled,
   ...props
 }) => {
   const baseStyles = "inline-flex items-center justify-center rounded-lg px-4 py-3 text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
-  
-  const variants = {
-    primary: "bg-[#0055ff] text-white hover:bg-[#0044cc] focus:ring-[#0055ff] shadow-sm hover:shadow",
-    secondary: "bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-500",
-    outline: "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-[#0055ff]",
-    ghost: "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
-  };
-  
-  // Specific override for Discord style if needed later, but keeping 'primary' generic blue for now.
-  
+
   return (
     <button
-      className={`${baseStyles} ${variants[variant]} ${className}`}
+      className={`${baseStyles} ${className}`}
       disabled={isLoading || disabled}
       {...props}
     >
