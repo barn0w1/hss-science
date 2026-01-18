@@ -1,78 +1,41 @@
 services:
-  # --- Ingress / Reverse Proxy ---
   gateway:
     image: caddy:2-alpine
     container_name: gateway
     restart: always
-    ports:
-      - "443:443"
-      - "80:80"
+    ports: ["80:80", "443:443"]
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - ./certs:/etc/caddy/certs
       - caddy_data:/data
       - caddy_config:/config
-    depends_on:
-      - accounts_web
-      - accounts_server
-    networks:
-      - backend
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
+    networks: [backend]
 
-  # --- Frontend (SPA) ---
   accounts_web:
     image: ghcr.io/barn0w1/hss-science/accounts-web:latest
     container_name: accounts_web
     restart: always
-    networks:
-      - backend
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
+    networks: [backend]
 
-  # --- Backend Services ---
   accounts_server:
     image: ghcr.io/barn0w1/hss-science/accounts-server:latest
     container_name: accounts_server
     restart: always
-    env_file:
-      - ./envs/global.env
-      - ./envs/accounts.env
-    depends_on:
-      - postgres
-    networks:
-      - backend
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
+    env_file: [./envs/global.env, ./envs/accounts.env]
+    networks: [backend]
 
-  # --- Database ---
   postgres:
     image: postgres:16-alpine
     container_name: postgres
     restart: always
-    shm_size: 128mb
-    env_file:
-      - ./envs/postgres.env
-    volumes:
-      - pg_data:/var/lib/postgresql/data
-    networks:
-      - backend
-    labels:
-      # Disable automatic updates
-      - "com.centurylinklabs.watchtower.enable=false"
-
-  # --- Auto Deploy Agent (Watchtower) ---
-  watchtower:
-    image: containrrr/watchtower
-    container_name: watchtower
-    restart: always
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - WATCHTOWER_CLEANUP=true       # 古いイメージを削除
-      - WATCHTOWER_POLL_INTERVAL=60   # 60秒ごとに確認
-      - WATCHTOWER_LABEL_ENABLE=true  # ラベルが付いているコンテナのみ更新
-    command: --label-enable --cleanup --interval 60
+    shm_size: 256mb
+    env_file: [./envs/postgres.env]
+    volumes: [pg_data:/var/lib/postgresql/data]
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      retries: 5
 
 volumes:
   pg_data:
