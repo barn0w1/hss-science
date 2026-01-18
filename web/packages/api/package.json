@@ -1,0 +1,18 @@
+{
+  "name": "@hss-science/api",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "gen": "orval"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.0.0",
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "orval": "^6.20.0",
+    "typescript": "^5.0.0"
+  }
+}
