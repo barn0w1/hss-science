@@ -1,0 +1,19 @@
+{
+    # Disable automatic HTTPS
+    auto_https off
+}
+
+accounts.hss-science.org {
+    # Cloudflare Origin CA certificate settings
+    tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+
+    # --- Backend Services ---
+    handle /api/* {
+        reverse_proxy accounts_server:3000
+    }
+
+    # --- Frontend SPA ---
+    handle {
+        reverse_proxy accounts_web:80
+    }
+}
