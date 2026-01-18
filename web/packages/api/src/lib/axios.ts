@@ -4,7 +4,7 @@ import type { AxiosRequestConfig } from 'axios';
 
 // GatewayのURL (環境変数で切り替えられるようにするのがベストだが、一旦直書き)
 export const AXIOS_INSTANCE = axios.create({
-  baseURL: 'http://localhost:3000', // Gateway Port
+  baseURL: 'https://accounts.hss-science.org/api', // Gateway Port
   withCredentials: true, // Required for HttpOnly Cookies
   headers: {
     'Content-Type': 'application/json',
