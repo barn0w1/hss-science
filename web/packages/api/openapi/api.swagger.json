@@ -133,14 +133,6 @@
             }
           }
         },
-        "parameters": [
-          {
-            "name": "redirect_url",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          }
-        ],
         "tags": [
           "AccountsService"
         ]
@@ -203,8 +195,7 @@
       "type": "object",
       "properties": {
         "url": {
-          "type": "string",
-          "title": "Discord authentication URL (includes client_id, scope, state, etc.)"
+          "type": "string"
         }
       }
     },
@@ -212,8 +203,7 @@
       "type": "object",
       "properties": {
         "code": {
-          "type": "string",
-          "title": "Auth Code returned from Discord"
+          "type": "string"
         }
       }
     },
@@ -221,17 +211,15 @@
       "type": "object",
       "properties": {
         "access_token": {
-          "type": "string",
-          "title": "JWT"
+          "type": "string"
         },
         "refresh_token": {
           "type": "string",
-          "title": "Opaque Token"
+          "title": "Cookie使用時は空文字が返る想定だが、型としては残しておく"
         },
         "expires_in": {
           "type": "integer",
-          "format": "int32",
-          "title": "seconds"
+          "format": "int32"
         }
       }
     },
@@ -273,20 +261,16 @@
       "type": "object",
       "properties": {
         "id": {
-          "type": "string",
-          "title": "Internal UUID"
+          "type": "string"
         },
         "name": {
-          "type": "string",
-          "title": "Display Name"
+          "type": "string"
         },
         "avatar_url": {
-          "type": "string",
-          "title": "Icon Image URL"
+          "type": "string"
         },
         "role": {
-          "type": "string",
-          "title": "\"admin\", \"moderator\", \"user\""
+          "type": "string"
         }
       }
     }

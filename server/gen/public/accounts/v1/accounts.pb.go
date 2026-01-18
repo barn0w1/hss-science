@@ -24,7 +24,6 @@ const (
 
 type GetAuthUrlRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	RedirectUrl   string                 `protobuf:"bytes,1,opt,name=redirect_url,json=redirectUrl,proto3" json:"redirect_url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -59,17 +58,9 @@ func (*GetAuthUrlRequest) Descriptor() ([]byte, []int) {
 	return file_public_accounts_v1_accounts_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *GetAuthUrlRequest) GetRedirectUrl() string {
-	if x != nil {
-		return x.RedirectUrl
-	}
-	return ""
-}
-
 type GetAuthUrlResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Discord authentication URL (includes client_id, scope, state, etc.)
-	Url           string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Url           string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -113,7 +104,7 @@ func (x *GetAuthUrlResponse) GetUrl() string {
 
 type LoginRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"` // Auth Code returned from Discord
+	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -157,9 +148,9 @@ func (x *LoginRequest) GetCode() string {
 
 type LoginResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	AccessToken   string                 `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`    // JWT
-	RefreshToken  string                 `protobuf:"bytes,2,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"` // Opaque Token
-	ExpiresIn     int32                  `protobuf:"varint,3,opt,name=expires_in,json=expiresIn,proto3" json:"expires_in,omitempty"`         // seconds
+	AccessToken   string                 `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	RefreshToken  string                 `protobuf:"bytes,2,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"` // Cookie使用時は空文字が返る想定だが、型としては残しておく
+	ExpiresIn     int32                  `protobuf:"varint,3,opt,name=expires_in,json=expiresIn,proto3" json:"expires_in,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -437,10 +428,10 @@ func (*GetMeRequest) Descriptor() ([]byte, []int) {
 
 type User struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`                                // Internal UUID
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                            // Display Name
-	AvatarUrl     string                 `protobuf:"bytes,3,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"` // Icon Image URL
-	Role          string                 `protobuf:"bytes,4,opt,name=role,proto3" json:"role,omitempty"`                            // "admin", "moderator", "user"
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	AvatarUrl     string                 `protobuf:"bytes,3,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"`
+	Role          string                 `protobuf:"bytes,4,opt,name=role,proto3" json:"role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -507,9 +498,8 @@ var File_public_accounts_v1_accounts_proto protoreflect.FileDescriptor
 
 const file_public_accounts_v1_accounts_proto_rawDesc = "" +
 	"\n" +
-	"!public/accounts/v1/accounts.proto\x12\x17hss_science.accounts.v1\x1a\x1cgoogle/api/annotations.proto\"6\n" +
-	"\x11GetAuthUrlRequest\x12!\n" +
-	"\fredirect_url\x18\x01 \x01(\tR\vredirectUrl\"&\n" +
+	"!public/accounts/v1/accounts.proto\x12\x17hss_science.accounts.v1\x1a\x1cgoogle/api/annotations.proto\"\x13\n" +
+	"\x11GetAuthUrlRequest\"&\n" +
 	"\x12GetAuthUrlResponse\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\"\"\n" +
 	"\fLoginRequest\x12\x12\n" +
