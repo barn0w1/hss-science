@@ -1,10 +1,32 @@
-/project-root
-├── cmd/                # Application entry points (main executables)
-├── internal/           # Private application code (cannot be imported by external projects)
-│   ├── entity/         # Core business entities and domain models (innermost layer)
-│   ├── usecase/        # Application-specific business logic and interfaces (application layer)
-│   ├── handler/        # Handlers/controllers (API, gRPC, CLI) - interface adapters layer
-│   ├── repository/     # Repository interfaces (defined here) and implementations (in infrastructure)
-│   └── infrastructure/ # Database connections, external APIs, frameworks implementations
-├── pkg/                # Public utility code (safe to import by other projects)
-└── go.mod              # Go module file
+```mermaid
+graph TD
+    User((User)) -->|HTTPS| CF[Cloudflare Proxy\nOrange Cloud]
+    CF -->|Strict SSL\nOrigin CA Cert| VMNode[Single VM]
+
+    subgraph VM_SG [Ubuntu Server]
+        Caddy[Caddy Reverse Proxy\nTLS Termination]
+        Fe[Frontend Container]
+        Be[Backend Container]
+        GitAgent[GitOps Agent\nCron or Webhook]
+
+        Caddy -->|HTTP| Fe
+        Caddy -->|gRPC/HTTP| Be
+    end
+
+    VMNode --> Caddy
+
+    subgraph GitHub
+        Repo[Git Repository\ninfra/envs/prod]
+        GHCR[GHCR Registry]
+        Action[GitHub Actions]
+    end
+
+    Dev[Developer] -->|Tag Push| Repo
+    Repo -->|Trigger| Action
+    Action -->|Build and Push| GHCR
+    Action -->|Commit Version Change| Repo
+
+    GitAgent -->|Pull changes| Repo
+    GitAgent -->|docker compose up| Caddy
+
+```
