@@ -1,5 +1,5 @@
 {
-    # Disable automatic HTTPS
+    # Disable automatic HTTPS (as Cloudflare handles it)
     auto_https off
 }
 
@@ -8,7 +8,7 @@ accounts.hss-science.org {
     tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
 
     # --- Backend Services ---
-    handle /api/* {
+    handle_path /api/* {
         reverse_proxy accounts-server:3000
     }
 
