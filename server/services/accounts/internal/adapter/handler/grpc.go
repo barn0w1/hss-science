@@ -143,18 +143,19 @@ func (h *AuthHandler) GetMe(ctx context.Context, req *pb.GetMeRequest) (*pb.User
 
 // --- Helpers ---
 
-// Configの値を使ってCookieを設定するメソッドに変更
 func (h *AuthHandler) setRefreshTokenCookie(ctx context.Context, token string) {
-	// 基本属性
-	cookie := fmt.Sprintf("refresh_token=%s; Path=/v1/auth; HttpOnly; SameSite=%s; Max-Age=%d",
+	// 修正ポイント1: Path を "/" に変更 (API全体でCookieを有効にするため)
+	// 修正ポイント2: 属性の順番やフォーマットを標準に合わせる
+	cookie := fmt.Sprintf("refresh_token=%s; Path=/; HttpOnly; SameSite=%s; Max-Age=%d",
 		token, h.cfg.CookieSameSite, 30*24*60*60) // 30 days
 
-	// Secure属性 (Prod環境のみ)
+	// Secure属性 (HTTPS環境では必須)
 	if h.cfg.CookieSecure {
 		cookie += "; Secure"
 	}
 
-	// Domain属性 (SSO用)
+	// Domain属性
+	// .hss-science.org のように指定されていれば、サブドメイン間(drive等)で共有可能
 	if h.cfg.CookieDomain != "" {
 		cookie += fmt.Sprintf("; Domain=%s", h.cfg.CookieDomain)
 	}
@@ -162,9 +163,9 @@ func (h *AuthHandler) setRefreshTokenCookie(ctx context.Context, token string) {
 	grpc.SendHeader(ctx, metadata.Pairs("Set-Cookie", cookie))
 }
 
-// 削除用も同様に属性を合わせる
 func (h *AuthHandler) clearRefreshTokenCookie(ctx context.Context) {
-	cookie := fmt.Sprintf("refresh_token=; Path=/v1/auth; HttpOnly; SameSite=%s; Max-Age=0", h.cfg.CookieSameSite)
+	// 修正ポイント: ここも Path を "/" に合わせる（そうしないと削除できない）
+	cookie := fmt.Sprintf("refresh_token=; Path=/; HttpOnly; SameSite=%s; Max-Age=0", h.cfg.CookieSameSite)
 
 	if h.cfg.CookieSecure {
 		cookie += "; Secure"
