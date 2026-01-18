@@ -48,31 +48,30 @@ func main() {
 	absComposeDir := filepath.Join(rootDir, relativeComposeDir)
 	absEnvFile := filepath.Join(absComposeDir, "envs", "postgres.env")
 
-	// 1. envファイルから認証情報を読み込む (Hardcode回避)
 	loadDBConfig(absEnvFile)
 
 	fmt.Printf("🚀 Starting Deployment at: %s\n", rootDir)
 
-	// 2. Source Get
+	// 1. Source Get
 	if err := runCmd(rootDir, "", "git", "pull", "origin", "main"); err != nil {
 		log.Fatalf("Git pull failed: %v", err)
 	}
 
-	// 3. Start Postgres
+	// 2. Start Postgres
 	if err := runCmd(absComposeDir, "", "docker", "compose", "up", "-d", "postgres"); err != nil {
 		log.Fatalf("Postgres startup failed: %v", err)
 	}
 
-	// 4. Wait
+	// 3. Wait
 	waitForPostgres()
 
-	// 5. Setup Databases & Migrations
+	// 4. Setup Databases & Migrations
 	for _, db := range databases {
 		absMigratePath := filepath.Join(rootDir, db.MigrationPath)
 		fmt.Printf("\n--- Target DB: %s ---\n", db.Name)
 
 		if err := createDB(absComposeDir, db.Name); err != nil {
-			log.Fatalf("Create DB failed: %v", err)
+			log.Fatalf("Create DB failed: %v", db.Name)
 		}
 
 		if err := runMigration(absComposeDir, absMigratePath, absEnvFile, db.Name); err != nil {
@@ -80,7 +79,7 @@ func main() {
 		}
 	}
 
-	// 6. Finalize
+	// 5. Finalize
 	fmt.Println("\n--- Starting All Services ---")
 	if err := runCmd(absComposeDir, "", "docker", "compose", "up", "-d"); err != nil {
 		log.Fatalf("Startup failed: %v", err)
@@ -89,7 +88,6 @@ func main() {
 	fmt.Println("\n✅ Deployment finished successfully!")
 }
 
-// loadDBConfig: postgres.env を読み込んで変数にセットする
 func loadDBConfig(path string) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -107,17 +105,30 @@ func loadDBConfig(path string) {
 			dbPassword = strings.TrimPrefix(line, "POSTGRES_PASSWORD=")
 		}
 	}
-	if dbUser == "" || dbPassword == "" {
-		log.Fatal("DB credentials not found in env file. Check POSTGRES_USER and POSTGRES_PASSWORD.")
-	}
 }
 
+// 修正ポイント: 存在確認と作成を分割実行
 func createDB(workingDir, dbName string) error {
-	fmt.Printf("Ensuring DB '%s' exists...\n", dbName)
-	sql := fmt.Sprintf("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '%s') THEN CREATE DATABASE %s; END IF; END $$ ;", dbName, dbName)
+	fmt.Printf("Checking if DB '%s' exists...\n", dbName)
 
-	// PGPASSWORDを環境変数として渡すことで、対話式パスワード入力を回避
-	return runCmd(workingDir, dbPassword, "docker", "compose", "exec", "-T", "postgres", "psql", "-U", dbUser, "-d", "postgres", "-c", sql)
+	// 1. DBの存在確認 (-tAc オプションで結果のみを取得)
+	checkSql := fmt.Sprintf("SELECT 1 FROM pg_database WHERE datname = '%s'", dbName)
+	cmd := exec.Command("docker", "compose", "exec", "-T", "postgres", "psql", "-U", dbUser, "-d", "postgres", "-tAc", checkSql)
+	cmd.Dir = workingDir
+	cmd.Env = append(os.Environ(), "PGPASSWORD="+dbPassword)
+
+	out, _ := cmd.Output()
+	exists := strings.TrimSpace(string(out)) == "1"
+
+	if exists {
+		fmt.Printf("Database '%s' already exists. Skipping creation.\n", dbName)
+		return nil
+	}
+
+	// 2. 存在しない場合のみ作成実行
+	fmt.Printf("Database '%s' not found. Creating...\n", dbName)
+	createSql := fmt.Sprintf("CREATE DATABASE %s", dbName)
+	return runCmd(workingDir, dbPassword, "docker", "compose", "exec", "-T", "postgres", "psql", "-U", dbUser, "-d", "postgres", "-c", createSql)
 }
 
 func runMigration(workingDir, absMigratePath, absEnvFile, dbName string) error {
@@ -149,7 +160,6 @@ func waitForPostgres() {
 	log.Fatal("\nTimed out.")
 }
 
-// runCmd に password 引数を追加し、環境変数にセットできるように変更
 func runCmd(dir, password string, name string, args ...string) error {
 	fmt.Printf("==> Exec: %s %v\n", name, args)
 	cmd := exec.Command(name, args...)
@@ -158,7 +168,6 @@ func runCmd(dir, password string, name string, args ...string) error {
 	cmd.Stderr = os.Stderr
 
 	if password != "" {
-		// PGPASSWORDをセットしておけばpsqlがそれを使ってくれる
 		cmd.Env = append(os.Environ(), "PGPASSWORD="+password)
 	}
 
