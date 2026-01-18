@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -25,9 +27,19 @@ func (s *Server) runGateway(ctx context.Context) error {
 
 	// mux の設定を強化
 	mux := runtime.NewServeMux(
+		// JSONのフィールド名を proto定義通り(スネークケース)にする設定
+		runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{
+			MarshalOptions: protojson.MarshalOptions{
+				UseProtoNames:   true,
+				EmitUnpopulated: true,
+			},
+			UnmarshalOptions: protojson.UnmarshalOptions{
+				DiscardUnknown: true,
+			},
+		}),
 		// 入力方向: ブラウザの Cookie を gRPC メタデータへ
 		runtime.WithIncomingHeaderMatcher(func(key string) (string, bool) {
-			if key == "Cookie" {
+			if strings.EqualFold(key, "Cookie") {
 				return "cookie", true
 			}
 			return runtime.DefaultHeaderMatcher(key)
