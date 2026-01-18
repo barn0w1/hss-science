@@ -23,10 +23,11 @@ type Server struct {
 }
 
 // New creates a new Server manager.
-func New(cfg config.AppConfig) *Server {
+// interceptors: Optional list of gRPC middleware (e.g. Auth).
+func New(cfg config.AppConfig, interceptors ...grpc.UnaryServerInterceptor) *Server {
 	return &Server{
 		cfg:        cfg,
-		grpcServer: newGRPCServer(cfg), // defined in grpc.go
+		grpcServer: newGRPCServer(cfg, interceptors...),
 	}
 }
 
