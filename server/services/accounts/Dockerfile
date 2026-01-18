@@ -27,6 +27,4 @@ USER appuser
 
 COPY --from=builder /app/bin/accounts .
 
-EXPOSE 3000 50051
-
 CMD ["./accounts"]

@@ -25,6 +25,4 @@ COPY web/apps/accounts/nginx.conf /etc/nginx/conf.d/default.conf
 
 COPY --from=builder /app/web/apps/accounts/dist /usr/share/nginx/html
 
-EXPOSE 80
-
 CMD ["nginx", "-g", "daemon off;"]
