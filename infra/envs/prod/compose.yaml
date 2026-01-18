@@ -56,6 +56,15 @@ services:
       - accounts-server
       - accounts-web
 
+  adminer:
+    image: adminer:latest
+    container_name: adminer
+    restart: always
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - backend
+
 volumes:
   pg_data:
   caddy_data:
