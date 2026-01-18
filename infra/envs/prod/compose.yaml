@@ -23,7 +23,6 @@ services:
     container_name: accounts-server
     restart: always
     env_file: 
-      - ./envs/global.env
       - ./envs/accounts.env
     networks:
       - backend
