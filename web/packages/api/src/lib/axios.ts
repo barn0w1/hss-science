@@ -3,10 +3,19 @@ import axios, { AxiosRequestConfig } from 'axios';
 // GatewayのURL (環境変数で切り替えられるようにするのがベストだが、一旦直書き)
 export const AXIOS_INSTANCE = axios.create({
   baseURL: 'http://localhost:3000', // Gateway Port
+  withCredentials: true, // Required for HttpOnly Cookies
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+export const setAccessToken = (token: string | null) => {
+  if (token) {
+    AXIOS_INSTANCE.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  } else {
+    delete AXIOS_INSTANCE.defaults.headers.common['Authorization'];
+  }
+};
 
 // Orvalが使用するカスタム関数
 export const customInstance = <T>(

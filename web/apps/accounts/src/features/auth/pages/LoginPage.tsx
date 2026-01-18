@@ -14,9 +14,7 @@ export const LoginPage = () => {
         }
     }, [searchParams]);
 
-    const { refetch, isFetching } = useAccountsServiceGetAuthUrl({
-        redirect_url: window.location.origin + '/callback'
-    }, {
+    const { refetch, isFetching } = useAccountsServiceGetAuthUrl(undefined, {
         query: {
             enabled: false
         }

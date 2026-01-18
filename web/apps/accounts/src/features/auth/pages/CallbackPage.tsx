@@ -19,9 +19,6 @@ export const CallbackPage = () => {
         if (code) {
             hasRun.current = true;
             
-            // Clean URL
-            window.history.replaceState({}, document.title, "/callback");
-
             // The generated hook expects { data: V1LoginRequest }
             loginMutation.mutateAsync({
                 data: {
@@ -34,6 +31,9 @@ export const CallbackPage = () => {
                     // Handle redirection
                     const redirectTo = sessionStorage.getItem(STORAGE_KEY_REDIRECT_TO);
                     sessionStorage.removeItem(STORAGE_KEY_REDIRECT_TO);
+
+                    // Clean URL (remove code)
+                    window.history.replaceState({}, document.title, window.location.pathname);
 
                     if (redirectTo) {
                         try {
