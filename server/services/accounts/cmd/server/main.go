@@ -11,6 +11,7 @@ import (
 
 	// Internal packages
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/adapter/handler"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/adapter/middleware"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/adapter/oauth"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/adapter/repository/postgres"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/config"
@@ -38,8 +39,7 @@ func main() {
 		LogFormat:   cfg.LogFormat,
 	})
 
-	// 3. Connect to Database (using sqlx + pgx driver)
-	// DSN() string is provided by platform config
+	// 3. Connect to Database
 	db, err := sqlx.Connect("pgx", cfg.DB.DSN())
 	if err != nil {
 		slog.Error("Failed to connect to database", "error", err)
@@ -47,10 +47,9 @@ func main() {
 	}
 	defer db.Close()
 
-	// DB Connection settings (optional but recommended)
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(25)
-	db.SetConnMaxLifetime(5 * time.Minute) // 5 minutes
+	db.SetConnMaxLifetime(5 * time.Minute)
 
 	slog.Info("Database connected", "host", cfg.DB.Host)
 
@@ -64,11 +63,15 @@ func main() {
 	// Usecase Layer (Business Logic)
 	authUsecase := usecase.NewAuthUsecase(cfg, userRepo, tokenRepo, oauthProvider)
 
+	// Middleware Layer (New!)
+	authMiddleware := middleware.NewAuthMiddleware(authUsecase)
+
 	// Handler Layer (Interface Adapter)
 	authHandler := handler.NewAuthHandler(authUsecase)
 
-	// 5. Setup Platform Server
-	srv := server.New(cfg.AppConfig)
+	// 5. Setup Platform Server with Interceptors
+	// Auth Middlewareを注入して、全リクエストに対して認証チェックを行う
+	srv := server.New(cfg.AppConfig, authMiddleware.UnaryServerInterceptor())
 
 	// 6. Register gRPC Service
 	pb.RegisterAccountsServiceServer(srv.GrpcServer(), authHandler)
