@@ -39,7 +39,7 @@ export const DashboardPage = () => {
                         )}
                         <div>
                             <h2 className="text-2xl font-bold text-gray-900">{user?.name}</h2>
-                            <p className="text-gray-500">{user?.email}</p>
+                            <p className="text-gray-500">{user?.role}</p>
                             <div className="mt-2 text-xs text-gray-400 font-mono">ID: {user?.id}</div>
                         </div>
                     </div>

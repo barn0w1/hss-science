@@ -14,7 +14,7 @@ export const LoginPage = () => {
         }
     }, [searchParams]);
 
-    const { refetch, isFetching } = useAccountsServiceGetAuthUrl(undefined, {
+    const { refetch, isFetching } = useAccountsServiceGetAuthUrl({
         query: {
             enabled: false
         }

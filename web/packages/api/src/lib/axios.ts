@@ -1,4 +1,6 @@
-import axios, { AxiosRequestConfig } from 'axios';
+import axios from 'axios';
+import type { AxiosRequestConfig } from 'axios';
+
 
 // GatewayのURL (環境変数で切り替えられるようにするのがベストだが、一旦直書き)
 export const AXIOS_INSTANCE = axios.create({
