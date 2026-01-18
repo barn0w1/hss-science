@@ -49,22 +49,21 @@ service AccountsService {
 // ===== Requests / Responses =====
 
 message GetAuthUrlRequest {
-  string redirect_url = 1;
+  // リクエストパラメータは不要になりました（Backendの設定値を使用）
 }
 
 message GetAuthUrlResponse {
-  // Discord authentication URL (includes client_id, scope, state, etc.)
   string url = 1;
 }
 
 message LoginRequest {
-  string code = 1; // Auth Code returned from Discord
+  string code = 1;
 }
 
 message LoginResponse {
-  string access_token = 1;  // JWT
-  string refresh_token = 2; // Opaque Token
-  int32 expires_in = 3;     // seconds
+  string access_token = 1;
+  string refresh_token = 2; // Cookie使用時は空文字が返る想定だが、型としては残しておく
+  int32 expires_in = 3;
 }
 
 message RefreshTokenRequest {
@@ -88,8 +87,8 @@ message GetMeRequest {}
 // ===== Data Models =====
 
 message User {
-  string id = 1;           // Internal UUID
-  string name = 2;         // Display Name
-  string avatar_url = 3;   // Icon Image URL
-  string role = 4;         // "admin", "moderator", "user"
+  string id = 1;
+  string name = 2;
+  string avatar_url = 3;
+  string role = 4;
 }
