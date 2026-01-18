@@ -5,21 +5,29 @@
  * OpenAPI spec version: version not set
  */
 import {
-  useMutation
+  useMutation,
+  useQuery
 } from '@tanstack/react-query'
 import type {
   MutationFunction,
+  QueryFunction,
+  QueryKey,
   UseMutationOptions,
-  UseMutationResult
+  UseMutationResult,
+  UseQueryOptions,
+  UseQueryResult
 } from '@tanstack/react-query'
 import type {
+  AccountsServiceGetAuthUrlParams,
   RpcStatus,
+  V1GetAuthUrlResponse,
   V1LoginRequest,
   V1LoginResponse,
   V1LogoutRequest,
   V1LogoutResponse,
   V1RefreshTokenRequest,
-  V1RefreshTokenResponse
+  V1RefreshTokenResponse,
+  V1User
 } from '../../model'
 import { customInstance } from '../../lib/axios';
 
@@ -28,7 +36,7 @@ type SecondParameter<T extends (...args: any) => any> = Parameters<T>[1];
 
 
 /**
- * @summary DiscordのOAuth Codeを受け取り、アクセストークン一式を返す
+ * @summary Exchange Discord OAuth Code for access tokens
  */
 export const accountsServiceLogin = (
     v1LoginRequest: V1LoginRequest,
@@ -69,7 +77,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?? {};
     export type AccountsServiceLoginMutationError = RpcStatus
 
     /**
- * @summary DiscordのOAuth Codeを受け取り、アクセストークン一式を返す
+ * @summary Exchange Discord OAuth Code for access tokens
  */
 export const useAccountsServiceLogin = <TError = RpcStatus,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof accountsServiceLogin>>, TError,{data: V1LoginRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
@@ -85,7 +93,7 @@ export const useAccountsServiceLogin = <TError = RpcStatus,
       return useMutation(mutationOptions);
     }
     /**
- * @summary Refresh Tokenを無効化（ログアウト）する
+ * @summary Invalidate Refresh Token (Logout)
  */
 export const accountsServiceLogout = (
     v1LogoutRequest: V1LogoutRequest,
@@ -126,7 +134,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?? {};
     export type AccountsServiceLogoutMutationError = RpcStatus
 
     /**
- * @summary Refresh Tokenを無効化（ログアウト）する
+ * @summary Invalidate Refresh Token (Logout)
  */
 export const useAccountsServiceLogout = <TError = RpcStatus,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof accountsServiceLogout>>, TError,{data: V1LogoutRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
@@ -142,7 +150,7 @@ export const useAccountsServiceLogout = <TError = RpcStatus,
       return useMutation(mutationOptions);
     }
     /**
- * @summary Refresh Tokenを受け取り、新しいアクセストークン一式を返す
+ * @summary Refresh Access Token using Refresh Token
  */
 export const accountsServiceRefreshToken = (
     v1RefreshTokenRequest: V1RefreshTokenRequest,
@@ -183,7 +191,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?? {};
     export type AccountsServiceRefreshTokenMutationError = RpcStatus
 
     /**
- * @summary Refresh Tokenを受け取り、新しいアクセストークン一式を返す
+ * @summary Refresh Access Token using Refresh Token
  */
 export const useAccountsServiceRefreshToken = <TError = RpcStatus,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof accountsServiceRefreshToken>>, TError,{data: V1RefreshTokenRequest}, TContext>, request?: SecondParameter<typeof customInstance>}
@@ -198,4 +206,126 @@ export const useAccountsServiceRefreshToken = <TError = RpcStatus,
 
       return useMutation(mutationOptions);
     }
+    /**
+ * @summary Get authentication URL for Discord OAuth2
+ */
+export const accountsServiceGetAuthUrl = (
+    params?: AccountsServiceGetAuthUrlParams,
+ options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<V1GetAuthUrlResponse>(
+      {url: `/v1/auth/url`, method: 'GET',
+        params, signal
+    },
+      options);
+    }
+  
+
+export const getAccountsServiceGetAuthUrlQueryKey = (params?: AccountsServiceGetAuthUrlParams,) => {
+    return [`/v1/auth/url`, ...(params ? [params]: [])] as const;
+    }
+
     
+export const getAccountsServiceGetAuthUrlQueryOptions = <TData = Awaited<ReturnType<typeof accountsServiceGetAuthUrl>>, TError = RpcStatus>(params?: AccountsServiceGetAuthUrlParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof accountsServiceGetAuthUrl>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAccountsServiceGetAuthUrlQueryKey(params);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof accountsServiceGetAuthUrl>>> = ({ signal }) => accountsServiceGetAuthUrl(params, requestOptions, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof accountsServiceGetAuthUrl>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AccountsServiceGetAuthUrlQueryResult = NonNullable<Awaited<ReturnType<typeof accountsServiceGetAuthUrl>>>
+export type AccountsServiceGetAuthUrlQueryError = RpcStatus
+
+/**
+ * @summary Get authentication URL for Discord OAuth2
+ */
+export const useAccountsServiceGetAuthUrl = <TData = Awaited<ReturnType<typeof accountsServiceGetAuthUrl>>, TError = RpcStatus>(
+ params?: AccountsServiceGetAuthUrlParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof accountsServiceGetAuthUrl>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+
+  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } => {
+
+  const queryOptions = getAccountsServiceGetAuthUrlQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+/**
+ * @summary Get own user information (requires Access Token)
+ */
+export const accountsServiceGetMe = (
+    
+ options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<V1User>(
+      {url: `/v1/users/me`, method: 'GET', signal
+    },
+      options);
+    }
+  
+
+export const getAccountsServiceGetMeQueryKey = () => {
+    return [`/v1/users/me`] as const;
+    }
+
+    
+export const getAccountsServiceGetMeQueryOptions = <TData = Awaited<ReturnType<typeof accountsServiceGetMe>>, TError = RpcStatus>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof accountsServiceGetMe>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAccountsServiceGetMeQueryKey();
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof accountsServiceGetMe>>> = ({ signal }) => accountsServiceGetMe(requestOptions, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof accountsServiceGetMe>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AccountsServiceGetMeQueryResult = NonNullable<Awaited<ReturnType<typeof accountsServiceGetMe>>>
+export type AccountsServiceGetMeQueryError = RpcStatus
+
+/**
+ * @summary Get own user information (requires Access Token)
+ */
+export const useAccountsServiceGetMe = <TData = Awaited<ReturnType<typeof accountsServiceGetMe>>, TError = RpcStatus>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof accountsServiceGetMe>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+
+  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } => {
+
+  const queryOptions = getAccountsServiceGetMeQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
