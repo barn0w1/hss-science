@@ -40,20 +40,20 @@ export const Login = () => {
     return (
         <AuthLayout 
             title="Sign in"
-            subtitle="HSS Science Single Sign-On"
+            subtitle="HSS Science"
         >
             <div className="space-y-5">
                 <Button
                     onClick={handleLogin}
                     isLoading={isFetching}
-                    className="w-full bg-slate-900 hover:bg-slate-800 text-white border-transparent"
+                    className="w-full h-11 bg-slate-900 hover:bg-slate-800 text-white border-transparent shadow-sm"
                     leftIcon={<DiscordIcon />}
                 >
                     {isFetching ? 'Connecting to Discord...' : 'Continue with Discord'}
                 </Button>
 
-                <p className="text-xs text-slate-500 text-center">
-                    Secure access for all *.hss-science.org services
+                <p className="text-[11px] text-slate-400 text-center">
+                    Single Sign-On for *.hss-science.org
                 </p>
             </div>
         </AuthLayout>
