@@ -48,14 +48,13 @@ type LoginResult struct {
 }
 
 // GetAuthURL generates the OAuth authorization URL with state parameter.
-func (u *AuthUsecase) GetAuthURL(ctx context.Context, redirectURL string) (string, error) {
-	// State生成（簡易的にランダム文字列）
+func (u *AuthUsecase) GetAuthURL(ctx context.Context) (string, error) {
 	state, err := generateRandomString(16)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate state: %w", err)
 	}
 
-	url := u.oauthProvider.GetAuthURL(redirectURL, state)
+	url := u.oauthProvider.GetAuthURL(u.cfg.DiscordRedirectURL, state)
 	return url, nil
 }
 

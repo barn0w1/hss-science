@@ -28,11 +28,8 @@ func NewAuthHandler(usecase *usecase.AuthUsecase) *AuthHandler {
 
 // GetAuthUrl generates the OAuth authorization URL.
 func (h *AuthHandler) GetAuthUrl(ctx context.Context, req *pb.GetAuthUrlRequest) (*pb.GetAuthUrlResponse, error) {
-	if req.RedirectUrl == "" {
-		return nil, status.Error(codes.InvalidArgument, "redirect_url is required")
-	}
 
-	url, err := h.usecase.GetAuthURL(ctx, req.RedirectUrl)
+	url, err := h.usecase.GetAuthURL(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to generate url: %v", err)
 	}
