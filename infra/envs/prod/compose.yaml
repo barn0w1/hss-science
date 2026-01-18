@@ -1,35 +1,50 @@
 services:
-  # --- Backend ---
-  accounts-server:
-    image: ghcr.io/barn0w1/hss-science/accounts-server:${APP_VERSION}
+  # --- Frontend(SPA) ---
+  accounts_web:
+    image: ghcr.io/barn0w1/hss-science/accounts-web:latest
+    container_name: accounts_web
     restart: always
     ports:
-      - "3000:3000"
-      # - "50051:50051" # gRPC (Needed usually internal only, but expose if needed)
-    environment:
-      ENV: production
-      DB_HOST: ${DB_HOST}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_NAME: accounts_db
-      
-      # Discord
-      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
-      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
-      DISCORD_REDIRECT_URL: https://accounts.hss-science.com/callback
-      
-      # Security
-      JWT_SECRET: ${JWT_SECRET}
-      COOKIE_DOMAIN: .hss-science.com
-      CORS_ALLOWED_ORIGINS: https://accounts.hss-science.com,https://drive.hss-science.com
+      - "127.0.0.1:8080:80"
+    depends_on:
+      - accounts_server
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
 
-  # --- Frontend ---
-  accounts-web:
-    image: ghcr.io/barn0w1/hss-science/accounts-web:${APP_VERSION}
+  # --- Backend ---
+  accounts_server:
+    image: ghcr.io/barn0w1/hss-science/accounts-server:latest
+    container_name: accounts_server
     restart: always
-    ports:
-      - "80:80" # Put behind a reverse proxy (e.g. Nginx/Traefik on host) usually
+    env_file: .env
+    depends_on:
+      - postgres
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # --- Database ---
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres_prod
+    restart: always
+    env_file: .env
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+
+  # --- Auto Deploy Agent (Watchtower) ---
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      # Nginx container is static, ENV not typically used at runtime unless entrypoint script injects them
-      # But frontend code was built with VITE_API_BASE_URL
-      pass
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=60
+      - WATCHTOWER_LABEL_ENABLE=true
+    command: --label-enable --cleanup --interval 60
+
+volumes:
+  pg_data:
