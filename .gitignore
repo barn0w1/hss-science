@@ -36,5 +36,4 @@ go.work.sum
 
 node_modules/
 
-TASKS.md
-Bug.md
+memo/
