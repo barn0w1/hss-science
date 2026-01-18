@@ -63,14 +63,14 @@ func main() {
 	// Usecase Layer (Business Logic)
 	authUsecase := usecase.NewAuthUsecase(cfg, userRepo, tokenRepo, oauthProvider)
 
-	// Middleware Layer (New!)
+	// Middleware Layer
 	authMiddleware := middleware.NewAuthMiddleware(authUsecase)
 
 	// Handler Layer (Interface Adapter)
-	authHandler := handler.NewAuthHandler(authUsecase)
+	// 【修正点】 cfg を渡す
+	authHandler := handler.NewAuthHandler(authUsecase, cfg)
 
 	// 5. Setup Platform Server with Interceptors
-	// Auth Middlewareを注入して、全リクエストに対して認証チェックを行う
 	srv := server.New(cfg.AppConfig, authMiddleware.UnaryServerInterceptor())
 
 	// 6. Register gRPC Service
