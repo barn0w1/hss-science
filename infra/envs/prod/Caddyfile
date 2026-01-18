@@ -7,6 +7,23 @@ accounts.hss-science.org {
     # Cloudflare Origin CA certificate settings
     tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
 
+    # --- CORS Settings ---
+    # Cookieを許可するためには Origin を * (ワイルドカード) にしてはいけません
+    header {
+        Access-Control-Allow-Origin https://accounts.hss-science.org
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods "GET, POST, OPTIONS"
+        Access-Control-Allow-Headers "Content-Type, Authorization, Cookie"
+    }
+
+    # ブラウザが送る事前確認(OPTIONS)リクエストに204(No Content)を返す
+    @options {
+        method OPTIONS
+    }
+    handle @options {
+        respond "" 204
+    }
+
     # --- Backend Services ---
     handle_path /api/* {
         reverse_proxy accounts-server:3000
