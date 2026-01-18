@@ -1,0 +1,37 @@
+services:
+  # --- Backend ---
+  accounts-server:
+    # ユーザー名部分は実際のリポジトリオーナーに合わせてください
+    image: ghcr.io/barn0w1/hss-science/accounts-server:${APP_VERSION}
+    restart: always
+    ports:
+      - "3000:3000"   # HTTP
+      # - "50051:50051" # gRPC (Needed usually internal only, but expose if needed)
+    environment:
+      ENV: production
+      # DB Connection
+      DB_HOST: ${DB_HOST}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: accounts_db
+      
+      # Discord
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
+      DISCORD_REDIRECT_URL: https://accounts.hss-science.com/callback
+      
+      # Security
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_DOMAIN: .hss-science.com
+      CORS_ALLOWED_ORIGINS: https://accounts.hss-science.com,https://drive.hss-science.com
+
+  # --- Frontend ---
+  accounts-web:
+    image: ghcr.io/barn0w1/hss-science/accounts-web:${APP_VERSION}
+    restart: always
+    ports:
+      - "80:80" # Put behind a reverse proxy (e.g. Nginx/Traefik on host) usually
+    environment:
+      # Nginx container is static, ENV not typically used at runtime unless entrypoint script injects them
+      # But frontend code was built with VITE_API_BASE_URL
+      pass

@@ -1,0 +1,8 @@
+# Dockerfile build context exclusions
+bin
+obj
+vendor
+.git
+.env
+.DS_Store
+.vscode

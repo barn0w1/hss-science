@@ -1,25 +1,15 @@
-name: Production Deploy
+name: Deploy Production
 
 on:
-  # 手動トリガー: GitHubのActionsタブからボタンで実行
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Image Version Tag (default: latest)'
-        required: false
-        default: 'latest'
+  push:
+    tags:
+      - 'v*'
 
-# 環境変数（リポジトリのSecretsに設定する値）
 env:
   REGISTRY: ghcr.io
-  # イメージ名は全て小文字である必要あり
-  IMAGE_BACKEND: ${{ github.repository }}/accounts-server
-  IMAGE_FRONTEND: ${{ github.repository }}/accounts-web
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # ------------------------------------------------------------------
-  # 1. Build & Push Images
-  # ------------------------------------------------------------------
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
@@ -37,70 +27,62 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Backend Build
-      - name: Build and push Backend
+      # --- Backend Build ---
+      - name: Build and push Backend (Accounts) - Server
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: server/services/accounts/Dockerfile
+          context: ./server
+          file: ./server/services/accounts/Dockerfile
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_BACKEND }}:${{ inputs.version }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/accounts-server:${{ github.ref_name }}
 
-      # Frontend Build
-      # ビルド時に環境変数を焼き込む (Viteはビルド時にこれが必要)
-      - name: Build and push Frontend
+      # --- Frontend Build ---
+      - name: Build and push Frontend (Accounts) - Web
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: web/apps/accounts/Dockerfile
+          context: ./web
+          file: ./web/apps/accounts/Dockerfile
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_FRONTEND }}:${{ inputs.version }}
           build-args: |
-            VITE_DISCORD_CLIENT_ID=${{ secrets.VITE_DISCORD_CLIENT_ID }}
-            VITE_DISCORD_REDIRECT_URI=${{ secrets.VITE_DISCORD_REDIRECT_URI }}
+             VITE_API_BASE_URL=https://api.hss-science.com
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/accounts-web:${{ github.ref_name }}
 
-  # ------------------------------------------------------------------
-  # 2. Deploy to Oracle Cloud (SSH)
-  # ------------------------------------------------------------------
   deploy:
-    needs: build-and-push
     runs-on: ubuntu-latest
+    needs: build-and-push
     steps:
-      - name: Execute remote SSH commands
-        uses: appleboy/ssh-action@v1.0.3
-        env:
-          # SSH側で使う変数
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          IMAGE_TAG: ${{ inputs.version }}
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Copy Compose File to Server
+        uses: appleboy/scp-action@master
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: GHCR_USER,GHCR_TOKEN,IMAGE_TAG
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: "infra/envs/prod/compose.yaml"
+          target: "~/hss-science/"
+          strip_components: 3 # remove infra/envs/prod/ structure
+
+      - name: Execute Deployment on Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            # 1. 作業ディレクトリへ移動
-            cd /home/ubuntu/hss-science/infra/envs/prod
-
-            # 2. GHCRへログイン (Pullするため)
-            echo $GHCR_TOKEN | docker login ghcr.io -u $GHCR_USER --password-stdin
-
-            # 3. 環境変数のセットアップ (docker compose用)
-            # .envファイルはサーバー上に事前に置いておくか、ここでSecretsから生成する
-            # 今回はサーバーに .env がある前提で進めます
-
-            # 4. 最新イメージのPull
-            docker compose pull
-
-            # 5. DB Migration (別コンテナで実行)
-            # ※ マイグレーションファイルはImageに含まれているか、Volumeマウントが必要
-            # 今回は backend コンテナ内にマイグレーションファイルを入れたのでそれを使う手もあるが、
-            # 安全のため migrate/migrate イメージを使うのがベスト。
-            # ここではシンプルに、Backendコンテナ起動時にマイグレーションするスクリプトを仕込むか、
-            # make migrate-up 相当のコマンドを叩く。
+            cd ~/hss-science
             
-            # 6. コンテナ再起動
-            docker compose up -d
-
-            # 7. 古いイメージの削除
-            docker image prune -f
+            # Export Variables
+            export APP_VERSION=${{ github.ref_name }}
+            export GHCR_PAT=${{ secrets.GHCR_PAT }}
+            export GITHUB_ACTOR=${{ github.actor }}
+            
+            # Login to GHCR (Use a Personal Access Token or similar on the server)
+            echo $GHCR_PAT | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
+            
+            # Pull new images
+            docker compose -f compose.yaml pull
+            
+            # Restart services
+            docker compose -f compose.yaml up -d
