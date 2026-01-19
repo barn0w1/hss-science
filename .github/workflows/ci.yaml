@@ -13,9 +13,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [accounts] 
+        service: [accounts]
         # service: [accounts, payment, mailer]
-    
+
     steps:
       - uses: actions/checkout@v4
 
@@ -25,10 +25,10 @@ jobs:
         with:
           filters: |
             changed:
-              - 'server/services/${{ matrix.service }}/**' # Services
-              - 'server/platform/**'                       # Common Platform Code
-              - 'proto/**'                                 # Proto Definitions
-              - 'go.mod'
+              - 'server/services/${{ matrix.service }}/**'
+              - 'server/platform/**'
+              - 'proto/**'
+              - 'server/go.mod'
 
       # Set up Go & Run Checks (only if changes detected)
       - name: Set up Go
@@ -51,8 +51,8 @@ jobs:
       # Build (Compile Check)
       - name: Verify Build
         if: steps.filter.outputs.changed == 'true'
-        working-directory: server/services/${{ matrix.service }}
-        run: go build -v .
+        working-directory: server
+        run: go build -v ./services/${{ matrix.service }}
 
   # Frontend (TypeScript) Workflow
   ci-frontend:
@@ -72,18 +72,13 @@ jobs:
         with:
           filters: |
             changed:
-              - 'web/apps/${{ matrix.app }}/**' # This app itself
-              - 'web/packages/**'               # Common Packages
-              - 'proto/**'                      # Proto Definitions
+              - 'web/apps/${{ matrix.app }}/**'
+              - 'web/packages/**'
+              - 'proto/**'
               - 'web/package.json'
               - 'web/pnpm-lock.yaml'
 
-      # Set up Node & Run Checks (only if changes detected)
-      - uses: pnpm/action-setup@v3
-        if: steps.filter.outputs.changed == 'true'
-        with:
-          version: 9
-
+      # Set up Node.js & pnpm (only if changes detected)
       - name: Set up Node.js
         if: steps.filter.outputs.changed == 'true'
         uses: actions/setup-node@v4
@@ -93,7 +88,6 @@ jobs:
 
       - name: Install Dependencies
         if: steps.filter.outputs.changed == 'true'
-        working-directory: web
         run: pnpm install --frozen-lockfile
 
       # Type Check
