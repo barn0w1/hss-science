@@ -51,9 +51,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.REPO_NAME }}/${{ matrix.image-name }}
           tags: |
-            # Git タグの先頭 "v" を削除して Docker タグにする
-            type=ref,event=tag,format={{trimPrefix "v" .Ref}}
-            # latest タグも付与
+            # "v" を除去したバージョン (例: v0.1.0-alpha -> 0.1.0-alpha)
+            type=semver,pattern={{version}}
+            # 必要であれば latest も付与
             type=raw,value=latest
 
       - name: Build and push Docker image
