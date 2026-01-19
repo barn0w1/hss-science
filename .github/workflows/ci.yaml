@@ -78,17 +78,17 @@ jobs:
               - 'web/package.json'
               - 'web/pnpm-lock.yaml'
 
-      # Set up Node.js
+      # Set up Node.js (Node 24)
       - name: Set up Node.js
         if: steps.filter.outputs.changed == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'pnpm'
 
-      # Install pnpm via official action (確実)
-      - uses: pnpm/action-setup@v3
+      # Install pnpm (確実に PATH に追加)
+      - name: Install pnpm
         if: steps.filter.outputs.changed == 'true'
+        uses: pnpm/action-setup@v3
         with:
           version: 9
 
