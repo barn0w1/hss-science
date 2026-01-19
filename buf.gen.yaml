@@ -26,5 +26,5 @@ plugins:
     out: web/packages/api/openapi
     opt:
       - json_names_for_fields=false
-      - allow_merge=true
+      - allow_merge=false
       - merge_file_name=api

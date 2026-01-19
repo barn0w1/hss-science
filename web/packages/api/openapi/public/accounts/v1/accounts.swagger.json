@@ -1,7 +1,7 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "internal/accounts/v1/accounts_internal.proto",
+    "title": "public/accounts/v1/accounts.proto",
     "version": "version not set"
   },
   "tags": [

@@ -1,3 +1,3 @@
-export * from './generated/accounts-service/accounts-service';
-export * from './model';
-export { AXIOS_INSTANCE, setAccessToken } from './lib/axios';
+// packages/api/src/index.ts
+export * from './gen/accounts/accounts';
+export * from './gen/accounts/model';

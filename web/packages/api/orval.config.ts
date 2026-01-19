@@ -1,22 +1,25 @@
 import { defineConfig } from 'orval';
 
 export default defineConfig({
-  hss: {
+  // Accounts Service
+  accounts: {
     input: {
-      // make proto-gen で生成された Swagger JSON を参照
-      target: './openapi/api.swagger.json',
+      target: './openapi/public/accounts/v1/accounts.swagger.json',
     },
     output: {
-      mode: 'tags-split', // タグ(Service)ごとにファイルを分割
-      target: './src/generated',
-      schemas: './src/model',
-      client: 'react-query', // React Query Hooksを生成
+      mode: 'split',
+      target: './src/gen/accounts/accounts.ts',
+      schemas: './src/gen/accounts/model',
+      client: 'react-query',
+      httpClient: 'axios',
       override: {
         mutator: {
-          path: './src/lib/axios.ts', // さっき作ったAxiosインスタンスを使う
-          name: 'customInstance',
+          path: './src/clients/service-clients.ts',
+          name: 'accountsClient',
         },
       },
     },
   },
+
+  // Add more services here as needed
 });
