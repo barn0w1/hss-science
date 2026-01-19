@@ -75,8 +75,8 @@ jobs:
               - 'web/apps/${{ matrix.app }}/**' # This app itself
               - 'web/packages/**'               # Common Packages
               - 'proto/**'                      # Proto Definitions
-              - 'package.json'
-              - 'pnpm-lock.yaml'
+              - 'web/package.json'
+              - 'web/pnpm-lock.yaml'
 
       # Set up Node & Run Checks (only if changes detected)
       - uses: pnpm/action-setup@v3
