@@ -1,0 +1,114 @@
+name: CI - Quality Check
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  # Backend (Go) Workflow
+  ci-backend:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [accounts] 
+        # service: [accounts, payment, mailer]
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      # Detect Changes
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            changed:
+              - 'server/services/${{ matrix.service }}/**' # Services
+              - 'server/platform/**'                       # Common Platform Code
+              - 'proto/**'                                 # Proto Definitions
+              - 'go.mod'
+
+      # Set up Go & Run Checks (only if changes detected)
+      - name: Set up Go
+        if: steps.filter.outputs.changed == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'server/go.mod'
+          cache: true
+          cache-dependency-path: server/go.sum
+
+      # Lint (Static Analysis)
+      - name: Run golangci-lint
+        if: steps.filter.outputs.changed == 'true'
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          working-directory: server/services/${{ matrix.service }}
+          args: --timeout=5m
+
+      # Build (Compile Check)
+      - name: Verify Build
+        if: steps.filter.outputs.changed == 'true'
+        working-directory: server/services/${{ matrix.service }}
+        run: go build -v .
+
+  # Frontend (TypeScript) Workflow
+  ci-frontend:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [accounts]
+        # app: [accounts, dashboard, admin]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Detect Changes
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            changed:
+              - 'web/apps/${{ matrix.app }}/**' # This app itself
+              - 'web/packages/**'               # Common Packages
+              - 'proto/**'                      # Proto Definitions
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+
+      # Set up Node & Run Checks (only if changes detected)
+      - uses: pnpm/action-setup@v3
+        if: steps.filter.outputs.changed == 'true'
+        with:
+          version: 9
+
+      - name: Set up Node.js
+        if: steps.filter.outputs.changed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        if: steps.filter.outputs.changed == 'true'
+        run: pnpm install --frozen-lockfile
+
+      # Type Check
+      - name: Type Check
+        if: steps.filter.outputs.changed == 'true'
+        working-directory: web/apps/${{ matrix.app }}
+        run: pnpm tsc --noEmit
+
+      # Lint (ESLint)
+      - name: Lint
+        if: steps.filter.outputs.changed == 'true'
+        working-directory: web/apps/${{ matrix.app }}
+        run: pnpm lint
+
+      # Build Check
+      - name: Build Check
+        if: steps.filter.outputs.changed == 'true'
+        working-directory: web/apps/${{ matrix.app }}
+        run: pnpm build
