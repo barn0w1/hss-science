@@ -2,7 +2,7 @@ import { AxiosRequestConfig } from 'axios';
 import { AXIOS_INSTANCE } from './core-axios';
 
 // Base URL
-const ACCOUNTS_BASE_URL = import.meta.env.VITE_API_ACCOUNTS_URL || 'https://accounts.hss-science.org/api';
+const ACCOUNTS_BASE_URL = process.env.VITE_API_ACCOUNTS_URL || 'https://accounts.hss-science.org/api';
 
 // Service client factory
 const createClient = (baseURL: string) => {
