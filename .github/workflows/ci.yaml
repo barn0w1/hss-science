@@ -86,10 +86,11 @@ jobs:
           node-version: '24'
           cache: 'pnpm'
 
-      # Enable pnpm via Corepack
-      - name: Install pnpm
+      # Install pnpm via official action (確実)
+      - uses: pnpm/action-setup@v3
         if: steps.filter.outputs.changed == 'true'
-        run: corepack enable && corepack prepare pnpm@9.8.0 --activate
+        with:
+          version: 9
 
       # Install Dependencies
       - name: Install Dependencies
