@@ -35,7 +35,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Set up Docker Buildx for caching
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -52,7 +51,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.REPO_NAME }}/${{ matrix.image-name }}
           tags: |
-            type=ref,event=tag
+            # Git タグの先頭 "v" を削除して Docker タグにする
+            type=ref,event=tag,format={{trimPrefix "v" .Ref}}
+            # latest タグも付与
             type=raw,value=latest
 
       - name: Build and push Docker image
@@ -63,6 +64,5 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Use GitHub Actions cache
           cache-from: type=gha,scope=${{ matrix.image-name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image-name }}
