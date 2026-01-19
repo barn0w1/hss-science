@@ -78,7 +78,7 @@ jobs:
               - 'web/package.json'
               - 'web/pnpm-lock.yaml'
 
-      # Set up Node.js & pnpm (only if changes detected)
+      # Set up Node.js
       - name: Set up Node.js
         if: steps.filter.outputs.changed == 'true'
         uses: actions/setup-node@v4
@@ -86,6 +86,12 @@ jobs:
           node-version: '24'
           cache: 'pnpm'
 
+      # Enable pnpm via Corepack
+      - name: Install pnpm
+        if: steps.filter.outputs.changed == 'true'
+        run: corepack enable && corepack prepare pnpm@9.8.0 --activate
+
+      # Install Dependencies
       - name: Install Dependencies
         if: steps.filter.outputs.changed == 'true'
         run: pnpm install --frozen-lockfile
