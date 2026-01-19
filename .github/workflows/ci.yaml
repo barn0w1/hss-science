@@ -85,16 +85,17 @@ jobs:
         with:
           node-version: '24'
 
-      # Install pnpm (確実に PATH に追加)
+      # Install pnpm
       - name: Install pnpm
         if: steps.filter.outputs.changed == 'true'
         uses: pnpm/action-setup@v3
         with:
           version: 9
 
-      # Install Dependencies
+      # Install Dependencies (working-directory 指定)
       - name: Install Dependencies
         if: steps.filter.outputs.changed == 'true'
+        working-directory: web
         run: pnpm install --frozen-lockfile
 
       # Type Check
@@ -103,13 +104,13 @@ jobs:
         working-directory: web/apps/${{ matrix.app }}
         run: pnpm tsc --noEmit
 
-      # Lint (ESLint)
+      # Lint
       - name: Lint
         if: steps.filter.outputs.changed == 'true'
         working-directory: web/apps/${{ matrix.app }}
         run: pnpm lint
 
-      # Build Check
+      # Build
       - name: Build Check
         if: steps.filter.outputs.changed == 'true'
         working-directory: web/apps/${{ matrix.app }}
