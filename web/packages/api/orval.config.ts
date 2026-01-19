@@ -21,5 +21,4 @@ export default defineConfig({
     },
   },
 
-  // Add more services here as needed
 });
