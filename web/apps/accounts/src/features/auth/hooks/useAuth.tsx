@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { useAccountsServiceRefreshToken, useAccountsServiceLogout } from '@hss-science/api';
-import { setAccessToken as setGlobalAccessToken } from '@hss-science/api';
+import { useMutation } from '@tanstack/react-query';
+import { refreshAccessToken, logout as apiLogout, setAccessToken } from '../../../lib/accounts-api';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -19,11 +19,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
   const initRef = useRef(false);
 
-  // useAccountsServiceRefreshToken は mutation として定義されている (Orvalの設定によるが、添付ファイルでは mutation)
-  // または Query かもしれない。添付の accounts-service.ts を見ると、 Orval はデフォルトで useQuery を生成するが、
-  // POSTメソッドの場合は useMutation になる。 api.swagger.json で /refresh は POST なので useMutation。
-  const refreshTokenMutation = useAccountsServiceRefreshToken();
-  const logoutMutation = useAccountsServiceLogout();
+  const refreshTokenMutation = useMutation({
+    mutationFn: refreshAccessToken,
+  });
+  const logoutMutation = useMutation({
+    mutationFn: apiLogout,
+  });
 
   useEffect(() => {
     if (initRef.current) return;
@@ -34,20 +35,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         // Refresh token を使って Access Token を取得を試みる
         // POST ボディは空でよい (Cookie利用)
-        const response = await refreshTokenMutation.mutateAsync({ data: {} });
+        const response = await refreshTokenMutation.mutateAsync();
         
         if (response.access_token) {
           console.log("AuthProvider: Refresh success");
-          setGlobalAccessToken(response.access_token);
+          setAccessToken(response.access_token);
           setIsAuthenticated(true);
         } else {
           console.log("AuthProvider: No access token in response");
-          setGlobalAccessToken(null);
+          setAccessToken(null);
           setIsAuthenticated(false);
         }
       } catch (error) {
         console.log("AuthProvider: Refresh failed (expected if not logged in)");
-        setGlobalAccessToken(null);
+        setAccessToken(null);
         setIsAuthenticated(false);
       } finally {
         setIsLoading(false);
@@ -59,17 +60,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []); // Mount時のみ
 
   const login = (token: string) => {
-    setGlobalAccessToken(token);
+    setAccessToken(token);
     setIsAuthenticated(true);
   };
 
   const logout = async () => {
     try {
-      await logoutMutation.mutateAsync({ data: {} });
+      await logoutMutation.mutateAsync();
     } catch (e) {
       console.error("Logout failed", e);
     }
-    setGlobalAccessToken(null);
+    setAccessToken(null);
     setIsAuthenticated(false);
     // 必要ならリダイレクトなどは Router 側、あるいはここで window.location.href 等で行う
   };

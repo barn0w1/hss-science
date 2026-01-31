@@ -1,9 +1,13 @@
-import { useAccountsServiceGetMe } from '@hss-science/api';
+import { useQuery } from '@tanstack/react-query';
+import { fetchMe } from '../../../lib/accounts-api';
 import { useAuth } from '../../auth/hooks/useAuth';
 
 export const Profile = () => {
     const { logout } = useAuth();
-    const { data: user, isLoading, error } = useAccountsServiceGetMe();
+    const { data: user, isLoading, error } = useQuery({
+        queryKey: ['me'],
+        queryFn: fetchMe,
+    });
 
     if (isLoading) {
         return (

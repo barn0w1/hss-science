@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useAccountsServiceGetAuthUrl } from '@hss-science/api';
+import { useMutation } from '@tanstack/react-query';
+import { fetchAuthUrl } from '../../../lib/accounts-api';
 import { AuthLayout } from '../../../components/layouts/AuthLayout';
 import { STORAGE_KEY_REDIRECT_TO } from '../../../utils/constants';
 
@@ -21,27 +22,23 @@ export const Login = () => {
         }
     }, [searchParams]);
 
-    // useQuery で GET リクエスト
-    // refetch を手動で呼び出すために enabled: false
-    const { refetch, isFetching } = useAccountsServiceGetAuthUrl({
-        query: {
-            enabled: false
-        }
+    const authUrlMutation = useMutation({
+        mutationFn: fetchAuthUrl,
     });
 
     const handleLogin = async () => {
-        const result = await refetch();
-        if (result.data?.url) {
-            window.location.href = result.data.url;
+        const result = await authUrlMutation.mutateAsync();
+        if (result.url) {
+            window.location.href = result.url;
         }
     };
 
     return (
         <AuthLayout title="Sign in">
             <div>
-                <button onClick={handleLogin} disabled={isFetching}>
+                <button onClick={handleLogin} disabled={authUrlMutation.isPending}>
                     <DiscordIcon />
-                    <span>{isFetching ? 'Connecting to Discord...' : 'Continue with Discord'}</span>
+                    <span>{authUrlMutation.isPending ? 'Connecting to Discord...' : 'Continue with Discord'}</span>
                 </button>
             </div>
         </AuthLayout>

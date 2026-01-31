@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAccountsServiceLogin } from '@hss-science/api';
+import { useMutation } from '@tanstack/react-query';
+import { loginWithCode } from '../../../lib/accounts-api';
 import { useAuth } from '../hooks/useAuth';
 import { STORAGE_KEY_REDIRECT_TO } from '../../../utils/constants';
 
@@ -8,7 +9,9 @@ export const Callback = () => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const { login } = useAuth();
-    const loginMutation = useAccountsServiceLogin();
+    const loginMutation = useMutation({
+        mutationFn: loginWithCode,
+    });
     const hasRun = useRef(false);
 
     useEffect(() => {
@@ -19,11 +22,7 @@ export const Callback = () => {
         if (code) {
             hasRun.current = true;
             
-            loginMutation.mutateAsync({
-                data: {
-                    code
-                }
-            }).then((response) => {
+            loginMutation.mutateAsync(code).then((response) => {
                 if (response.access_token) {
                     login(response.access_token);
                     
