@@ -5,15 +5,16 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "gen": "orval"
+    "gen:types": "swagger2openapi ./openapi/public/accounts/v1/accounts.swagger.json -o ./openapi/public/accounts/v1/accounts.openapi.json && openapi-typescript ./openapi/public/accounts/v1/accounts.openapi.json -o ./src/generated/accounts.ts",
+    "gen": "pnpm gen:types"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.0.0",
-    "axios": "^1.6.0"
+    "openapi-fetch": "^0.15.0",
+    "openapi-typescript": "^7.10.1"
   },
   "devDependencies": {
     "@types/node": "^24.10.9",
-    "orval": "^6.20.0",
+    "swagger2openapi": "^7.0.8",
     "typescript": "^5.0.0"
   }
 }
