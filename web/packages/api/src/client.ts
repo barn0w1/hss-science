@@ -2,7 +2,7 @@ import createClient, { type Client } from "openapi-fetch";
 
 export type CreateClientOptions = Omit<Parameters<typeof createClient>[0], "baseUrl">;
 
-export const createTypedClient = <TPaths>(
+export const createTypedClient = <TPaths extends {}>(
   baseUrl: string,
   init?: CreateClientOptions
 ): Client<TPaths> => {
