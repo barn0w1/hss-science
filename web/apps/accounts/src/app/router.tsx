@@ -1,8 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Login } from '../features/auth/routes/Login';
-import { Callback } from '../features/auth/routes/Callback';
-import { Profile } from '../features/profile/routes/Profile';
-import { ProtectedRoute } from '../components/layouts/ProtectedRoute';
+import { Login } from '../features/auth/ui/Login';
+import { Callback } from '../features/auth/ui/Callback';
+import { ProtectedRoute } from '../features/auth/ui/ProtectedRoute';
+import { Profile } from '../features/profile/ui/Profile';
 
 export const AppRouter = () => {
   return (
