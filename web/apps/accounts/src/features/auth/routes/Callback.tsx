@@ -42,8 +42,8 @@ export const Callback = () => {
                              } else {
                                   window.location.href = redirectTo;
                              }
-                        } catch (e) {
-                             console.warn('Invalid redirect URL:', redirectTo);
+                            } catch (error) {
+                                console.warn('Invalid redirect URL:', redirectTo, error);
                              navigate('/');
                         }
                     } else {

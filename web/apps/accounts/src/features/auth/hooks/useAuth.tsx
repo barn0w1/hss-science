@@ -46,7 +46,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setAccessToken(null);
           setIsAuthenticated(false);
         }
-      } catch (error) {
+      } catch {
         console.log("AuthProvider: Refresh failed (expected if not logged in)");
         setAccessToken(null);
         setIsAuthenticated(false);
@@ -57,7 +57,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     initAuth();
-  }, []); // Mount時のみ
+  }, [refreshTokenMutation]); // Mount時のみ
 
   const login = (token: string) => {
     setAccessToken(token);
@@ -67,8 +67,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     try {
       await logoutMutation.mutateAsync();
-    } catch (e) {
-      console.error("Logout failed", e);
+    } catch (error) {
+      console.error("Logout failed", error);
     }
     setAccessToken(null);
     setIsAuthenticated(false);
@@ -82,6 +82,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
