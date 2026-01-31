@@ -27,4 +27,3 @@ plugins:
     opt:
       - json_names_for_fields=false
       - allow_merge=false
-      - merge_file_name=api

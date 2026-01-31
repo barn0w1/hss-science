@@ -1,15 +1,12 @@
 import createClient, { type Client } from "openapi-fetch";
 
-import type { paths } from "./generated/accounts";
+export type CreateClientOptions = Omit<Parameters<typeof createClient>[0], "baseUrl">;
 
-export type { paths };
-export type ApiClient = Client<paths>;
-
-export const createApiClient = (
+export const createTypedClient = <TPaths>(
   baseUrl: string,
-  init?: Omit<Parameters<typeof createClient>[0], "baseUrl">
-): ApiClient => {
-  return createClient<paths>({
+  init?: CreateClientOptions
+): Client<TPaths> => {
+  return createClient<TPaths>({
     baseUrl,
     ...(init ?? {}),
   });

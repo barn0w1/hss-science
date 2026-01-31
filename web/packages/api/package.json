@@ -5,8 +5,9 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "gen:types": "swagger2openapi ./openapi/public/accounts/v1/accounts.swagger.json -o ./openapi/public/accounts/v1/accounts.openapi.json && openapi-typescript ./openapi/public/accounts/v1/accounts.openapi.json -o ./src/generated/accounts.ts",
-    "gen": "pnpm gen:types"
+    "gen:accounts": "swagger2openapi ./openapi/public/accounts/v1/accounts.swagger.json -o ./openapi/public/accounts/v1/accounts.openapi.json && openapi-typescript ./openapi/public/accounts/v1/accounts.openapi.json -o ./src/generated/accounts.ts",
+    "gen:drive": "swagger2openapi ./openapi/public/drive/v1/drive.swagger.json -o ./openapi/public/drive/v1/drive.openapi.json && openapi-typescript ./openapi/public/drive/v1/drive.openapi.json -o ./src/generated/drive.ts",
+    "gen": "pnpm gen:accounts && pnpm gen:drive"
   },
   "dependencies": {
     "openapi-fetch": "^0.15.0",

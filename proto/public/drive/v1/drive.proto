@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package hss_science.drive.v1;
+
+option go_package = "github.com/barn0w1/hss-science/server/gen/public/drive/v1;drivev1";
+
+import "google/api/annotations.proto";
+
+service DriveService {
+  
+}
