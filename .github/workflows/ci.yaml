@@ -60,7 +60,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [accounts]
+        app: [accounts, drive]
         # app: [accounts, dashboard, admin]
 
     steps:

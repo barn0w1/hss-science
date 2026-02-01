@@ -31,6 +31,11 @@ jobs:
             image-name: accounts-web
             type: frontend
 
+          - name: drive-web
+            dockerfile: ./web/apps/drive/Dockerfile
+            image-name: drive-web
+            type: frontend
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
