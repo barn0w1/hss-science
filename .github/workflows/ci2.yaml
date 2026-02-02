@@ -29,8 +29,9 @@ jobs:
               - 'server/platform/**'
               - 'proto/**'
               - 'server/go.mod'
+              - 'server/go.sum'
 
-      # Set up Go 1.25.5
+      # Set up Go
       - name: Set up Go
         if: steps.filter.outputs.changed == 'true'
         uses: actions/setup-go@v5
@@ -38,22 +39,24 @@ jobs:
           go-version: '1.25.5'
           cache: true
           cache-dependency-path: server/go.sum
-      
-      # Lint (Static Analysis)
-      - name: Run golangci-lint
+
+      # Lint
+      - name: GolangCI-Lint
         if: steps.filter.outputs.changed == 'true'
         uses: golangci/golangci-lint-action@v6
         with:
           version: latest
-          install: true
           working-directory: server
-          args: --timeout=5m ./services/${{ matrix.service }}/...
+          args: >
+            --timeout=5m
+            ./services/${{ matrix.service }}
 
       # Build (Compile Check)
       - name: Verify Build
         if: steps.filter.outputs.changed == 'true'
         working-directory: server
         run: go build -v ./services/${{ matrix.service }}
+
 
   # Frontend (TypeScript) Workflow
   ci-frontend:
