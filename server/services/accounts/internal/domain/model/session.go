@@ -7,10 +7,10 @@ import (
 )
 
 // Session represents an accounts-level login state.
-// It proves that a user exists and has authenticated via OAuth.
+// Only the token hash is persisted; raw token is returned at creation time.
 type Session struct {
-	ID     uuid.UUID // session id (cookie value)
-	UserID uuid.UUID
+	TokenHash string
+	UserID    uuid.UUID
 
 	ExpiresAt time.Time
 	CreatedAt time.Time
@@ -21,24 +21,29 @@ type Session struct {
 	IPAddress string
 }
 
-// NewSession creates a new session for a user.
+// NewSession creates a new session and returns the raw token.
 func NewSession(
 	userID uuid.UUID,
 	ttl time.Duration,
 	userAgent string,
 	ipAddress string,
-) *Session {
+) (*Session, string, error) {
 	now := time.Now()
 
+	raw, err := GenerateToken(DefaultTokenBytes)
+	if err != nil {
+		return nil, "", err
+	}
+
 	return &Session{
-		ID:        uuid.New(),
+		TokenHash: HashToken(raw),
 		UserID:    userID,
 		CreatedAt: now,
 		ExpiresAt: now.Add(ttl),
 		RevokedAt: nil,
 		UserAgent: userAgent,
 		IPAddress: ipAddress,
-	}
+	}, raw, nil
 }
 
 // IsExpired checks whether the session is expired.

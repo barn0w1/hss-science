@@ -6,10 +6,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// AuthCode represents a one-time authorization code
-// issued by accounts service for service login.
+// AuthCode represents a one-time authorization code issued by accounts service.
+// Only the hash is persisted; raw code is returned at creation time.
 type AuthCode struct {
-	Code        string    // opaque, random, externally exposed
+	CodeHash    string    // SHA-256 hex digest of the raw code
 	UserID      uuid.UUID // subject
 	Audience    string    // target service (e.g. "drive")
 	RedirectURI string    // validated redirect destination
@@ -19,23 +19,28 @@ type AuthCode struct {
 	ConsumedAt *time.Time
 }
 
-// NewAuthCode creates a new one-time auth code.
+// NewAuthCode creates a new one-time auth code and returns the raw code.
 func NewAuthCode(
 	userID uuid.UUID,
 	audience string,
 	redirectURI string,
 	ttl time.Duration,
-) *AuthCode {
+) (*AuthCode, string, error) {
 	now := time.Now()
 
+	raw, err := GenerateToken(DefaultTokenBytes)
+	if err != nil {
+		return nil, "", err
+	}
+
 	return &AuthCode{
-		Code:        uuid.NewString(), // or crypto/rand later
+		CodeHash:    HashToken(raw),
 		UserID:      userID,
 		Audience:    audience,
 		RedirectURI: redirectURI,
 		CreatedAt:   now,
 		ExpiresAt:   now.Add(ttl),
-	}
+	}, raw, nil
 }
 
 // IsExpired checks whether the auth code is expired.

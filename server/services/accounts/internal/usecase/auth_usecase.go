@@ -47,10 +47,11 @@ func NewAuthUsecase(
 }
 
 type OAuthCallbackResult struct {
-	Session     *model.Session
-	Audience    string
-	RedirectURI string
-	State       string
+	Session      *model.Session
+	SessionToken string
+	Audience     string
+	RedirectURI  string
+	State        string
 }
 
 type VerifyAuthCodeResult struct {
@@ -65,16 +66,16 @@ func (u *AuthUsecase) Authorize(ctx context.Context, audience, redirectURI, stat
 	}
 
 	if sessionID != "" {
-		sessionUUID, err := uuid.Parse(sessionID)
-		if err == nil {
-			session, err := u.sessionRepo.GetByID(ctx, sessionUUID)
-			if err == nil && session.IsValid(time.Now()) {
-				code := model.NewAuthCode(session.UserID, audience, redirectURI, time.Duration(u.cfg.AuthCodeTTLSeconds)*time.Second)
-				if err := u.authCodeRepo.Create(ctx, code); err != nil {
-					return "", fmt.Errorf("failed to create auth code: %w", err)
-				}
-				return buildRedirectURL(redirectURI, code.Code, state), nil
+		session, err := u.sessionRepo.GetByTokenHash(ctx, model.HashToken(sessionID))
+		if err == nil && session.IsValid(time.Now()) {
+			code, raw, err := model.NewAuthCode(session.UserID, audience, redirectURI, time.Duration(u.cfg.AuthCodeTTLSeconds)*time.Second)
+			if err != nil {
+				return "", fmt.Errorf("failed to create auth code: %w", err)
 			}
+			if err := u.authCodeRepo.Create(ctx, code); err != nil {
+				return "", fmt.Errorf("failed to create auth code: %w", err)
+			}
+			return buildRedirectURL(redirectURI, raw, state), nil
 		}
 	}
 
@@ -133,16 +134,20 @@ func (u *AuthUsecase) OAuthCallback(ctx context.Context, code, state, ip, userAg
 		}
 	}
 
-	session := model.NewSession(user.ID, time.Duration(u.cfg.SessionTTLHours)*time.Hour, userAgent, ip)
+	session, sessionToken, err := model.NewSession(user.ID, time.Duration(u.cfg.SessionTTLHours)*time.Hour, userAgent, ip)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
 	if err := u.sessionRepo.Create(ctx, session); err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
 	return &OAuthCallbackResult{
-		Session:     session,
-		Audience:    decoded.Audience,
-		RedirectURI: decoded.RedirectURI,
-		State:       decoded.State,
+		Session:      session,
+		SessionToken: sessionToken,
+		Audience:     decoded.Audience,
+		RedirectURI:  decoded.RedirectURI,
+		State:        decoded.State,
 	}, nil
 }
 
@@ -152,7 +157,8 @@ func (u *AuthUsecase) VerifyAuthCode(ctx context.Context, code, audience string)
 		return nil, fmt.Errorf("auth_code and audience are required")
 	}
 
-	authCode, err := u.authCodeRepo.GetByCode(ctx, code)
+	codeHash := model.HashToken(code)
+	authCode, err := u.authCodeRepo.GetByCodeHash(ctx, codeHash)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +171,7 @@ func (u *AuthUsecase) VerifyAuthCode(ctx context.Context, code, audience string)
 		return nil, repository.ErrNotFound
 	}
 
-	if err := u.authCodeRepo.Consume(ctx, authCode.Code, time.Now()); err != nil {
+	if err := u.authCodeRepo.Consume(ctx, codeHash, time.Now()); err != nil {
 		return nil, err
 	}
 

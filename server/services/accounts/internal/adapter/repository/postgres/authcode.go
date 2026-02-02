@@ -13,7 +13,7 @@ import (
 )
 
 type authCodeDTO struct {
-	Code        string     `db:"code"`
+	CodeHash    string     `db:"code_hash"`
 	UserID      uuid.UUID  `db:"user_id"`
 	Audience    string     `db:"audience"`
 	RedirectURI string     `db:"redirect_uri"`
@@ -24,7 +24,7 @@ type authCodeDTO struct {
 
 func (d *authCodeDTO) toDomain() *model.AuthCode {
 	return &model.AuthCode{
-		Code:        d.Code,
+		CodeHash:    d.CodeHash,
 		UserID:      d.UserID,
 		Audience:    d.Audience,
 		RedirectURI: d.RedirectURI,
@@ -36,7 +36,7 @@ func (d *authCodeDTO) toDomain() *model.AuthCode {
 
 func fromDomainAuthCode(c *model.AuthCode) *authCodeDTO {
 	return &authCodeDTO{
-		Code:        c.Code,
+		CodeHash:    c.CodeHash,
 		UserID:      c.UserID,
 		Audience:    c.Audience,
 		RedirectURI: c.RedirectURI,
@@ -47,20 +47,20 @@ func fromDomainAuthCode(c *model.AuthCode) *authCodeDTO {
 }
 
 const (
-	authCodeColumns = "code, user_id, audience, redirect_uri, expires_at, consumed_at, created_at"
+	authCodeColumns = "code_hash, user_id, audience, redirect_uri, expires_at, consumed_at, created_at"
 
 	queryCreateAuthCode = `
-		INSERT INTO auth_codes (code, user_id, audience, redirect_uri, expires_at, consumed_at, created_at)
-		VALUES (:code, :user_id, :audience, :redirect_uri, :expires_at, :consumed_at, :created_at)
+		INSERT INTO auth_codes (code_hash, user_id, audience, redirect_uri, expires_at, consumed_at, created_at)
+		VALUES (:code_hash, :user_id, :audience, :redirect_uri, :expires_at, :consumed_at, :created_at)
 	`
-	queryGetAuthCodeByCode = `
-		SELECT ` + authCodeColumns + ` FROM auth_codes WHERE code = $1
+	queryGetAuthCodeByCodeHash = `
+		SELECT ` + authCodeColumns + ` FROM auth_codes WHERE code_hash = $1
 	`
 	queryConsumeAuthCode = `
-		UPDATE auth_codes SET consumed_at = $2 WHERE code = $1 AND consumed_at IS NULL
+		UPDATE auth_codes SET consumed_at = $2 WHERE code_hash = $1 AND consumed_at IS NULL
 	`
 	queryDeleteAuthCode = `
-		DELETE FROM auth_codes WHERE code = $1
+		DELETE FROM auth_codes WHERE code_hash = $1
 	`
 	queryCleanupExpiredAuthCodes = `
 		DELETE FROM auth_codes WHERE expires_at < $1
@@ -77,10 +77,10 @@ func (r *AuthCodeRepository) Create(ctx context.Context, code *model.AuthCode) e
 	return nil
 }
 
-// GetByCode retrieves an auth code by its code value.
-func (r *AuthCodeRepository) GetByCode(ctx context.Context, code string) (*model.AuthCode, error) {
+// GetByCodeHash retrieves an auth code by its hash.
+func (r *AuthCodeRepository) GetByCodeHash(ctx context.Context, codeHash string) (*model.AuthCode, error) {
 	var dto authCodeDTO
-	if err := r.db.GetContext(ctx, &dto, queryGetAuthCodeByCode, code); err != nil {
+	if err := r.db.GetContext(ctx, &dto, queryGetAuthCodeByCodeHash, codeHash); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, repository.ErrNotFound
 		}
@@ -90,8 +90,8 @@ func (r *AuthCodeRepository) GetByCode(ctx context.Context, code string) (*model
 }
 
 // Consume marks an auth code as used.
-func (r *AuthCodeRepository) Consume(ctx context.Context, code string, consumedAt time.Time) error {
-	result, err := r.db.ExecContext(ctx, queryConsumeAuthCode, code, consumedAt)
+func (r *AuthCodeRepository) Consume(ctx context.Context, codeHash string, consumedAt time.Time) error {
+	result, err := r.db.ExecContext(ctx, queryConsumeAuthCode, codeHash, consumedAt)
 	if err != nil {
 		return fmt.Errorf("failed to consume auth code: %w", err)
 	}
@@ -106,8 +106,8 @@ func (r *AuthCodeRepository) Consume(ctx context.Context, code string, consumedA
 }
 
 // Delete removes an auth code.
-func (r *AuthCodeRepository) Delete(ctx context.Context, code string) error {
-	_, err := r.db.ExecContext(ctx, queryDeleteAuthCode, code)
+func (r *AuthCodeRepository) Delete(ctx context.Context, codeHash string) error {
+	_, err := r.db.ExecContext(ctx, queryDeleteAuthCode, codeHash)
 	if err != nil {
 		return fmt.Errorf("failed to delete auth code: %w", err)
 	}

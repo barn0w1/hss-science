@@ -18,7 +18,7 @@ CREATE INDEX idx_users_discord_id ON users(discord_id);
 
 -- Sessions Table
 CREATE TABLE sessions (
-    id          UUID PRIMARY KEY,
+    token_hash  CHAR(64) PRIMARY KEY,
     user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 
     expires_at  TIMESTAMPTZ NOT NULL,
@@ -35,7 +35,7 @@ CREATE INDEX idx_sessions_active_user_id ON sessions(user_id) WHERE revoked_at I
 
 -- Auth Codes Table
 CREATE TABLE auth_codes (
-    code        VARCHAR(255) PRIMARY KEY,
+    code_hash   CHAR(64) PRIMARY KEY,
     user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 
     audience    VARCHAR(100) NOT NULL, -- e.g. "drive"
@@ -50,4 +50,3 @@ CREATE TABLE auth_codes (
 CREATE INDEX idx_auth_codes_user_id ON auth_codes(user_id);
 CREATE INDEX idx_auth_codes_audience ON auth_codes(audience);
 CREATE INDEX idx_auth_codes_expires_at ON auth_codes(expires_at);
-

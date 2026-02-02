@@ -51,7 +51,7 @@ func (h *PublicHandler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.setSessionCookie(w, result.Session.ID.String(), result.Session.ExpiresAt)
+	h.setSessionCookie(w, result.SessionToken, result.Session.ExpiresAt)
 
 	redirectURL := buildAuthorizeURL(result.Audience, result.RedirectURI, result.State)
 	http.Redirect(w, r, redirectURL, http.StatusFound)
@@ -66,6 +66,10 @@ func (h *PublicHandler) getSessionIDFromCookie(r *http.Request) string {
 }
 
 func (h *PublicHandler) setSessionCookie(w http.ResponseWriter, sessionID string, expiresAt time.Time) {
+	maxAge := int(time.Until(expiresAt).Seconds())
+	if maxAge < 0 {
+		maxAge = 0
+	}
 	cookie := &http.Cookie{
 		Name:     h.cfg.SessionCookieName,
 		Value:    sessionID,
@@ -74,6 +78,7 @@ func (h *PublicHandler) setSessionCookie(w http.ResponseWriter, sessionID string
 		Secure:   h.cfg.CookieSecure,
 		SameSite: parseSameSite(h.cfg.CookieSameSite),
 		Expires:  expiresAt,
+		MaxAge:   maxAge,
 	}
 
 	if h.cfg.CookieDomain != "" {
