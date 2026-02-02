@@ -1,4 +1,4 @@
-package handler
+package httptransport
 
 import (
 	"net"
@@ -7,13 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/adapter/transport"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/config"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/usecase"
-)
-
-const (
-	AuthorizePath     = "/v1/authorize"
-	OAuthCallbackPath = "/v1/oauth/callback"
 )
 
 type PublicHandler struct {
@@ -122,7 +118,7 @@ func buildAuthorizeURL(audience, redirectURI, state string) string {
 	if state != "" {
 		query.Set("state", state)
 	}
-	return AuthorizePath + "?" + query.Encode()
+	return transport.AuthorizePath + "?" + query.Encode()
 }
 
 func clientIP(r *http.Request) string {
