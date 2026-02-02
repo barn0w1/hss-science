@@ -6,44 +6,39 @@ import (
 	"github.com/google/uuid"
 )
 
-// GlobalRole defines system-wide permissions.
-// Service-specific permissions (e.g. Drive read/write) should be handled in respective services
-// or mapped from these global roles.
 type GlobalRole string
 
 const (
-	RoleSystemAdmin GlobalRole = "system_admin" // System Administrator
-	RoleModerator   GlobalRole = "moderator"    // Community Moderator / Manager
-	RoleUser        GlobalRole = "user"         // General Member
+	RoleSystemAdmin GlobalRole = "system_admin"
+	RoleModerator   GlobalRole = "moderator"
+	RoleUser        GlobalRole = "user"
 )
 
-// User represents a registered user in the system (Identity).
+// User represents a registered user identity in the system.
 type User struct {
-	ID        string     // HSS internal UUID
-	DiscordID string     // Unique Discord ID
-	Name      string     // Discord Username
-	AvatarURL string     // Discord Avatar URL
-	Role      GlobalRole // System-wide permissions
+	ID        uuid.UUID
+	DiscordID string // immutable
+
+	Name      string
+	AvatarURL string
+	Role      GlobalRole
+
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
-// NewUser creates a user instance with a generated UUID.
 func NewUser(discordID, name, avatarURL string) *User {
-	newID := uuid.New().String()
-
 	return &User{
-		ID:        newID,
+		ID:        uuid.New(),
 		DiscordID: discordID,
 		Name:      name,
 		AvatarURL: avatarURL,
-		Role:      RoleUser, // Default is general user
+		Role:      RoleUser,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
 }
 
-// UpdateProfile updates mutable fields from Discord info.
 func (u *User) UpdateProfile(name, avatarURL string) {
 	if u.Name != name || u.AvatarURL != avatarURL {
 		u.Name = name
