@@ -80,8 +80,8 @@ func main() {
 
 	// 6. Setup HTTP Server (Public)
 	publicMux := http.NewServeMux()
-	publicMux.HandleFunc("/api/v1/authorize", publicHandler.Authorize)
-	publicMux.HandleFunc("/api/v1/oauth/callback", publicHandler.OAuthCallback)
+	publicMux.HandleFunc("/v1/authorize", publicHandler.Authorize)
+	publicMux.HandleFunc("/v1/oauth/callback", publicHandler.OAuthCallback)
 
 	httpServer := &http.Server{
 		Addr:    ":" + fmt.Sprint(cfg.HTTPPort),
