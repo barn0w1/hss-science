@@ -3,6 +3,7 @@
 ## Goal
 - Subdomain 間で安全にログインさせる
 
+
 ## Actors
 - Browser
 - accounts server

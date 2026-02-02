@@ -14,12 +14,10 @@ jobs:
       fail-fast: false
       matrix:
         service: [accounts]
-        # service: [accounts, payment, mailer]
 
     steps:
       - uses: actions/checkout@v4
 
-      # Detect Changes
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -31,7 +29,6 @@ jobs:
               - 'server/go.mod'
               - 'server/go.sum'
 
-      # Set up Go
       - name: Set up Go
         if: steps.filter.outputs.changed == 'true'
         uses: actions/setup-go@v5
@@ -40,23 +37,21 @@ jobs:
           cache: true
           cache-dependency-path: server/go.sum
 
-      # Lint
       - name: GolangCI-Lint
         if: steps.filter.outputs.changed == 'true'
         uses: golangci/golangci-lint-action@v6
         with:
           version: latest
-          install-mode: goinstall   # ← 重要：Go 1.25.5 でビルドさせる
+          install-mode: goinstall
           working-directory: server
           args: >
             --timeout=5m
-            ./services/${{ matrix.service }}
+            ./services/${{ matrix.service }}/...
 
-      # Build (Compile Check)
       - name: Verify Build
         if: steps.filter.outputs.changed == 'true'
         working-directory: server
-        run: go build -v ./services/${{ matrix.service }}
+        run: go build -v ./services/${{ matrix.service }}/...
 
   # Frontend (TypeScript) Workflow
   ci-frontend:
