@@ -45,10 +45,9 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: latest
+          install: true
           working-directory: server
-          install: true   
           args: --timeout=5m ./services/${{ matrix.service }}/...
-
 
       # Build (Compile Check)
       - name: Verify Build
