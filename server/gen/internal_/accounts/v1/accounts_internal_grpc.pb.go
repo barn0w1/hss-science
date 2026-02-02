@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.0
 // - protoc             (unknown)
-// source: internal/accounts/v1/accounts_internal.proto
+// source: internal_/accounts/v1/accounts_internal.proto
 
 package accountsv1
 
@@ -120,5 +120,5 @@ var AccountsInternalService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "internal/accounts/v1/accounts_internal.proto",
+	Metadata: "internal_/accounts/v1/accounts_internal.proto",
 }

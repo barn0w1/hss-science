@@ -7,15 +7,21 @@ import (
 
 // ensure interface implementation
 var _ repository.UserRepository = (*UserRepository)(nil)
-var _ repository.TokenRepository = (*TokenRepository)(nil)
+var _ repository.SessionRepository = (*SessionRepository)(nil)
+var _ repository.AuthCodeRepository = (*AuthCodeRepository)(nil)
 
 // UserRepository implements domain/repository.UserRepository
 type UserRepository struct {
 	db *sqlx.DB
 }
 
-// TokenRepository implements domain/repository.TokenRepository
-type TokenRepository struct {
+// SessionRepository implements domain/repository.SessionRepository
+type SessionRepository struct {
+	db *sqlx.DB
+}
+
+// AuthCodeRepository implements domain/repository.AuthCodeRepository
+type AuthCodeRepository struct {
 	db *sqlx.DB
 }
 
@@ -24,7 +30,12 @@ func NewUserRepository(db *sqlx.DB) *UserRepository {
 	return &UserRepository{db: db}
 }
 
-// NewTokenRepository creates a new postgres token repository.
-func NewTokenRepository(db *sqlx.DB) *TokenRepository {
-	return &TokenRepository{db: db}
+// NewSessionRepository creates a new postgres session repository.
+func NewSessionRepository(db *sqlx.DB) *SessionRepository {
+	return &SessionRepository{db: db}
+}
+
+// NewAuthCodeRepository creates a new postgres auth code repository.
+func NewAuthCodeRepository(db *sqlx.DB) *AuthCodeRepository {
+	return &AuthCodeRepository{db: db}
 }

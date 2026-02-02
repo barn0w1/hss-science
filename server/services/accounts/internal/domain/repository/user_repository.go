@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/domain/model"
+	"github.com/google/uuid"
 )
 
 // UserRepository defines the interface for persisting User data.
@@ -15,7 +16,7 @@ type UserRepository interface {
 	Update(ctx context.Context, user *model.User) error
 
 	// GetByID retrieves a user by their internal UUID.
-	GetByID(ctx context.Context, id string) (*model.User, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*model.User, error)
 
 	// GetByDiscordID retrieves a user by their Discord Snowflake ID.
 	GetByDiscordID(ctx context.Context, discordID string) (*model.User, error)

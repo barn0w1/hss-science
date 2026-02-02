@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package hss_science.accounts.v1;
 
-option go_package = "github.com/barn0w1/hss-science/server/gen/internal/accounts/v1;accountsv1";
+option go_package = "github.com/barn0w1/hss-science/server/gen/internal_/accounts/v1;accountsv1";
 
 service AccountsInternalService {
   // Verify and consume auth code (one-time)

@@ -6,8 +6,10 @@ CREATE TABLE users (
     avatar_url  TEXT,
     role        VARCHAR(50) NOT NULL DEFAULT 'user',
 
-    created_at  TIMESTAMPTZ NOT NULL,
-    updated_at  TIMESTAMPTZ NOT NULL
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT users_role_check CHECK (role IN ('system_admin', 'moderator', 'user'))
 );
 
 -- For efficient lookup by Discord ID
@@ -20,6 +22,7 @@ CREATE TABLE sessions (
 
     expires_at  TIMESTAMPTZ NOT NULL,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    revoked_at  TIMESTAMPTZ,
 
     user_agent  TEXT,
     ip_address  VARCHAR(45)
@@ -27,6 +30,7 @@ CREATE TABLE sessions (
 
 CREATE INDEX idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
+CREATE INDEX idx_sessions_active_user_id ON sessions(user_id) WHERE revoked_at IS NULL;
 
 -- Auth Codes Table
 CREATE TABLE auth_codes (
@@ -42,4 +46,7 @@ CREATE TABLE auth_codes (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE INDEX idx_auth_codes_user_id ON auth_codes(user_id);
+CREATE INDEX idx_auth_codes_audience ON auth_codes(audience);
 CREATE INDEX idx_auth_codes_expires_at ON auth_codes(expires_at);
+

@@ -2,12 +2,18 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"net"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
+	"golang.org/x/sync/errgroup"
 
 	// Internal packages
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/adapter/handler"
@@ -18,14 +24,11 @@ import (
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/usecase"
 
 	// Generated Proto
-	pb "github.com/barn0w1/hss-science/server/gen/public/accounts/v1"
+	internalpb "github.com/barn0w1/hss-science/server/gen/internal_/accounts/v1"
 
 	// Platform packages
 	"github.com/barn0w1/hss-science/server/platform/logger"
 	"github.com/barn0w1/hss-science/server/platform/server"
-
-	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
-	"google.golang.org/grpc"
 )
 
 func main() {
@@ -57,32 +60,70 @@ func main() {
 
 	// Adapter Layer (Infra)
 	userRepo := postgres.NewUserRepository(db)
-	tokenRepo := postgres.NewTokenRepository(db)
+	sessionRepo := postgres.NewSessionRepository(db)
+	authCodeRepo := postgres.NewAuthCodeRepository(db)
 	oauthProvider := oauth.NewDiscordProvider(cfg)
 
 	// Usecase Layer (Business Logic)
-	authUsecase := usecase.NewAuthUsecase(cfg, userRepo, tokenRepo, oauthProvider)
+	authUsecase := usecase.NewAuthUsecase(cfg, userRepo, sessionRepo, authCodeRepo, oauthProvider)
 
-	// Middleware Layer
-	authMiddleware := middleware.NewAuthMiddleware(authUsecase)
+	// Middleware Layer (gRPC only)
+	authMiddleware := middleware.NewAuthMiddleware()
 
 	// Handler Layer (Interface Adapter)
-	// 【修正点】 cfg を渡す
-	authHandler := handler.NewAuthHandler(authUsecase, cfg)
+	internalHandler := handler.NewInternalHandler(authUsecase)
+	publicHandler := handler.NewPublicHandler(authUsecase, cfg)
 
-	// 5. Setup Platform Server with Interceptors
+	// 5. Setup gRPC Server (Internal)
 	srv := server.New(cfg.AppConfig, authMiddleware.UnaryServerInterceptor())
+	internalpb.RegisterAccountsInternalServiceServer(srv.GrpcServer(), internalHandler)
 
-	// 6. Register gRPC Service
-	pb.RegisterAccountsServiceServer(srv.GrpcServer(), authHandler)
+	// 6. Setup HTTP Server (Public)
+	publicMux := http.NewServeMux()
+	publicMux.HandleFunc("/api/v1/authorize", publicHandler.Authorize)
+	publicMux.HandleFunc("/api/v1/oauth/callback", publicHandler.OAuthCallback)
 
-	// 7. Register HTTP Gateway
-	srv.RegisterGateway(func(ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption) error {
-		return pb.RegisterAccountsServiceHandlerFromEndpoint(ctx, mux, endpoint, opts)
+	httpServer := &http.Server{
+		Addr:    ":" + fmt.Sprint(cfg.HTTPPort),
+		Handler: publicMux,
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	// gRPC server
+	g.Go(func() error {
+		addr := ":" + fmt.Sprint(cfg.GRPCPort)
+		lis, err := net.Listen("tcp", addr)
+		if err != nil {
+			return err
+		}
+		slog.Info("Starting internal gRPC server", "addr", addr)
+		go func() {
+			<-ctx.Done()
+			srv.GrpcServer().GracefulStop()
+		}()
+		return srv.GrpcServer().Serve(lis)
 	})
 
-	// 8. Start Server
-	if err := srv.Run(); err != nil {
+	// HTTP server
+	g.Go(func() error {
+		slog.Info("Starting public HTTP server", "addr", httpServer.Addr)
+		go func() {
+			<-ctx.Done()
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			httpServer.Shutdown(shutdownCtx)
+		}()
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			return err
+		}
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
 		slog.Error("Server exited", "error", err)
 		os.Exit(1)
 	}

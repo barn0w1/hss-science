@@ -9,25 +9,30 @@ import (
 
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/domain/model"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/domain/repository"
+	"github.com/google/uuid"
 )
 
 // userDTO is the internal struct for database mapping.
 type userDTO struct {
-	ID        string    `db:"id"`
-	DiscordID string    `db:"discord_id"`
-	Name      string    `db:"name"`
-	AvatarURL string    `db:"avatar_url"`
-	Role      string    `db:"role"`
-	CreatedAt time.Time `db:"created_at"`
-	UpdatedAt time.Time `db:"updated_at"`
+	ID        uuid.UUID      `db:"id"`
+	DiscordID string         `db:"discord_id"`
+	Name      string         `db:"name"`
+	AvatarURL sql.NullString `db:"avatar_url"`
+	Role      string         `db:"role"`
+	CreatedAt time.Time      `db:"created_at"`
+	UpdatedAt time.Time      `db:"updated_at"`
 }
 
 func (d *userDTO) toDomain() *model.User {
+	avatarURL := ""
+	if d.AvatarURL.Valid {
+		avatarURL = d.AvatarURL.String
+	}
 	return &model.User{
 		ID:        d.ID,
 		DiscordID: d.DiscordID,
 		Name:      d.Name,
-		AvatarURL: d.AvatarURL,
+		AvatarURL: avatarURL,
 		Role:      model.GlobalRole(d.Role), // Cast string to Domain Type
 		CreatedAt: d.CreatedAt,
 		UpdatedAt: d.UpdatedAt,
@@ -35,11 +40,15 @@ func (d *userDTO) toDomain() *model.User {
 }
 
 func fromDomainUser(u *model.User) *userDTO {
+	avatarURL := sql.NullString{Valid: false}
+	if u.AvatarURL != "" {
+		avatarURL = sql.NullString{String: u.AvatarURL, Valid: true}
+	}
 	return &userDTO{
 		ID:        u.ID,
 		DiscordID: u.DiscordID,
 		Name:      u.Name,
-		AvatarURL: u.AvatarURL,
+		AvatarURL: avatarURL,
 		Role:      string(u.Role),
 		CreatedAt: u.CreatedAt,
 		UpdatedAt: u.UpdatedAt,
@@ -88,7 +97,7 @@ func (r *UserRepository) Update(ctx context.Context, user *model.User) error {
 }
 
 // GetByID retrieves a user by ID.
-func (r *UserRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
+func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
 	var dto userDTO
 	if err := r.db.GetContext(ctx, &dto, queryGetUserByID, id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

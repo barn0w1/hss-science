@@ -9,9 +9,10 @@ import (
 // AuthCode represents a one-time authorization code
 // issued by accounts service for service login.
 type AuthCode struct {
-	Code     string    // opaque, random, externally exposed
-	UserID   uuid.UUID // subject
-	Audience string    // target service (e.g. "drive")
+	Code        string    // opaque, random, externally exposed
+	UserID      uuid.UUID // subject
+	Audience    string    // target service (e.g. "drive")
+	RedirectURI string    // validated redirect destination
 
 	CreatedAt  time.Time
 	ExpiresAt  time.Time
@@ -22,16 +23,18 @@ type AuthCode struct {
 func NewAuthCode(
 	userID uuid.UUID,
 	audience string,
+	redirectURI string,
 	ttl time.Duration,
 ) *AuthCode {
 	now := time.Now()
 
 	return &AuthCode{
-		Code:      uuid.NewString(), // or crypto/rand later
-		UserID:    userID,
-		Audience:  audience,
-		CreatedAt: now,
-		ExpiresAt: now.Add(ttl),
+		Code:        uuid.NewString(), // or crypto/rand later
+		UserID:      userID,
+		Audience:    audience,
+		RedirectURI: redirectURI,
+		CreatedAt:   now,
+		ExpiresAt:   now.Add(ttl),
 	}
 }
 

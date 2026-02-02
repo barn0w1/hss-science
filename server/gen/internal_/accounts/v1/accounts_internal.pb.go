@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        (unknown)
-// source: internal/accounts/v1/accounts_internal.proto
+// source: internal_/accounts/v1/accounts_internal.proto
 
 package accountsv1
 
@@ -31,7 +31,7 @@ type VerifyAuthCodeRequest struct {
 
 func (x *VerifyAuthCodeRequest) Reset() {
 	*x = VerifyAuthCodeRequest{}
-	mi := &file_internal_accounts_v1_accounts_internal_proto_msgTypes[0]
+	mi := &file_internal__accounts_v1_accounts_internal_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -43,7 +43,7 @@ func (x *VerifyAuthCodeRequest) String() string {
 func (*VerifyAuthCodeRequest) ProtoMessage() {}
 
 func (x *VerifyAuthCodeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_accounts_v1_accounts_internal_proto_msgTypes[0]
+	mi := &file_internal__accounts_v1_accounts_internal_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56,7 +56,7 @@ func (x *VerifyAuthCodeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VerifyAuthCodeRequest.ProtoReflect.Descriptor instead.
 func (*VerifyAuthCodeRequest) Descriptor() ([]byte, []int) {
-	return file_internal_accounts_v1_accounts_internal_proto_rawDescGZIP(), []int{0}
+	return file_internal__accounts_v1_accounts_internal_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *VerifyAuthCodeRequest) GetAuthCode() string {
@@ -84,7 +84,7 @@ type VerifyAuthCodeResponse struct {
 
 func (x *VerifyAuthCodeResponse) Reset() {
 	*x = VerifyAuthCodeResponse{}
-	mi := &file_internal_accounts_v1_accounts_internal_proto_msgTypes[1]
+	mi := &file_internal__accounts_v1_accounts_internal_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -96,7 +96,7 @@ func (x *VerifyAuthCodeResponse) String() string {
 func (*VerifyAuthCodeResponse) ProtoMessage() {}
 
 func (x *VerifyAuthCodeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_accounts_v1_accounts_internal_proto_msgTypes[1]
+	mi := &file_internal__accounts_v1_accounts_internal_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -109,7 +109,7 @@ func (x *VerifyAuthCodeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VerifyAuthCodeResponse.ProtoReflect.Descriptor instead.
 func (*VerifyAuthCodeResponse) Descriptor() ([]byte, []int) {
-	return file_internal_accounts_v1_accounts_internal_proto_rawDescGZIP(), []int{1}
+	return file_internal__accounts_v1_accounts_internal_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *VerifyAuthCodeResponse) GetUserId() string {
@@ -133,11 +133,11 @@ func (x *VerifyAuthCodeResponse) GetClaims() map[string]string {
 	return nil
 }
 
-var File_internal_accounts_v1_accounts_internal_proto protoreflect.FileDescriptor
+var File_internal__accounts_v1_accounts_internal_proto protoreflect.FileDescriptor
 
-const file_internal_accounts_v1_accounts_internal_proto_rawDesc = "" +
+const file_internal__accounts_v1_accounts_internal_proto_rawDesc = "" +
 	"\n" +
-	",internal/accounts/v1/accounts_internal.proto\x12\x17hss_science.accounts.v1\"P\n" +
+	"-internal_/accounts/v1/accounts_internal.proto\x12\x17hss_science.accounts.v1\"P\n" +
 	"\x15VerifyAuthCodeRequest\x12\x1b\n" +
 	"\tauth_code\x18\x01 \x01(\tR\bauthCode\x12\x1a\n" +
 	"\baudience\x18\x02 \x01(\tR\baudience\"\xd5\x01\n" +
@@ -150,27 +150,27 @@ const file_internal_accounts_v1_accounts_internal_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x012\x8c\x01\n" +
 	"\x17AccountsInternalService\x12q\n" +
-	"\x0eVerifyAuthCode\x12..hss_science.accounts.v1.VerifyAuthCodeRequest\x1a/.hss_science.accounts.v1.VerifyAuthCodeResponseBKZIgithub.com/barn0w1/hss-science/server/gen/internal/accounts/v1;accountsv1b\x06proto3"
+	"\x0eVerifyAuthCode\x12..hss_science.accounts.v1.VerifyAuthCodeRequest\x1a/.hss_science.accounts.v1.VerifyAuthCodeResponseBLZJgithub.com/barn0w1/hss-science/server/gen/internal_/accounts/v1;accountsv1b\x06proto3"
 
 var (
-	file_internal_accounts_v1_accounts_internal_proto_rawDescOnce sync.Once
-	file_internal_accounts_v1_accounts_internal_proto_rawDescData []byte
+	file_internal__accounts_v1_accounts_internal_proto_rawDescOnce sync.Once
+	file_internal__accounts_v1_accounts_internal_proto_rawDescData []byte
 )
 
-func file_internal_accounts_v1_accounts_internal_proto_rawDescGZIP() []byte {
-	file_internal_accounts_v1_accounts_internal_proto_rawDescOnce.Do(func() {
-		file_internal_accounts_v1_accounts_internal_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_internal_accounts_v1_accounts_internal_proto_rawDesc), len(file_internal_accounts_v1_accounts_internal_proto_rawDesc)))
+func file_internal__accounts_v1_accounts_internal_proto_rawDescGZIP() []byte {
+	file_internal__accounts_v1_accounts_internal_proto_rawDescOnce.Do(func() {
+		file_internal__accounts_v1_accounts_internal_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_internal__accounts_v1_accounts_internal_proto_rawDesc), len(file_internal__accounts_v1_accounts_internal_proto_rawDesc)))
 	})
-	return file_internal_accounts_v1_accounts_internal_proto_rawDescData
+	return file_internal__accounts_v1_accounts_internal_proto_rawDescData
 }
 
-var file_internal_accounts_v1_accounts_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
-var file_internal_accounts_v1_accounts_internal_proto_goTypes = []any{
+var file_internal__accounts_v1_accounts_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_internal__accounts_v1_accounts_internal_proto_goTypes = []any{
 	(*VerifyAuthCodeRequest)(nil),  // 0: hss_science.accounts.v1.VerifyAuthCodeRequest
 	(*VerifyAuthCodeResponse)(nil), // 1: hss_science.accounts.v1.VerifyAuthCodeResponse
 	nil,                            // 2: hss_science.accounts.v1.VerifyAuthCodeResponse.ClaimsEntry
 }
-var file_internal_accounts_v1_accounts_internal_proto_depIdxs = []int32{
+var file_internal__accounts_v1_accounts_internal_proto_depIdxs = []int32{
 	2, // 0: hss_science.accounts.v1.VerifyAuthCodeResponse.claims:type_name -> hss_science.accounts.v1.VerifyAuthCodeResponse.ClaimsEntry
 	0, // 1: hss_science.accounts.v1.AccountsInternalService.VerifyAuthCode:input_type -> hss_science.accounts.v1.VerifyAuthCodeRequest
 	1, // 2: hss_science.accounts.v1.AccountsInternalService.VerifyAuthCode:output_type -> hss_science.accounts.v1.VerifyAuthCodeResponse
@@ -181,26 +181,26 @@ var file_internal_accounts_v1_accounts_internal_proto_depIdxs = []int32{
 	0, // [0:1] is the sub-list for field type_name
 }
 
-func init() { file_internal_accounts_v1_accounts_internal_proto_init() }
-func file_internal_accounts_v1_accounts_internal_proto_init() {
-	if File_internal_accounts_v1_accounts_internal_proto != nil {
+func init() { file_internal__accounts_v1_accounts_internal_proto_init() }
+func file_internal__accounts_v1_accounts_internal_proto_init() {
+	if File_internal__accounts_v1_accounts_internal_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_accounts_v1_accounts_internal_proto_rawDesc), len(file_internal_accounts_v1_accounts_internal_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal__accounts_v1_accounts_internal_proto_rawDesc), len(file_internal__accounts_v1_accounts_internal_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_internal_accounts_v1_accounts_internal_proto_goTypes,
-		DependencyIndexes: file_internal_accounts_v1_accounts_internal_proto_depIdxs,
-		MessageInfos:      file_internal_accounts_v1_accounts_internal_proto_msgTypes,
+		GoTypes:           file_internal__accounts_v1_accounts_internal_proto_goTypes,
+		DependencyIndexes: file_internal__accounts_v1_accounts_internal_proto_depIdxs,
+		MessageInfos:      file_internal__accounts_v1_accounts_internal_proto_msgTypes,
 	}.Build()
-	File_internal_accounts_v1_accounts_internal_proto = out.File
-	file_internal_accounts_v1_accounts_internal_proto_goTypes = nil
-	file_internal_accounts_v1_accounts_internal_proto_depIdxs = nil
+	File_internal__accounts_v1_accounts_internal_proto = out.File
+	file_internal__accounts_v1_accounts_internal_proto_goTypes = nil
+	file_internal__accounts_v1_accounts_internal_proto_depIdxs = nil
 }

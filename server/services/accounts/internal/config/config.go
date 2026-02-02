@@ -13,13 +13,16 @@ type Config struct {
 	DiscordRedirectURL  string
 
 	// Security
-	JWTSecret       string // For signing Access Tokens
-	RefreshTokenTTL int    // Days
+	StateSecret          string // HMAC secret for OAuth state
+	SessionTTLHours      int    // Accounts session TTL (hours)
+	AuthCodeTTLSeconds   int    // Auth code TTL (seconds)
+	OAuthStateTTLSeconds int    // OAuth state TTL (seconds)
 
 	// Cookie Settings (For SSO)
-	CookieDomain   string // e.g. ".hss-science.org" or ""
-	CookieSecure   bool   // true for prod, false for dev
-	CookieSameSite string // "Lax", "None", or "Strict"
+	SessionCookieName string // e.g. "accounts_session"
+	CookieDomain      string // e.g. ".hss-science.org" or ""
+	CookieSecure      bool   // true for prod, false for dev
+	CookieSameSite    string // "Lax", "None", or "Strict"
 }
 
 func Load() *Config {
@@ -39,16 +42,19 @@ func Load() *Config {
 	}
 
 	return &Config{
-		AppConfig:           base,
-		DiscordClientID:     platform.GetEnvRequired("DISCORD_CLIENT_ID"),
-		DiscordClientSecret: platform.GetEnvRequired("DISCORD_CLIENT_SECRET"),
-		DiscordRedirectURL:  platform.GetEnvRequired("DISCORD_REDIRECT_URL"),
-		JWTSecret:           platform.GetEnvRequired("JWT_SECRET"),
-		RefreshTokenTTL:     platform.GetEnvAsInt("REFRESH_TOKEN_TTL_DAYS", 30),
+		AppConfig:            base,
+		DiscordClientID:      platform.GetEnvRequired("DISCORD_CLIENT_ID"),
+		DiscordClientSecret:  platform.GetEnvRequired("DISCORD_CLIENT_SECRET"),
+		DiscordRedirectURL:   platform.GetEnvRequired("DISCORD_REDIRECT_URL"),
+		StateSecret:          platform.GetEnvRequired("STATE_SECRET"),
+		SessionTTLHours:      platform.GetEnvAsInt("SESSION_TTL_HOURS", 168),
+		AuthCodeTTLSeconds:   platform.GetEnvAsInt("AUTH_CODE_TTL_SECONDS", 60),
+		OAuthStateTTLSeconds: platform.GetEnvAsInt("OAUTH_STATE_TTL_SECONDS", 300),
 
 		// Cookie Config
-		CookieDomain:   platform.GetEnv("COOKIE_DOMAIN", ""),
-		CookieSecure:   cookieSecure,
-		CookieSameSite: cookieSameSite,
+		SessionCookieName: platform.GetEnv("SESSION_COOKIE_NAME", "accounts_session"),
+		CookieDomain:      platform.GetEnv("COOKIE_DOMAIN", ""),
+		CookieSecure:      cookieSecure,
+		CookieSameSite:    cookieSameSite,
 	}
 }

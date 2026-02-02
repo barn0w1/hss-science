@@ -2,104 +2,116 @@ package usecase
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/config"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/domain/model"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/domain/repository"
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
-// ErrInvalidToken is returned when token validation fails.
-var ErrInvalidToken = errors.New("invalid or expired token")
+// ErrInvalidState is returned when OAuth state validation fails.
+var ErrInvalidState = errors.New("invalid state")
 
 type AuthUsecase struct {
 	cfg           *config.Config
 	userRepo      repository.UserRepository
-	tokenRepo     repository.TokenRepository
+	sessionRepo   repository.SessionRepository
+	authCodeRepo  repository.AuthCodeRepository
 	oauthProvider repository.OAuthProvider
 }
 
 func NewAuthUsecase(
 	cfg *config.Config,
 	userRepo repository.UserRepository,
-	tokenRepo repository.TokenRepository,
+	sessionRepo repository.SessionRepository,
+	authCodeRepo repository.AuthCodeRepository,
 	oauthProvider repository.OAuthProvider,
 ) *AuthUsecase {
 	return &AuthUsecase{
 		cfg:           cfg,
 		userRepo:      userRepo,
-		tokenRepo:     tokenRepo,
+		sessionRepo:   sessionRepo,
+		authCodeRepo:  authCodeRepo,
 		oauthProvider: oauthProvider,
 	}
 }
 
-// LoginResult contains the tokens returned after a successful login.
-type LoginResult struct {
-	AccessToken  string
-	RefreshToken string
-	ExpiresIn    int // Seconds
+type OAuthCallbackResult struct {
+	Session     *model.Session
+	Audience    string
+	RedirectURI string
+	State       string
 }
 
-// GetAuthURL generates the OAuth authorization URL with state parameter.
-func (u *AuthUsecase) GetAuthURL(ctx context.Context) (string, error) {
-	state, err := generateRandomString(16)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate state: %w", err)
+type VerifyAuthCodeResult struct {
+	UserID uuid.UUID
+	Role   model.GlobalRole
+}
+
+// Authorize handles the /authorize request flow.
+func (u *AuthUsecase) Authorize(ctx context.Context, audience, redirectURI, state, sessionID string) (string, error) {
+	if audience == "" || redirectURI == "" {
+		return "", fmt.Errorf("audience and redirect_uri are required")
 	}
 
-	url := u.oauthProvider.GetAuthURL(u.cfg.DiscordRedirectURL, state)
-	return url, nil
-}
-
-// GetMe retrieves the user profile based on the ID.
-func (u *AuthUsecase) GetMe(ctx context.Context, userID string) (*model.User, error) {
-	user, err := u.userRepo.GetByID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
-	}
-	return user, nil
-}
-
-// VerifyAccessToken validates the JWT access token and returns the user ID (sub claim).
-func (u *AuthUsecase) VerifyAccessToken(tokenString string) (string, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// アルゴリズム検証
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+	if sessionID != "" {
+		sessionUUID, err := uuid.Parse(sessionID)
+		if err == nil {
+			session, err := u.sessionRepo.GetByID(ctx, sessionUUID)
+			if err == nil && session.IsValid(time.Now()) {
+				code := model.NewAuthCode(session.UserID, audience, redirectURI, time.Duration(u.cfg.AuthCodeTTLSeconds)*time.Second)
+				if err := u.authCodeRepo.Create(ctx, code); err != nil {
+					return "", fmt.Errorf("failed to create auth code: %w", err)
+				}
+				return buildRedirectURL(redirectURI, code.Code, state), nil
+			}
 		}
-		return []byte(u.cfg.JWTSecret), nil
+	}
+
+	encodedState, err := u.encodeState(oauthState{
+		Audience:    audience,
+		RedirectURI: redirectURI,
+		State:       state,
+		IssuedAt:    time.Now().Unix(),
+		Nonce:       randomNonce(),
 	})
-
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to encode state: %w", err)
 	}
 
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		if sub, ok := claims["sub"].(string); ok {
-			return sub, nil
-		}
-		return "", errors.New("sub claim missing")
-	}
-
-	return "", errors.New("invalid token")
+	return u.oauthProvider.GetAuthURL(u.cfg.DiscordRedirectURL, encodedState), nil
 }
 
-// Login handles the OAuth callback, user creation/update, and token issuance.
-func (u *AuthUsecase) Login(ctx context.Context, code string, ip, userAgent string) (*LoginResult, error) {
-	// 1. Exchange code for user info from Discord
+// OAuthCallback handles Discord callback and session creation.
+func (u *AuthUsecase) OAuthCallback(ctx context.Context, code, state, ip, userAgent string) (*OAuthCallbackResult, error) {
+	if code == "" || state == "" {
+		return nil, fmt.Errorf("code and state are required")
+	}
+
+	decoded, err := u.decodeState(state)
+	if err != nil {
+		return nil, err
+	}
+
+	if time.Since(time.Unix(decoded.IssuedAt, 0)) > time.Duration(u.cfg.OAuthStateTTLSeconds)*time.Second {
+		return nil, ErrInvalidState
+	}
+
 	discordUser, err := u.oauthProvider.GetUserInfo(ctx, code)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get discord user info: %w", err)
 	}
 
-	// 2. Find or Create User
 	user, err := u.userRepo.GetByDiscordID(ctx, discordUser.DiscordID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -110,122 +122,144 @@ func (u *AuthUsecase) Login(ctx context.Context, code string, ip, userAgent stri
 	}
 
 	if user == nil {
-		// New User: Create
 		user = model.NewUser(discordUser.DiscordID, discordUser.Name, discordUser.AvatarURL)
 		if err := u.userRepo.Create(ctx, user); err != nil {
 			return nil, fmt.Errorf("failed to create user: %w", err)
 		}
 	} else {
-		// Existing User: Update Profile
-		// UpdateProfile internally checks if changes are needed
 		user.UpdateProfile(discordUser.Name, discordUser.AvatarURL)
 		if err := u.userRepo.Update(ctx, user); err != nil {
 			return nil, fmt.Errorf("failed to update user: %w", err)
 		}
 	}
 
-	// 3. Issue Tokens
-	return u.issueTokens(ctx, user, ip, userAgent)
+	session := model.NewSession(user.ID, time.Duration(u.cfg.SessionTTLHours)*time.Hour, userAgent, ip)
+	if err := u.sessionRepo.Create(ctx, session); err != nil {
+		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+
+	return &OAuthCallbackResult{
+		Session:     session,
+		Audience:    decoded.Audience,
+		RedirectURI: decoded.RedirectURI,
+		State:       decoded.State,
+	}, nil
 }
 
-// RefreshTokens handles the token renewal using a valid refresh token.
-func (u *AuthUsecase) RefreshTokens(ctx context.Context, rawRefreshToken, ip, userAgent string) (*LoginResult, error) {
-	// 1. Hash the raw token to look it up
-	tokenHash := hashToken(rawRefreshToken)
+// VerifyAuthCode validates and consumes an auth code.
+func (u *AuthUsecase) VerifyAuthCode(ctx context.Context, code, audience string) (*VerifyAuthCodeResult, error) {
+	if code == "" || audience == "" {
+		return nil, fmt.Errorf("auth_code and audience are required")
+	}
 
-	refreshToken, err := u.tokenRepo.Get(ctx, tokenHash)
+	authCode, err := u.authCodeRepo.GetByCode(ctx, code)
 	if err != nil {
-		return nil, ErrInvalidToken
+		return nil, err
 	}
 
-	// 2. Validate (Expired? Revoked?)
-	if !refreshToken.IsValid() {
-		// Token Rotation Policy:
-		// もしRevoked済みなのに使おうとした場合（Replay Attackの可能性）、
-		// 本来はここでアラートを上げたり、Userの全セッションを無効化するなどの対策も考えられる。
-		return nil, ErrInvalidToken
+	if authCode.Audience != audience {
+		return nil, repository.ErrNotFound
 	}
 
-	// 3. Get User to ensure latest role/status
-	user, err := u.userRepo.GetByID(ctx, refreshToken.UserID)
+	if authCode.IsExpired(time.Now()) || authCode.IsConsumed() {
+		return nil, repository.ErrNotFound
+	}
+
+	if err := u.authCodeRepo.Consume(ctx, authCode.Code, time.Now()); err != nil {
+		return nil, err
+	}
+
+	user, err := u.userRepo.GetByID(ctx, authCode.UserID)
 	if err != nil {
-		return nil, errors.New("user account not found or deleted")
+		return nil, err
 	}
 
-	// 4. Revoke the OLD refresh token (Token Rotation)
-	if err := u.tokenRepo.Revoke(ctx, tokenHash); err != nil {
-		return nil, fmt.Errorf("failed to revoke old token: %w", err)
-	}
-
-	// 5. Issue NEW tokens
-	return u.issueTokens(ctx, user, ip, userAgent)
-}
-
-// Logout revokes the refresh token.
-func (u *AuthUsecase) Logout(ctx context.Context, rawRefreshToken string) error {
-	tokenHash := hashToken(rawRefreshToken)
-	return u.tokenRepo.Revoke(ctx, tokenHash)
+	return &VerifyAuthCodeResult{
+		UserID: user.ID,
+		Role:   user.Role,
+	}, nil
 }
 
 // --- Helper Functions ---
 
-func (u *AuthUsecase) issueTokens(ctx context.Context, user *model.User, ip, userAgent string) (*LoginResult, error) {
-	// A. Generate Access Token (JWT)
-	// Claims: Sub(UserID), Role, Iss, Exp
-	accessTokenClaims := jwt.MapClaims{
-		"sub":  user.ID,
-		"role": user.Role, // Global Role (e.g. "admin", "user")
-		"iss":  "accounts.hss-science.org",
-		"exp":  time.Now().Add(15 * time.Minute).Unix(), // 15 min expiry (Standard)
-	}
-	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessTokenClaims)
-	signedAccessToken, err := accessToken.SignedString([]byte(u.cfg.JWTSecret))
-	if err != nil {
-		return nil, fmt.Errorf("failed to sign access token: %w", err)
-	}
-
-	// B. Generate Refresh Token (Random String)
-	// 32 bytes = 256 bits entropy is sufficient
-	rawRefreshToken, err := generateRandomString(32)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
-	}
-
-	// Create RefreshToken Model
-	refreshTokenModel := &model.RefreshToken{
-		TokenHash: hashToken(rawRefreshToken),
-		UserID:    user.ID,
-		ExpiresAt: time.Now().Add(time.Duration(u.cfg.RefreshTokenTTL) * 24 * time.Hour),
-		CreatedAt: time.Now(),
-		RevokedAt: nil, // Explicitly valid
-		UserAgent: userAgent,
-		IPAddress: ip,
-	}
-
-	// Save to DB
-	if err := u.tokenRepo.Save(ctx, refreshTokenModel); err != nil {
-		return nil, fmt.Errorf("failed to save refresh token: %w", err)
-	}
-
-	return &LoginResult{
-		AccessToken:  signedAccessToken,
-		RefreshToken: rawRefreshToken, // Return RAW token to client
-		ExpiresIn:    15 * 60,
-	}, nil
+type oauthState struct {
+	Audience    string `json:"audience"`
+	RedirectURI string `json:"redirect_uri"`
+	State       string `json:"state"`
+	IssuedAt    int64  `json:"iat"`
+	Nonce       string `json:"nonce"`
 }
 
-// generateRandomString generates a URL-safe random string of length n bytes.
-func generateRandomString(n int) (string, error) {
-	b := make([]byte, n)
-	_, err := rand.Read(b)
+func (u *AuthUsecase) encodeState(s oauthState) (string, error) {
+	payload, err := json.Marshal(s)
 	if err != nil {
 		return "", err
 	}
-	return base64.URLEncoding.EncodeToString(b), nil
+
+	sig := signState(payload, []byte(u.cfg.StateSecret))
+	encodedPayload := base64.RawURLEncoding.EncodeToString(payload)
+	encodedSig := base64.RawURLEncoding.EncodeToString(sig)
+
+	return fmt.Sprintf("%s.%s", encodedPayload, encodedSig), nil
 }
 
-// hashToken calculates SHA-256 hash of the token string.
-func hashToken(token string) string {
-	h := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(h[:])
+func (u *AuthUsecase) decodeState(encoded string) (*oauthState, error) {
+	parts := strings.SplitN(encoded, ".", 2)
+	if len(parts) != 2 {
+		return nil, ErrInvalidState
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return nil, ErrInvalidState
+	}
+
+	sig, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, ErrInvalidState
+	}
+
+	expected := signState(payload, []byte(u.cfg.StateSecret))
+	if !hmac.Equal(sig, expected) {
+		return nil, ErrInvalidState
+	}
+
+	var s oauthState
+	if err := json.Unmarshal(payload, &s); err != nil {
+		return nil, ErrInvalidState
+	}
+
+	if s.Audience == "" || s.RedirectURI == "" {
+		return nil, ErrInvalidState
+	}
+
+	return &s, nil
+}
+
+func signState(payload, secret []byte) []byte {
+	mac := hmac.New(sha256.New, secret)
+	mac.Write(payload)
+	return mac.Sum(nil)
+}
+
+func randomNonce() string {
+	b := make([]byte, 12)
+	_, err := rand.Read(b)
+	if err != nil {
+		return ""
+	}
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+func buildRedirectURL(redirectURI, code, state string) string {
+	query := url.Values{}
+	query.Set("code", code)
+	if state != "" {
+		query.Set("state", state)
+	}
+	sep := "?"
+	if strings.Contains(redirectURI, "?") {
+		sep = "&"
+	}
+	return fmt.Sprintf("%s%s%s", redirectURI, sep, query.Encode())
 }
