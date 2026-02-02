@@ -44,7 +44,7 @@ jobs:
         if: steps.filter.outputs.changed == 'true'
         uses: golangci/golangci-lint-action@v6
         with:
-          version-file: .tool-versions
+          version: latest
           working-directory: server/services/${{ matrix.service }}
           args: --timeout=5m
 
