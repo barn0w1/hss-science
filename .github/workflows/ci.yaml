@@ -42,9 +42,9 @@ jobs:
       # Lint (Static Analysis)
       - name: Run golangci-lint
         if: steps.filter.outputs.changed == 'true'
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          version-file: .tool-versions
           working-directory: server/services/${{ matrix.service }}
           args: --timeout=5m
 
