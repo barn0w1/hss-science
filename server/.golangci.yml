@@ -12,3 +12,14 @@ linters:
 
 issues:
   exclude-use-default: false
+
+  exclude-rules:
+    - path: internal/
+      linters:
+        - revive
+
+    - path: proto/
+      linters:
+        - revive
+        - errcheck
+        - govet
