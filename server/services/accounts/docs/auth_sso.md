@@ -1,6 +1,5 @@
 # Flow: Auth SSO
 
-
 ## Goal
 - Subdomain 間で安全にログインさせる
 
