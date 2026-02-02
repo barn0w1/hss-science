@@ -7,7 +7,10 @@
 package accountsv1
 
 import (
+	context "context"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -15,12 +18,16 @@ import (
 // Requires gRPC-Go v1.64.0 or later.
 const _ = grpc.SupportPackageIsVersion9
 
+const (
+	AccountsInternalService_VerifyAuthCode_FullMethodName = "/hss_science.accounts.v1.AccountsInternalService/VerifyAuthCode"
+)
+
 // AccountsInternalServiceClient is the client API for AccountsInternalService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// internal-only APIs for accounts service
 type AccountsInternalServiceClient interface {
+	// Verify and consume auth code (one-time)
+	VerifyAuthCode(ctx context.Context, in *VerifyAuthCodeRequest, opts ...grpc.CallOption) (*VerifyAuthCodeResponse, error)
 }
 
 type accountsInternalServiceClient struct {
@@ -31,12 +38,22 @@ func NewAccountsInternalServiceClient(cc grpc.ClientConnInterface) AccountsInter
 	return &accountsInternalServiceClient{cc}
 }
 
+func (c *accountsInternalServiceClient) VerifyAuthCode(ctx context.Context, in *VerifyAuthCodeRequest, opts ...grpc.CallOption) (*VerifyAuthCodeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VerifyAuthCodeResponse)
+	err := c.cc.Invoke(ctx, AccountsInternalService_VerifyAuthCode_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AccountsInternalServiceServer is the server API for AccountsInternalService service.
 // All implementations must embed UnimplementedAccountsInternalServiceServer
 // for forward compatibility.
-//
-// internal-only APIs for accounts service
 type AccountsInternalServiceServer interface {
+	// Verify and consume auth code (one-time)
+	VerifyAuthCode(context.Context, *VerifyAuthCodeRequest) (*VerifyAuthCodeResponse, error)
 	mustEmbedUnimplementedAccountsInternalServiceServer()
 }
 
@@ -47,6 +64,9 @@ type AccountsInternalServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedAccountsInternalServiceServer struct{}
 
+func (UnimplementedAccountsInternalServiceServer) VerifyAuthCode(context.Context, *VerifyAuthCodeRequest) (*VerifyAuthCodeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method VerifyAuthCode not implemented")
+}
 func (UnimplementedAccountsInternalServiceServer) mustEmbedUnimplementedAccountsInternalServiceServer() {
 }
 func (UnimplementedAccountsInternalServiceServer) testEmbeddedByValue() {}
@@ -69,13 +89,36 @@ func RegisterAccountsInternalServiceServer(s grpc.ServiceRegistrar, srv Accounts
 	s.RegisterService(&AccountsInternalService_ServiceDesc, srv)
 }
 
+func _AccountsInternalService_VerifyAuthCode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VerifyAuthCodeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountsInternalServiceServer).VerifyAuthCode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountsInternalService_VerifyAuthCode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountsInternalServiceServer).VerifyAuthCode(ctx, req.(*VerifyAuthCodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AccountsInternalService_ServiceDesc is the grpc.ServiceDesc for AccountsInternalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var AccountsInternalService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "hss_science.accounts.v1.AccountsInternalService",
 	HandlerType: (*AccountsInternalServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
-	Streams:     []grpc.StreamDesc{},
-	Metadata:    "internal/accounts/v1/accounts_internal.proto",
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "VerifyAuthCode",
+			Handler:    _AccountsInternalService_VerifyAuthCode_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "internal/accounts/v1/accounts_internal.proto",
 }

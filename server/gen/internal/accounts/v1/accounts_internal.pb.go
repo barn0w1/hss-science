@@ -10,6 +10,7 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
+	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -20,20 +21,164 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type VerifyAuthCodeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AuthCode      string                 `protobuf:"bytes,1,opt,name=auth_code,json=authCode,proto3" json:"auth_code,omitempty"`
+	Audience      string                 `protobuf:"bytes,2,opt,name=audience,proto3" json:"audience,omitempty"` // e.g. "drive"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyAuthCodeRequest) Reset() {
+	*x = VerifyAuthCodeRequest{}
+	mi := &file_internal_accounts_v1_accounts_internal_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyAuthCodeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyAuthCodeRequest) ProtoMessage() {}
+
+func (x *VerifyAuthCodeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_accounts_v1_accounts_internal_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyAuthCodeRequest.ProtoReflect.Descriptor instead.
+func (*VerifyAuthCodeRequest) Descriptor() ([]byte, []int) {
+	return file_internal_accounts_v1_accounts_internal_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *VerifyAuthCodeRequest) GetAuthCode() string {
+	if x != nil {
+		return x.AuthCode
+	}
+	return ""
+}
+
+func (x *VerifyAuthCodeRequest) GetAudience() string {
+	if x != nil {
+		return x.Audience
+	}
+	return ""
+}
+
+type VerifyAuthCodeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Role          string                 `protobuf:"bytes,2,opt,name=role,proto3" json:"role,omitempty"`
+	Claims        map[string]string      `protobuf:"bytes,10,rep,name=claims,proto3" json:"claims,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyAuthCodeResponse) Reset() {
+	*x = VerifyAuthCodeResponse{}
+	mi := &file_internal_accounts_v1_accounts_internal_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyAuthCodeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyAuthCodeResponse) ProtoMessage() {}
+
+func (x *VerifyAuthCodeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_accounts_v1_accounts_internal_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyAuthCodeResponse.ProtoReflect.Descriptor instead.
+func (*VerifyAuthCodeResponse) Descriptor() ([]byte, []int) {
+	return file_internal_accounts_v1_accounts_internal_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *VerifyAuthCodeResponse) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *VerifyAuthCodeResponse) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *VerifyAuthCodeResponse) GetClaims() map[string]string {
+	if x != nil {
+		return x.Claims
+	}
+	return nil
+}
+
 var File_internal_accounts_v1_accounts_internal_proto protoreflect.FileDescriptor
 
 const file_internal_accounts_v1_accounts_internal_proto_rawDesc = "" +
 	"\n" +
-	",internal/accounts/v1/accounts_internal.proto\x12\x17hss_science.accounts.v12\x19\n" +
-	"\x17AccountsInternalServiceBKZIgithub.com/barn0w1/hss-science/server/gen/internal/accounts/v1;accountsv1b\x06proto3"
+	",internal/accounts/v1/accounts_internal.proto\x12\x17hss_science.accounts.v1\"P\n" +
+	"\x15VerifyAuthCodeRequest\x12\x1b\n" +
+	"\tauth_code\x18\x01 \x01(\tR\bauthCode\x12\x1a\n" +
+	"\baudience\x18\x02 \x01(\tR\baudience\"\xd5\x01\n" +
+	"\x16VerifyAuthCodeResponse\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
+	"\x04role\x18\x02 \x01(\tR\x04role\x12S\n" +
+	"\x06claims\x18\n" +
+	" \x03(\v2;.hss_science.accounts.v1.VerifyAuthCodeResponse.ClaimsEntryR\x06claims\x1a9\n" +
+	"\vClaimsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x012\x8c\x01\n" +
+	"\x17AccountsInternalService\x12q\n" +
+	"\x0eVerifyAuthCode\x12..hss_science.accounts.v1.VerifyAuthCodeRequest\x1a/.hss_science.accounts.v1.VerifyAuthCodeResponseBKZIgithub.com/barn0w1/hss-science/server/gen/internal/accounts/v1;accountsv1b\x06proto3"
 
-var file_internal_accounts_v1_accounts_internal_proto_goTypes = []any{}
+var (
+	file_internal_accounts_v1_accounts_internal_proto_rawDescOnce sync.Once
+	file_internal_accounts_v1_accounts_internal_proto_rawDescData []byte
+)
+
+func file_internal_accounts_v1_accounts_internal_proto_rawDescGZIP() []byte {
+	file_internal_accounts_v1_accounts_internal_proto_rawDescOnce.Do(func() {
+		file_internal_accounts_v1_accounts_internal_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_internal_accounts_v1_accounts_internal_proto_rawDesc), len(file_internal_accounts_v1_accounts_internal_proto_rawDesc)))
+	})
+	return file_internal_accounts_v1_accounts_internal_proto_rawDescData
+}
+
+var file_internal_accounts_v1_accounts_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_internal_accounts_v1_accounts_internal_proto_goTypes = []any{
+	(*VerifyAuthCodeRequest)(nil),  // 0: hss_science.accounts.v1.VerifyAuthCodeRequest
+	(*VerifyAuthCodeResponse)(nil), // 1: hss_science.accounts.v1.VerifyAuthCodeResponse
+	nil,                            // 2: hss_science.accounts.v1.VerifyAuthCodeResponse.ClaimsEntry
+}
 var file_internal_accounts_v1_accounts_internal_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	2, // 0: hss_science.accounts.v1.VerifyAuthCodeResponse.claims:type_name -> hss_science.accounts.v1.VerifyAuthCodeResponse.ClaimsEntry
+	0, // 1: hss_science.accounts.v1.AccountsInternalService.VerifyAuthCode:input_type -> hss_science.accounts.v1.VerifyAuthCodeRequest
+	1, // 2: hss_science.accounts.v1.AccountsInternalService.VerifyAuthCode:output_type -> hss_science.accounts.v1.VerifyAuthCodeResponse
+	2, // [2:3] is the sub-list for method output_type
+	1, // [1:2] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_internal_accounts_v1_accounts_internal_proto_init() }
@@ -47,12 +192,13 @@ func file_internal_accounts_v1_accounts_internal_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_accounts_v1_accounts_internal_proto_rawDesc), len(file_internal_accounts_v1_accounts_internal_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   0,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_internal_accounts_v1_accounts_internal_proto_goTypes,
 		DependencyIndexes: file_internal_accounts_v1_accounts_internal_proto_depIdxs,
+		MessageInfos:      file_internal_accounts_v1_accounts_internal_proto_msgTypes,
 	}.Build()
 	File_internal_accounts_v1_accounts_internal_proto = out.File
 	file_internal_accounts_v1_accounts_internal_proto_goTypes = nil
