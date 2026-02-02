@@ -61,21 +61,33 @@ type VerifyAuthCodeResult struct {
 
 // Authorize handles the /authorize request flow.
 func (u *AuthUsecase) Authorize(ctx context.Context, audience, redirectURI, state, sessionID string) (string, error) {
+	audience = strings.TrimSpace(audience)
+	redirectURI = strings.TrimSpace(redirectURI)
 	if audience == "" || redirectURI == "" {
 		return "", fmt.Errorf("audience and redirect_uri are required")
 	}
+	if err := validateRedirectURI(redirectURI); err != nil {
+		return "", err
+	}
+
+	now := time.Now()
 
 	if sessionID != "" {
 		session, err := u.sessionRepo.GetByTokenHash(ctx, model.HashToken(sessionID))
-		if err == nil && session.IsValid(time.Now()) {
-			code, raw, err := model.NewAuthCode(session.UserID, audience, redirectURI, time.Duration(u.cfg.AuthCodeTTLSeconds)*time.Second)
-			if err != nil {
-				return "", fmt.Errorf("failed to create auth code: %w", err)
+		if err == nil {
+			if session.IsValid(now) {
+				raw, err := u.issueAuthCode(ctx, session.UserID, audience, redirectURI)
+				if err != nil {
+					return "", err
+				}
+				redirectURL, err := buildRedirectURL(redirectURI, raw, state)
+				if err != nil {
+					return "", err
+				}
+				return redirectURL, nil
 			}
-			if err := u.authCodeRepo.Create(ctx, code); err != nil {
-				return "", fmt.Errorf("failed to create auth code: %w", err)
-			}
-			return buildRedirectURL(redirectURI, raw, state), nil
+		} else if !errors.Is(err, repository.ErrNotFound) {
+			return "", fmt.Errorf("failed to load session: %w", err)
 		}
 	}
 
@@ -83,7 +95,7 @@ func (u *AuthUsecase) Authorize(ctx context.Context, audience, redirectURI, stat
 		Audience:    audience,
 		RedirectURI: redirectURI,
 		State:       state,
-		IssuedAt:    time.Now().Unix(),
+		IssuedAt:    now.Unix(),
 		Nonce:       randomNonce(),
 	})
 	if err != nil {
@@ -103,8 +115,12 @@ func (u *AuthUsecase) OAuthCallback(ctx context.Context, code, state, ip, userAg
 	if err != nil {
 		return nil, err
 	}
+	if err := validateRedirectURI(decoded.RedirectURI); err != nil {
+		return nil, ErrInvalidState
+	}
 
-	if time.Since(time.Unix(decoded.IssuedAt, 0)) > time.Duration(u.cfg.OAuthStateTTLSeconds)*time.Second {
+	now := time.Now()
+	if now.Sub(time.Unix(decoded.IssuedAt, 0)) > time.Duration(u.cfg.OAuthStateTTLSeconds)*time.Second {
 		return nil, ErrInvalidState
 	}
 
@@ -157,6 +173,7 @@ func (u *AuthUsecase) VerifyAuthCode(ctx context.Context, code, audience string)
 		return nil, fmt.Errorf("auth_code and audience are required")
 	}
 
+	now := time.Now()
 	codeHash := model.HashToken(code)
 	authCode, err := u.authCodeRepo.GetByCodeHash(ctx, codeHash)
 	if err != nil {
@@ -167,11 +184,11 @@ func (u *AuthUsecase) VerifyAuthCode(ctx context.Context, code, audience string)
 		return nil, repository.ErrNotFound
 	}
 
-	if authCode.IsExpired(time.Now()) || authCode.IsConsumed() {
+	if authCode.IsExpired(now) || authCode.IsConsumed() {
 		return nil, repository.ErrNotFound
 	}
 
-	if err := u.authCodeRepo.Consume(ctx, codeHash, time.Now()); err != nil {
+	if err := u.authCodeRepo.Consume(ctx, codeHash, now); err != nil {
 		return nil, err
 	}
 
@@ -184,6 +201,17 @@ func (u *AuthUsecase) VerifyAuthCode(ctx context.Context, code, audience string)
 		UserID: user.ID,
 		Role:   user.Role,
 	}, nil
+}
+
+func (u *AuthUsecase) issueAuthCode(ctx context.Context, userID uuid.UUID, audience, redirectURI string) (string, error) {
+	code, raw, err := model.NewAuthCode(userID, audience, redirectURI, time.Duration(u.cfg.AuthCodeTTLSeconds)*time.Second)
+	if err != nil {
+		return "", fmt.Errorf("failed to create auth code: %w", err)
+	}
+	if err := u.authCodeRepo.Create(ctx, code); err != nil {
+		return "", fmt.Errorf("failed to persist auth code: %w", err)
+	}
+	return raw, nil
 }
 
 // --- Helper Functions ---
@@ -257,15 +285,27 @@ func randomNonce() string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-func buildRedirectURL(redirectURI, code, state string) string {
-	query := url.Values{}
+func validateRedirectURI(redirectURI string) error {
+	parsed, err := url.Parse(redirectURI)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("invalid redirect_uri")
+	}
+	if parsed.Fragment != "" {
+		return fmt.Errorf("redirect_uri must not include fragment")
+	}
+	return nil
+}
+
+func buildRedirectURL(redirectURI, code, state string) (string, error) {
+	parsed, err := url.Parse(redirectURI)
+	if err != nil {
+		return "", fmt.Errorf("invalid redirect_uri: %w", err)
+	}
+	query := parsed.Query()
 	query.Set("code", code)
 	if state != "" {
 		query.Set("state", state)
 	}
-	sep := "?"
-	if strings.Contains(redirectURI, "?") {
-		sep = "&"
-	}
-	return fmt.Sprintf("%s%s%s", redirectURI, sep, query.Encode())
+	parsed.RawQuery = query.Encode()
+	return parsed.String(), nil
 }
