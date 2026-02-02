@@ -1,6 +1,6 @@
 module github.com/barn0w1/hss-science/server
 
-go 1.25.5
+go 1.25.4
 
 require (
 	github.com/google/uuid v1.6.0
