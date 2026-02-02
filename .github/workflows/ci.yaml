@@ -30,12 +30,12 @@ jobs:
               - 'proto/**'
               - 'server/go.mod'
 
-      # Set up Go & Run Checks (only if changes detected)
+      # Set up Go 1.25.5
       - name: Set up Go
         if: steps.filter.outputs.changed == 'true'
         uses: actions/setup-go@v5
         with:
-          go-version-file: 'server/go.mod'
+          go-version: '1.25.5'
           cache: true
           cache-dependency-path: server/go.sum
 
@@ -45,8 +45,8 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: latest
-          working-directory: server/services/${{ matrix.service }}
-          args: --timeout=5m
+          working-directory: server
+          args: --timeout=5m ./services/${{ matrix.service }}/...
 
       # Build (Compile Check)
       - name: Verify Build
