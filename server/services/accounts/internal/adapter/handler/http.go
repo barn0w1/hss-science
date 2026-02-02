@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -8,6 +9,11 @@ import (
 
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/config"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/usecase"
+)
+
+const (
+	AuthorizePath     = "/v1/authorize"
+	OAuthCallbackPath = "/v1/oauth/callback"
 )
 
 type PublicHandler struct {
@@ -19,8 +25,13 @@ func NewPublicHandler(usecase *usecase.AuthUsecase, cfg *config.Config) *PublicH
 	return &PublicHandler{usecase: usecase, cfg: cfg}
 }
 
-// Authorize handles GET /api/v1/authorize
+// Authorize handles GET /v1/authorize
 func (h *PublicHandler) Authorize(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	q := r.URL.Query()
 	audience := q.Get("audience")
 	redirectURI := q.Get("redirect_uri")
@@ -36,8 +47,13 @@ func (h *PublicHandler) Authorize(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, redirectURL, http.StatusFound)
 }
 
-// OAuthCallback handles GET /api/v1/oauth/callback
+// OAuthCallback handles GET /v1/oauth/callback
 func (h *PublicHandler) OAuthCallback(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	q := r.URL.Query()
 	code := q.Get("code")
 	state := q.Get("state")
@@ -106,13 +122,20 @@ func buildAuthorizeURL(audience, redirectURI, state string) string {
 	if state != "" {
 		query.Set("state", state)
 	}
-	return "/api/v1/authorize?" + query.Encode()
+	return AuthorizePath + "?" + query.Encode()
 }
 
 func clientIP(r *http.Request) string {
 	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
 		parts := strings.Split(forwarded, ",")
 		return strings.TrimSpace(parts[0])
+	}
+	if realIP := strings.TrimSpace(r.Header.Get("X-Real-IP")); realIP != "" {
+		return realIP
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil && host != "" {
+		return host
 	}
 	return r.RemoteAddr
 }

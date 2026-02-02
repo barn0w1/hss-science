@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -32,99 +33,116 @@ import (
 )
 
 func main() {
-	// 1. Load Config
+	if err := run(); err != nil {
+		slog.Error("Server exited", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	cfg := config.Load()
 
-	// 2. Setup Logger
 	logger.Setup(logger.Config{
 		ServiceName: cfg.ServiceName,
 		LogLevel:    cfg.LogLevel,
 		LogFormat:   cfg.LogFormat,
 	})
 
-	// 3. Connect to Database
-	db, err := sqlx.Connect("pgx", cfg.DB.DSN())
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	db, err := connectDB(ctx, cfg)
 	if err != nil {
-		slog.Error("Failed to connect to database", "error", err)
-		os.Exit(1)
+		return err
 	}
 	defer db.Close()
 
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(25)
-	db.SetConnMaxLifetime(5 * time.Minute)
-
-	slog.Info("Database connected", "host", cfg.DB.Host)
-
-	// 4. Initialize Dependency Injection (DI)
-
-	// Adapter Layer (Infra)
 	userRepo := postgres.NewUserRepository(db)
 	sessionRepo := postgres.NewSessionRepository(db)
 	authCodeRepo := postgres.NewAuthCodeRepository(db)
 	oauthProvider := oauth.NewDiscordProvider(cfg)
 
-	// Usecase Layer (Business Logic)
 	authUsecase := usecase.NewAuthUsecase(cfg, userRepo, sessionRepo, authCodeRepo, oauthProvider)
 
-	// Middleware Layer (gRPC only)
 	authMiddleware := middleware.NewAuthMiddleware()
-
-	// Handler Layer (Interface Adapter)
 	internalHandler := handler.NewInternalHandler(authUsecase)
 	publicHandler := handler.NewPublicHandler(authUsecase, cfg)
 
-	// 5. Setup gRPC Server (Internal)
 	srv := server.New(cfg.AppConfig, authMiddleware.UnaryServerInterceptor())
 	internalpb.RegisterAccountsInternalServiceServer(srv.GrpcServer(), internalHandler)
 
-	// 6. Setup HTTP Server (Public)
-	publicMux := http.NewServeMux()
-	publicMux.HandleFunc("/v1/authorize", publicHandler.Authorize)
-	publicMux.HandleFunc("/v1/oauth/callback", publicHandler.OAuthCallback)
-
-	httpServer := &http.Server{
-		Addr:    ":" + fmt.Sprint(cfg.HTTPPort),
-		Handler: publicMux,
-	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	httpServer := newHTTPServer(cfg, publicHandler)
 
 	g, ctx := errgroup.WithContext(ctx)
-
-	// gRPC server
 	g.Go(func() error {
-		addr := ":" + fmt.Sprint(cfg.GRPCPort)
-		lis, err := net.Listen("tcp", addr)
-		if err != nil {
-			return err
-		}
-		slog.Info("Starting internal gRPC server", "addr", addr)
-		go func() {
-			<-ctx.Done()
-			srv.GrpcServer().GracefulStop()
-		}()
-		return srv.GrpcServer().Serve(lis)
+		return runGRPC(ctx, srv, cfg.GRPCPort)
+	})
+	g.Go(func() error {
+		return runHTTP(ctx, httpServer, cfg.HTTPShutdownTimeoutSec)
 	})
 
-	// HTTP server
-	g.Go(func() error {
-		slog.Info("Starting public HTTP server", "addr", httpServer.Addr)
-		go func() {
-			<-ctx.Done()
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			httpServer.Shutdown(shutdownCtx)
-		}()
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			return err
-		}
-		return nil
-	})
+	return g.Wait()
+}
 
-	if err := g.Wait(); err != nil {
-		slog.Error("Server exited", "error", err)
-		os.Exit(1)
+func connectDB(ctx context.Context, cfg *config.Config) (*sqlx.DB, error) {
+	connectCtx, cancel := context.WithTimeout(ctx, time.Duration(cfg.DBConnectTimeoutSec)*time.Second)
+	defer cancel()
+
+	db, err := sqlx.ConnectContext(connectCtx, "pgx", cfg.DB.DSN())
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
+
+	db.SetMaxOpenConns(cfg.DBMaxOpenConns)
+	db.SetMaxIdleConns(cfg.DBMaxIdleConns)
+	db.SetConnMaxLifetime(time.Duration(cfg.DBConnMaxLifetimeMin) * time.Minute)
+	db.SetConnMaxIdleTime(time.Duration(cfg.DBConnMaxIdleTimeMin) * time.Minute)
+
+	slog.Info("Database connected", "host", cfg.DB.Host)
+	return db, nil
+}
+
+func newHTTPServer(cfg *config.Config, publicHandler *handler.PublicHandler) *http.Server {
+	publicMux := http.NewServeMux()
+	publicMux.HandleFunc(handler.AuthorizePath, publicHandler.Authorize)
+	publicMux.HandleFunc(handler.OAuthCallbackPath, publicHandler.OAuthCallback)
+
+	return &http.Server{
+		Addr:              ":" + strconv.Itoa(cfg.HTTPPort),
+		Handler:           publicMux,
+		ReadTimeout:       time.Duration(cfg.HTTPReadTimeoutSec) * time.Second,
+		WriteTimeout:      time.Duration(cfg.HTTPWriteTimeoutSec) * time.Second,
+		IdleTimeout:       time.Duration(cfg.HTTPIdleTimeoutSec) * time.Second,
+		ReadHeaderTimeout: time.Duration(cfg.HTTPReadHeaderTimeoutSec) * time.Second,
+	}
+}
+
+func runGRPC(ctx context.Context, srv *server.Server, port int) error {
+	addr := ":" + strconv.Itoa(port)
+	lis, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	slog.Info("Starting internal gRPC server", "addr", addr)
+	go func() {
+		<-ctx.Done()
+		srv.GrpcServer().GracefulStop()
+	}()
+	return srv.GrpcServer().Serve(lis)
+}
+
+func runHTTP(ctx context.Context, httpServer *http.Server, shutdownTimeoutSec int) error {
+	slog.Info("Starting public HTTP server", "addr", httpServer.Addr)
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Duration(shutdownTimeoutSec)*time.Second)
+		defer cancel()
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			slog.Error("HTTP server shutdown error", "error", err)
+		}
+	}()
+	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return err
+	}
+	return nil
 }

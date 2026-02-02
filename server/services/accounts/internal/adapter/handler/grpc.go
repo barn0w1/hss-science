@@ -19,9 +19,9 @@ func NewPublicGRPCHandler() *PublicGRPCHandler {
 }
 
 func (h *PublicGRPCHandler) Authorize(context.Context, *publicpb.AuthorizeRequest) (*emptypb.Empty, error) {
-	return nil, status.Error(codes.Unimplemented, "use native HTTP /api/v1/authorize")
+	return nil, status.Error(codes.Unimplemented, "use native HTTP "+AuthorizePath)
 }
 
 func (h *PublicGRPCHandler) OAuthCallback(context.Context, *publicpb.OAuthCallbackRequest) (*emptypb.Empty, error) {
-	return nil, status.Error(codes.Unimplemented, "use native HTTP /api/v1/oauth/callback")
+	return nil, status.Error(codes.Unimplemented, "use native HTTP "+OAuthCallbackPath)
 }

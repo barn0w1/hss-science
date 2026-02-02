@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/config"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/domain/repository"
@@ -21,6 +22,7 @@ const (
 
 type discordProvider struct {
 	oauthConfig *oauth2.Config
+	httpClient  *http.Client
 }
 
 // NewDiscordProvider creates a new OAuthProvider for Discord.
@@ -36,6 +38,7 @@ func NewDiscordProvider(cfg *config.Config) repository.OAuthProvider {
 				TokenURL: discordTokenURL,
 			},
 		},
+		httpClient: &http.Client{Timeout: time.Duration(cfg.OAuthHTTPTimeoutSec) * time.Second},
 	}
 }
 
@@ -58,6 +61,8 @@ func (p *discordProvider) GetAuthURL(redirectURL, state string) string {
 
 // GetUserInfo exchanges the auth code for a token and retrieves user info.
 func (p *discordProvider) GetUserInfo(ctx context.Context, code string) (*repository.OAuthUserInfo, error) {
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, p.httpClient)
+
 	// 1. Exchange Code for Token
 	token, err := p.oauthConfig.Exchange(ctx, code)
 	if err != nil {
