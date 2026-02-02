@@ -12,6 +12,7 @@ CREATE TABLE users (
     CONSTRAINT users_role_check CHECK (role IN ('system_admin', 'moderator', 'user'))
 );
 
+
 -- For efficient lookup by Discord ID
 CREATE INDEX idx_users_discord_id ON users(discord_id);
 
