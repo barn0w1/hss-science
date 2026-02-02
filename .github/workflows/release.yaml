@@ -26,11 +26,6 @@ jobs:
             image-name: accounts-server
             type: backend
 
-          - name: accounts-web
-            dockerfile: ./web/apps/accounts/Dockerfile
-            image-name: accounts-web
-            type: frontend
-
           - name: drive-web
             dockerfile: ./web/apps/drive/Dockerfile
             image-name: drive-web

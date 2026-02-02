@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -19,27 +20,18 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AccountsService_GetAuthUrl_FullMethodName   = "/hss_science.accounts.v1.AccountsService/GetAuthUrl"
-	AccountsService_Login_FullMethodName        = "/hss_science.accounts.v1.AccountsService/Login"
-	AccountsService_RefreshToken_FullMethodName = "/hss_science.accounts.v1.AccountsService/RefreshToken"
-	AccountsService_Logout_FullMethodName       = "/hss_science.accounts.v1.AccountsService/Logout"
-	AccountsService_GetMe_FullMethodName        = "/hss_science.accounts.v1.AccountsService/GetMe"
+	AccountsService_Authorize_FullMethodName     = "/hss_science.accounts.v1.AccountsService/Authorize"
+	AccountsService_OAuthCallback_FullMethodName = "/hss_science.accounts.v1.AccountsService/OAuthCallback"
 )
 
 // AccountsServiceClient is the client API for AccountsService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AccountsServiceClient interface {
-	// Get authentication URL for Discord OAuth2
-	GetAuthUrl(ctx context.Context, in *GetAuthUrlRequest, opts ...grpc.CallOption) (*GetAuthUrlResponse, error)
-	// Exchange Discord OAuth Code for access tokens
-	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
-	// Refresh Access Token using Refresh Token
-	RefreshToken(ctx context.Context, in *RefreshTokenRequest, opts ...grpc.CallOption) (*RefreshTokenResponse, error)
-	// Invalidate Refresh Token (Logout)
-	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
-	// Get own user information (requires Access Token)
-	GetMe(ctx context.Context, in *GetMeRequest, opts ...grpc.CallOption) (*User, error)
+	// Authorization endpoint
+	Authorize(ctx context.Context, in *AuthorizeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// OAuth provider callback
+	OAuthCallback(ctx context.Context, in *OAuthCallbackRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type accountsServiceClient struct {
@@ -50,50 +42,20 @@ func NewAccountsServiceClient(cc grpc.ClientConnInterface) AccountsServiceClient
 	return &accountsServiceClient{cc}
 }
 
-func (c *accountsServiceClient) GetAuthUrl(ctx context.Context, in *GetAuthUrlRequest, opts ...grpc.CallOption) (*GetAuthUrlResponse, error) {
+func (c *accountsServiceClient) Authorize(ctx context.Context, in *AuthorizeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetAuthUrlResponse)
-	err := c.cc.Invoke(ctx, AccountsService_GetAuthUrl_FullMethodName, in, out, cOpts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, AccountsService_Authorize_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *accountsServiceClient) Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error) {
+func (c *accountsServiceClient) OAuthCallback(ctx context.Context, in *OAuthCallbackRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(LoginResponse)
-	err := c.cc.Invoke(ctx, AccountsService_Login_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *accountsServiceClient) RefreshToken(ctx context.Context, in *RefreshTokenRequest, opts ...grpc.CallOption) (*RefreshTokenResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RefreshTokenResponse)
-	err := c.cc.Invoke(ctx, AccountsService_RefreshToken_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *accountsServiceClient) Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(LogoutResponse)
-	err := c.cc.Invoke(ctx, AccountsService_Logout_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *accountsServiceClient) GetMe(ctx context.Context, in *GetMeRequest, opts ...grpc.CallOption) (*User, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(User)
-	err := c.cc.Invoke(ctx, AccountsService_GetMe_FullMethodName, in, out, cOpts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, AccountsService_OAuthCallback_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -104,16 +66,10 @@ func (c *accountsServiceClient) GetMe(ctx context.Context, in *GetMeRequest, opt
 // All implementations must embed UnimplementedAccountsServiceServer
 // for forward compatibility.
 type AccountsServiceServer interface {
-	// Get authentication URL for Discord OAuth2
-	GetAuthUrl(context.Context, *GetAuthUrlRequest) (*GetAuthUrlResponse, error)
-	// Exchange Discord OAuth Code for access tokens
-	Login(context.Context, *LoginRequest) (*LoginResponse, error)
-	// Refresh Access Token using Refresh Token
-	RefreshToken(context.Context, *RefreshTokenRequest) (*RefreshTokenResponse, error)
-	// Invalidate Refresh Token (Logout)
-	Logout(context.Context, *LogoutRequest) (*LogoutResponse, error)
-	// Get own user information (requires Access Token)
-	GetMe(context.Context, *GetMeRequest) (*User, error)
+	// Authorization endpoint
+	Authorize(context.Context, *AuthorizeRequest) (*emptypb.Empty, error)
+	// OAuth provider callback
+	OAuthCallback(context.Context, *OAuthCallbackRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedAccountsServiceServer()
 }
 
@@ -124,20 +80,11 @@ type AccountsServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedAccountsServiceServer struct{}
 
-func (UnimplementedAccountsServiceServer) GetAuthUrl(context.Context, *GetAuthUrlRequest) (*GetAuthUrlResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetAuthUrl not implemented")
+func (UnimplementedAccountsServiceServer) Authorize(context.Context, *AuthorizeRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method Authorize not implemented")
 }
-func (UnimplementedAccountsServiceServer) Login(context.Context, *LoginRequest) (*LoginResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method Login not implemented")
-}
-func (UnimplementedAccountsServiceServer) RefreshToken(context.Context, *RefreshTokenRequest) (*RefreshTokenResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method RefreshToken not implemented")
-}
-func (UnimplementedAccountsServiceServer) Logout(context.Context, *LogoutRequest) (*LogoutResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method Logout not implemented")
-}
-func (UnimplementedAccountsServiceServer) GetMe(context.Context, *GetMeRequest) (*User, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetMe not implemented")
+func (UnimplementedAccountsServiceServer) OAuthCallback(context.Context, *OAuthCallbackRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method OAuthCallback not implemented")
 }
 func (UnimplementedAccountsServiceServer) mustEmbedUnimplementedAccountsServiceServer() {}
 func (UnimplementedAccountsServiceServer) testEmbeddedByValue()                         {}
@@ -160,92 +107,38 @@ func RegisterAccountsServiceServer(s grpc.ServiceRegistrar, srv AccountsServiceS
 	s.RegisterService(&AccountsService_ServiceDesc, srv)
 }
 
-func _AccountsService_GetAuthUrl_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAuthUrlRequest)
+func _AccountsService_Authorize_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthorizeRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccountsServiceServer).GetAuthUrl(ctx, in)
+		return srv.(AccountsServiceServer).Authorize(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AccountsService_GetAuthUrl_FullMethodName,
+		FullMethod: AccountsService_Authorize_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountsServiceServer).GetAuthUrl(ctx, req.(*GetAuthUrlRequest))
+		return srv.(AccountsServiceServer).Authorize(ctx, req.(*AuthorizeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AccountsService_Login_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LoginRequest)
+func _AccountsService_OAuthCallback_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OAuthCallbackRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccountsServiceServer).Login(ctx, in)
+		return srv.(AccountsServiceServer).OAuthCallback(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AccountsService_Login_FullMethodName,
+		FullMethod: AccountsService_OAuthCallback_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountsServiceServer).Login(ctx, req.(*LoginRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AccountsService_RefreshToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RefreshTokenRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AccountsServiceServer).RefreshToken(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AccountsService_RefreshToken_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountsServiceServer).RefreshToken(ctx, req.(*RefreshTokenRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AccountsService_Logout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LogoutRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AccountsServiceServer).Logout(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AccountsService_Logout_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountsServiceServer).Logout(ctx, req.(*LogoutRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AccountsService_GetMe_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetMeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AccountsServiceServer).GetMe(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AccountsService_GetMe_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountsServiceServer).GetMe(ctx, req.(*GetMeRequest))
+		return srv.(AccountsServiceServer).OAuthCallback(ctx, req.(*OAuthCallbackRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -258,24 +151,12 @@ var AccountsService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*AccountsServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetAuthUrl",
-			Handler:    _AccountsService_GetAuthUrl_Handler,
+			MethodName: "Authorize",
+			Handler:    _AccountsService_Authorize_Handler,
 		},
 		{
-			MethodName: "Login",
-			Handler:    _AccountsService_Login_Handler,
-		},
-		{
-			MethodName: "RefreshToken",
-			Handler:    _AccountsService_RefreshToken_Handler,
-		},
-		{
-			MethodName: "Logout",
-			Handler:    _AccountsService_Logout_Handler,
-		},
-		{
-			MethodName: "GetMe",
-			Handler:    _AccountsService_GetMe_Handler,
+			MethodName: "OAuthCallback",
+			Handler:    _AccountsService_OAuthCallback_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

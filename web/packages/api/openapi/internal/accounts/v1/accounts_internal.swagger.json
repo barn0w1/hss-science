@@ -4,6 +4,11 @@
     "title": "internal/accounts/v1/accounts_internal.proto",
     "version": "version not set"
   },
+  "tags": [
+    {
+      "name": "AccountsInternalService"
+    }
+  ],
   "consumes": [
     "application/json"
   ],

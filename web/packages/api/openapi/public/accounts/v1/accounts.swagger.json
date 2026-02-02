@@ -16,114 +16,16 @@
     "application/json"
   ],
   "paths": {
-    "/v1/auth/login": {
-      "post": {
-        "summary": "Exchange Discord OAuth Code for access tokens",
-        "operationId": "AccountsService_Login",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1LoginResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/v1LoginRequest"
-            }
-          }
-        ],
-        "tags": [
-          "AccountsService"
-        ]
-      }
-    },
-    "/v1/auth/logout": {
-      "post": {
-        "summary": "Invalidate Refresh Token (Logout)",
-        "operationId": "AccountsService_Logout",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1LogoutResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/v1LogoutRequest"
-            }
-          }
-        ],
-        "tags": [
-          "AccountsService"
-        ]
-      }
-    },
-    "/v1/auth/refresh": {
-      "post": {
-        "summary": "Refresh Access Token using Refresh Token",
-        "operationId": "AccountsService_RefreshToken",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1RefreshTokenResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/v1RefreshTokenRequest"
-            }
-          }
-        ],
-        "tags": [
-          "AccountsService"
-        ]
-      }
-    },
-    "/v1/auth/url": {
+    "/v1/authorize": {
       "get": {
-        "summary": "Get authentication URL for Discord OAuth2",
-        "operationId": "AccountsService_GetAuthUrl",
+        "summary": "Authorization endpoint",
+        "operationId": "AccountsService_Authorize",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1GetAuthUrlResponse"
+              "type": "object",
+              "properties": {}
             }
           },
           "default": {
@@ -133,20 +35,44 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "audience",
+            "description": "e.g. \"drive\"",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "redirect_uri",
+            "description": "service callback URL",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "state",
+            "description": "optional (CSRF)",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
         "tags": [
           "AccountsService"
         ]
       }
     },
-    "/v1/users/me": {
+    "/v1/oauth/callback": {
       "get": {
-        "summary": "Get own user information (requires Access Token)",
-        "operationId": "AccountsService_GetMe",
+        "summary": "OAuth provider callback",
+        "operationId": "AccountsService_OAuthCallback",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1User"
+              "type": "object",
+              "properties": {}
             }
           },
           "default": {
@@ -156,6 +82,22 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "code",
+            "description": "Discord OAuth code",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "state",
+            "description": "optional",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
         "tags": [
           "AccountsService"
         ]
@@ -188,89 +130,6 @@
             "type": "object",
             "$ref": "#/definitions/protobufAny"
           }
-        }
-      }
-    },
-    "v1GetAuthUrlResponse": {
-      "type": "object",
-      "properties": {
-        "url": {
-          "type": "string"
-        }
-      }
-    },
-    "v1LoginRequest": {
-      "type": "object",
-      "properties": {
-        "code": {
-          "type": "string"
-        }
-      }
-    },
-    "v1LoginResponse": {
-      "type": "object",
-      "properties": {
-        "access_token": {
-          "type": "string"
-        },
-        "refresh_token": {
-          "type": "string",
-          "title": "Cookie使用時は空文字が返る想定だが、型としては残しておく"
-        },
-        "expires_in": {
-          "type": "integer",
-          "format": "int32"
-        }
-      }
-    },
-    "v1LogoutRequest": {
-      "type": "object",
-      "properties": {
-        "refresh_token": {
-          "type": "string"
-        }
-      }
-    },
-    "v1LogoutResponse": {
-      "type": "object"
-    },
-    "v1RefreshTokenRequest": {
-      "type": "object",
-      "properties": {
-        "refresh_token": {
-          "type": "string"
-        }
-      }
-    },
-    "v1RefreshTokenResponse": {
-      "type": "object",
-      "properties": {
-        "access_token": {
-          "type": "string"
-        },
-        "refresh_token": {
-          "type": "string"
-        },
-        "expires_in": {
-          "type": "integer",
-          "format": "int32"
-        }
-      }
-    },
-    "v1User": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "avatar_url": {
-          "type": "string"
-        },
-        "role": {
-          "type": "string"
         }
       }
     }

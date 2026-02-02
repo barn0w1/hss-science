@@ -5,90 +5,33 @@ package hss_science.accounts.v1;
 option go_package = "github.com/barn0w1/hss-science/server/gen/public/accounts/v1;accountsv1";
 
 import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
 
 service AccountsService {
-  // Get authentication URL for Discord OAuth2
-  rpc GetAuthUrl(GetAuthUrlRequest) returns (GetAuthUrlResponse) {
+  // Authorization endpoint
+  rpc Authorize(AuthorizeRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
-      get: "/v1/auth/url"
+      get: "/v1/authorize"
     };
   }
 
-  // Exchange Discord OAuth Code for access tokens
-  rpc Login(LoginRequest) returns (LoginResponse) {
+  // OAuth provider callback
+  rpc OAuthCallback(OAuthCallbackRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
-      post: "/v1/auth/login"
-      body: "*"
-    };
-  }
-
-  // Refresh Access Token using Refresh Token
-  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse) {
-    option (google.api.http) = {
-      post: "/v1/auth/refresh"
-      body: "*"
-    };
-  }
-
-  // Invalidate Refresh Token (Logout)
-  rpc Logout(LogoutRequest) returns (LogoutResponse) {
-    option (google.api.http) = {
-      post: "/v1/auth/logout"
-      body: "*"
-    };
-  }
-
-  // Get own user information (requires Access Token)
-  rpc GetMe(GetMeRequest) returns (User) {
-    option (google.api.http) = {
-      get: "/v1/users/me"
+      get: "/v1/oauth/callback"
     };
   }
 }
 
-// ===== Requests / Responses =====
+// ===== Requests =====
 
-message GetAuthUrlRequest {
-  // リクエストパラメータは不要になりました（Backendの設定値を使用）
+message AuthorizeRequest {
+  string audience = 1;       // e.g. "drive"
+  string redirect_uri = 2;   // service callback URL
+  string state = 3;          // optional (CSRF)
 }
 
-message GetAuthUrlResponse {
-  string url = 1;
-}
-
-message LoginRequest {
-  string code = 1;
-}
-
-message LoginResponse {
-  string access_token = 1;
-  string refresh_token = 2; // Cookie使用時は空文字が返る想定だが、型としては残しておく
-  int32 expires_in = 3;
-}
-
-message RefreshTokenRequest {
-  string refresh_token = 1;
-}
-
-message RefreshTokenResponse {
-  string access_token = 1;
-  string refresh_token = 2;
-  int32 expires_in = 3;
-}
-
-message LogoutRequest {
-  string refresh_token = 1;
-}
-
-message LogoutResponse {}
-
-message GetMeRequest {}
-
-// ===== Data Models =====
-
-message User {
-  string id = 1;
-  string name = 2;
-  string avatar_url = 3;
-  string role = 4;
+message OAuthCallbackRequest {
+  string code = 1;   // Discord OAuth code
+  string state = 2;  // optional
 }
