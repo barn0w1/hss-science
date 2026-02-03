@@ -1,0 +1,13 @@
+package: accounts
+
+# Option
+generate:
+  chi-server: true
+  models: true
+  strict-server: true
+  embedded-spec: true
+
+output-options:
+  skip-fmt: false
+  skip-prune: false
+  nullable-type: true

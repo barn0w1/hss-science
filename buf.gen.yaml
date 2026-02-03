@@ -14,16 +14,10 @@ plugins:
     out: server/gen
     opt: paths=source_relative
 
-  # 3. Go gRPC Gateway (REST API Conversion Proxy)
-  # Required to start the REST Gateway in main.go
-  - remote: buf.build/grpc-ecosystem/gateway
-    out: server/gen
-    opt: paths=source_relative
-
-  # 4. OpenAPI (Swagger) JSON
+  # 3. OpenAPI (Swagger) JSON
   # API Definition for the Frontend (SPA)
-  - remote: buf.build/grpc-ecosystem/openapiv2
-    out: web/packages/api/openapi
-    opt:
-      - json_names_for_fields=false
-      - allow_merge=false
+  #- remote: buf.build/grpc-ecosystem/openapiv2
+  #  out: web/packages/api/openapi
+  #  opt:
+  #    - json_names_for_fields=false
+  #    - allow_merge=false
