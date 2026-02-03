@@ -23,3 +23,9 @@ gen-drive:
 		-config api/openapi/drive/v1/oapi-codegen.yaml \
 		-o server/gateway/gen/drive/v1/drive.gen.go \
 		api/openapi/drive/v1/drive.yaml
+
+# protobuf code generation
+.PHONY: gen-proto
+
+gen-proto:
+	buf generate
