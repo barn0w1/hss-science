@@ -18,52 +18,82 @@ export const ChatSidebar = ({ isSidebarOpen }: ChatSidebarProps) => {
     fetchRooms();
   }, [fetchRooms]);
 
-  if (isLoading) return <SidebarSkeleton isSidebarOpen={isSidebarOpen} />;
-
   return (
-    <div className="flex flex-col h-full py-4">
-      {/* DMエリア */}
-      <div className="flex-1 flex flex-col min-h-0">
-        {isSidebarOpen && (
-          <div className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wider text-surface-500 flex items-center justify-between">
-            <span>Direct Messages</span>
-          </div>
-        )}
-        <div className="overflow-y-auto px-2 flex flex-col" style={{ rowGap: 'var(--layout-sidebar-item-gap)' }}>
-          {dms.map((item) => (
+    <SidebarLayout
+      isSidebarOpen={isSidebarOpen}
+      dms={
+        isLoading ? (
+          <SidebarSkeletonList isSidebarOpen={isSidebarOpen} count={6} />
+        ) : (
+          dms.map((item) => (
             <SidebarItem
               key={item.id}
               item={item}
               isSidebarOpen={isSidebarOpen}
               onClick={() => setActiveRoom(item.id)}
             />
-          ))}
-        </div>
-      </div>
-
-      {isSidebarOpen && <div className="mx-2 my-2 border-t border-surface-200/50 flex-shrink-0" />}
-
-      {/* Spaceエリア */}
-      <div className="flex-1 flex flex-col min-h-0">
-        {isSidebarOpen && (
-          <div className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wider text-surface-500 flex items-center justify-between">
-            <span>Spaces</span>
-          </div>
-        )}
-        <div className="overflow-y-auto px-2 flex flex-col" style={{ rowGap: 'var(--layout-sidebar-item-gap)' }}>
-          {spaces.map((item) => (
+          ))
+        )
+      }
+      spaces={
+        isLoading ? (
+          <SidebarSkeletonList isSidebarOpen={isSidebarOpen} count={6} />
+        ) : (
+          spaces.map((item) => (
             <SidebarItem
               key={item.id}
               item={item}
               isSidebarOpen={isSidebarOpen}
               onClick={() => setActiveRoom(item.id)}
             />
-          ))}
-        </div>
-      </div>
-    </div>
+          ))
+        )
+      }
+    />
   );
 };
+
+// ------------------------------------------------------------------
+// Sidebar Layout (shared)
+// ------------------------------------------------------------------
+interface SidebarLayoutProps {
+  isSidebarOpen: boolean;
+  dms: React.ReactNode;
+  spaces: React.ReactNode;
+}
+
+const SidebarLayout = ({ isSidebarOpen, dms, spaces }: SidebarLayoutProps) => (
+  <div className="flex flex-col h-full py-4">
+    <SidebarSection title="Direct Messages" isSidebarOpen={isSidebarOpen}>
+      {dms}
+    </SidebarSection>
+
+    {isSidebarOpen && <div className="mx-2 my-2 border-t border-surface-200/50 flex-shrink-0" />}
+
+    <SidebarSection title="Spaces" isSidebarOpen={isSidebarOpen}>
+      {spaces}
+    </SidebarSection>
+  </div>
+);
+
+interface SidebarSectionProps {
+  title: string;
+  isSidebarOpen: boolean;
+  children: React.ReactNode;
+}
+
+const SidebarSection = ({ title, isSidebarOpen, children }: SidebarSectionProps) => (
+  <div className="flex-1 flex flex-col min-h-0">
+    {isSidebarOpen && (
+      <div className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wider text-surface-500 flex items-center justify-between">
+        <span>{title}</span>
+      </div>
+    )}
+    <div className="overflow-y-auto px-2 flex flex-col" style={{ rowGap: 'var(--layout-sidebar-item-gap)' }}>
+      {children}
+    </div>
+  </div>
+);
 
 // ------------------------------------------------------------------
 // SidebarItem Component
@@ -94,12 +124,19 @@ const SidebarItem = ({ item, isSidebarOpen, onClick }: SidebarItemProps) => {
 
       <div className="relative flex-shrink-0">
         {item.iconUrl ? (
-          <img src={item.iconUrl} alt="" className="w-6 h-6 rounded-md object-cover bg-surface-200" />
+          <img
+            src={item.iconUrl}
+            alt=""
+            className="rounded-md object-cover bg-surface-200"
+            style={{ width: 'var(--layout-sidebar-item-icon-size)', height: 'var(--layout-sidebar-item-icon-size)' }}
+          />
         ) : (
-          <div className={`
-            w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-semibold
-            ${item.isActive ? 'bg-surface-200 text-surface-800' : 'bg-surface-200 text-surface-500'}
-          `}>
+          <div
+            className={`rounded-md flex items-center justify-center font-semibold text-[10px] ${
+              item.isActive ? 'bg-surface-200 text-surface-800' : 'bg-surface-200 text-surface-500'
+            }`}
+            style={{ width: 'var(--layout-sidebar-item-icon-size)', height: 'var(--layout-sidebar-item-icon-size)' }}
+          >
             {item.fallbackInitial}
           </div>
         )}
@@ -116,7 +153,7 @@ const SidebarItem = ({ item, isSidebarOpen, onClick }: SidebarItemProps) => {
       {isSidebarOpen && (
         <>
           <div className="ml-3 flex-1 text-left min-w-0">
-            <div className={`text-xs font-medium truncate ${item.unreadCount > 0 ? 'text-surface-900 font-semibold' : ''}`}>
+            <div className={`truncate font-medium text-[var(--layout-sidebar-item-text-size)] ${item.unreadCount > 0 ? 'text-surface-900 font-semibold' : ''}`}>
               {item.displayName}
             </div>
           </div>
@@ -143,46 +180,16 @@ const SidebarItem = ({ item, isSidebarOpen, onClick }: SidebarItemProps) => {
 // ------------------------------------------------------------------
 // サブコンポーネント: スケルトン
 // ------------------------------------------------------------------
-const SidebarSkeleton = ({ isSidebarOpen }: { isSidebarOpen: boolean }) => (
-  <div className="flex flex-col h-full py-4 animate-pulse">
-    <div className="flex-1 flex flex-col min-h-0">
-      {isSidebarOpen && (
-        <div className="px-2 py-1">
-          <div className="h-3 w-24 rounded-full bg-[var(--layout-sidebar-skeleton)]" />
-        </div>
-      )}
-      <div className="overflow-y-auto px-2 flex flex-col" style={{ rowGap: 'var(--layout-sidebar-item-gap)' }}>
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            className={`rounded-[var(--layout-sidebar-item-radius)] bg-[var(--layout-sidebar-skeleton)] ${
-              isSidebarOpen ? 'w-full' : 'w-8'
-            }`}
-            style={{ height: 'var(--layout-sidebar-item-height)' }}
-          />
-        ))}
-      </div>
-    </div>
-
-    {isSidebarOpen && <div className="mx-2 my-2 border-t border-surface-200/50 flex-shrink-0" />}
-
-    <div className="flex-1 flex flex-col min-h-0">
-      {isSidebarOpen && (
-        <div className="px-2 py-1">
-          <div className="h-3 w-16 rounded-full bg-[var(--layout-sidebar-skeleton)]" />
-        </div>
-      )}
-      <div className="overflow-y-auto px-2 flex flex-col" style={{ rowGap: 'var(--layout-sidebar-item-gap)' }}>
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            className={`rounded-[var(--layout-sidebar-item-radius)] bg-[var(--layout-sidebar-skeleton)] ${
-              isSidebarOpen ? 'w-full' : 'w-8'
-            }`}
-            style={{ height: 'var(--layout-sidebar-item-height)' }}
-          />
-        ))}
-      </div>
-    </div>
+const SidebarSkeletonList = ({ isSidebarOpen, count }: { isSidebarOpen: boolean; count: number }) => (
+  <div className="flex flex-col animate-pulse" style={{ rowGap: 'var(--layout-sidebar-item-gap)' }}>
+    {Array.from({ length: count }).map((_, i) => (
+      <div
+        key={i}
+        className={`rounded-[var(--layout-sidebar-item-radius)] bg-[var(--layout-sidebar-skeleton)] ${
+          isSidebarOpen ? 'w-full' : 'w-8'
+        }`}
+        style={{ height: 'var(--layout-sidebar-item-height)' }}
+      />
+    ))}
   </div>
 );

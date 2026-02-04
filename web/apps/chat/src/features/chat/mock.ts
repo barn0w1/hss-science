@@ -16,13 +16,13 @@ export const mockUsers: Record<string, User> = {
   'u1': {
     id: 'u1',
     name: 'Finland',
-    avatarUrl: 'https://ui-avatars.com/api/?name=Sato&background=random',
+    avatarUrl: 'https://content.webtarget.dev/minecraft/server-icon.png',
     status: 'dnd', // DND (Do Not Disturb)
   },
   'u2': {
     id: 'u2',
     name: 'Kawasaki',
-    avatarUrl: 'https://ui-avatars.com/api/?name=Tanaka&background=random',
+    avatarUrl: 'https://content.webtarget.dev/minecraft/server-icon.png',
     status: 'offline',
   },
   'u3': {
@@ -42,7 +42,7 @@ const spaces: Space[] = [
     id: 's1',
     name: 'London.jp',
     description: 'General announcements and casual chat',
-    iconUrl: 'https://ui-avatars.com/api/?name=HG&background=6366f1&color=fff',
+    iconUrl: 'https://content.webtarget.dev/minecraft/server-icon.png',
     isPublic: true,
     // UI State
     unreadCount: 0,
@@ -65,7 +65,7 @@ const spaces: Space[] = [
     type: 'space',
     id: 's3',
     name: 'Music Lounge',
-    iconUrl: 'https://ui-avatars.com/api/?name=Music&background=8b5cf6&color=fff',
+    iconUrl: 'https://content.webtarget.dev/minecraft/server-icon.png',
     isPublic: true,
     unreadCount: 0,
     isPinned: false,
@@ -77,7 +77,7 @@ const spaces: Space[] = [
     id: 's4',
     name: 'London.jp',
     description: 'General announcements and casual chat',
-    iconUrl: 'https://ui-avatars.com/api/?name=HG&background=6366f1&color=fff',
+    iconUrl: 'https://content.webtarget.dev/minecraft/server-icon.png',
     isPublic: true,
     // UI State
     unreadCount: 0,
@@ -100,7 +100,7 @@ const spaces: Space[] = [
     type: 'space',
     id: 's6',
     name: 'Music Lounge',
-    iconUrl: 'https://ui-avatars.com/api/?name=Music&background=8b5cf6&color=fff',
+    iconUrl: 'https://content.webtarget.dev/minecraft/server-icon.png',
     isPublic: true,
     unreadCount: 0,
     isPinned: false,

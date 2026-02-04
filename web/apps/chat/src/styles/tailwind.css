@@ -48,6 +48,8 @@
   --layout-sidebar-item-height: 32px;
   --layout-sidebar-item-radius: 16px;
   --layout-sidebar-item-gap: 3px;
+  --layout-sidebar-item-text-size: 10px;
+  --layout-sidebar-item-icon-size: 20px;
   --layout-sidebar-text: var(--color-surface-600);
   --layout-sidebar-text-active: var(--color-surface-900);
   --layout-sidebar-bg-hover: var(--color-accent-50);
