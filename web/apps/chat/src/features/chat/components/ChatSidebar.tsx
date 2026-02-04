@@ -23,7 +23,7 @@ export const ChatSidebar = ({ isSidebarOpen }: ChatSidebarProps) => {
   return (
     <div className="flex flex-col h-full py-4">
       {/* DMエリア */}
-      <div className="flex-shrink-0 max-h-[40%] flex flex-col min-h-0">
+      <div className="flex-1 flex flex-col min-h-0">
         {isSidebarOpen && (
           <div className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wider text-surface-500 flex items-center justify-between">
             <span>Direct Messages</span>
@@ -124,7 +124,7 @@ const SidebarItem = ({ item, isSidebarOpen, onClick }: SidebarItemProps) => {
             {item.unreadCount > 0 ? (
               <span className="h-2 w-2 rounded-full bg-[var(--layout-sidebar-accent)]" />
             ) : item.isPinned ? (
-              <PushPinOutlinedIcon className="!h-3 !w-3 text-surface-400" fontSize="inherit" />
+              <PushPinOutlinedIcon className="!h-3 !w-3 text-surface-500" fontSize="inherit" />
             ) : null}
           </div>
         </>
