@@ -29,15 +29,15 @@
   --color-surface-900: #1b232e;
 
   /* layout */
-  --spacing-header: 64px;
-  --spacing-header-x: 16px;
-  --spacing-gutter: 16px;
-  
-  --radius-card: 24px;
+  --layout-header-height: 64px;
+  --layout-gutter: 16px;
+  --layout-header-padding-x: var(--layout-gutter);
+  --layout-sidebar-width: 312px;
+  --layout-sidebar-collapsed-width: 72px;
+
+  /* radius */
+  --radius-panel: 24px;
   --radius-pill: 16px;
-  
-  --sidebar-width: 312px;
-  --sidebar-collapsed-width: 72px;
 }
 
 @layer base {

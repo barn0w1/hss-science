@@ -4,7 +4,6 @@ export const ChatContent = () => {
 			<div className="border-b border-surface-100 px-10 py-6">
 				<div className="flex items-center justify-between">
 					<div>
-						<div className="text-xs uppercase tracking-wider text-surface-500">Channel</div>
 						<div className="h-6 w-40 rounded-full bg-surface-100 mt-2" />
 					</div>
 					<div className="h-9 w-24 rounded-[var(--radius-pill)] bg-surface-100" />
