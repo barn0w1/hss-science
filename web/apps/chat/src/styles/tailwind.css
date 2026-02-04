@@ -30,11 +30,11 @@
 
   /* layout */
   --spacing-header: 64px;
-  --spacing-gutter: 20px;
-  --radius-card: 28px;
+  --spacing-gutter: 15px;
+  --radius-card: 24px;
   --radius-pill: 16px;
-  --sidebar-width: clamp(240px, 22vw, 312px);
-  --sidebar-collapsed-width: 64px;
+  --sidebar-width: 312px;
+  --sidebar-collapsed-width: 72px;
   --shadow-card: 0 18px 50px -32px rgba(27, 35, 46, 0.45);
 }
 

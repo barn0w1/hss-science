@@ -45,17 +45,6 @@ export const ChatSidebar = ({ isSidebarOpen, onToggleSidebar }: ChatSidebarProps
 					/>
 				))}
 			</nav>
-
-			{isSidebarOpen ? (
-				<div className="p-4 bg-white/60 backdrop-blur-sm rounded-3xl border border-white/70 shadow-sm">
-					<div className="h-4 w-28 rounded-full bg-surface-200" />
-					<div className="mt-2 h-3 w-36 rounded-full bg-surface-100" />
-				</div>
-			) : (
-				<div className="flex items-center justify-center">
-					<div className="h-12 w-12 rounded-2xl bg-white/60 border border-white/70 shadow-sm" />
-				</div>
-			)}
 		</div>
 	);
 };

@@ -10,14 +10,14 @@ interface MainLayoutProps {
 
 export const MainLayout = ({ header, sidebar, isSidebarOpen = true, children }: MainLayoutProps) => {
   return (
-    <div className="flex h-screen w-full flex-col overflow-hidden bg-surface-50 text-surface-900">
+    <div className="flex h-screen w-full flex-col overflow-hidden bg-surface-50 text-surface-900 pt-[var(--spacing-header)]">
       {header && (
         <header className="fixed top-0 left-0 right-0 z-10 h-[var(--spacing-header)] flex items-center px-6 bg-surface-50/90 backdrop-blur-sm">
           {header}
         </header>
       )}
 
-      <main className="flex-1 flex min-w-0 px-[var(--spacing-gutter)] pb-[var(--spacing-gutter)] pt-[calc(var(--spacing-header)+var(--spacing-gutter))]">
+      <main className="flex-1 flex min-w-0 px-[var(--spacing-gutter)] pb-[var(--spacing-gutter)] min-h-0">
         <aside
           className={`flex-shrink-0 flex flex-col py-6 transition-all duration-180 ease-out overflow-hidden ${
             isSidebarOpen
