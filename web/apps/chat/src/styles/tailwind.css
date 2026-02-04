@@ -34,6 +34,9 @@
   --layout-header-padding-x: var(--layout-gutter);
   --layout-sidebar-width: 312px;
   --layout-sidebar-collapsed-width: 72px;
+  --layout-sidebar-toggle-x: calc(var(--layout-sidebar-collapsed-width) / 2);
+  --layout-header-hover-bg: rgba(255, 255, 255, 0.6);
+  --layout-header-hover-fg: var(--color-surface-700);
 
   /* radius */
   --radius-panel: 24px;
