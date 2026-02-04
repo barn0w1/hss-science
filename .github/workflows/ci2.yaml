@@ -59,7 +59,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [drive]
+        app: [drive, chat]
         # app: [accounts, dashboard, admin]
 
     steps:

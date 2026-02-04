@@ -30,6 +30,11 @@
 
   /* layout */
   --spacing-header: 64px;
+  --spacing-gutter: 20px;
+  --radius-card: 28px;
+  --radius-pill: 16px;
+  --sidebar-width: 312px;
+  --shadow-card: 0 18px 50px -32px rgba(27, 35, 46, 0.45);
 }
 
 @layer base {

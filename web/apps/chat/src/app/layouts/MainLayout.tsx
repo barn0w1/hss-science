@@ -14,7 +14,7 @@ export const MainLayout = ({ header, sidebar, children }: MainLayoutProps) => {
         1. 左側: サイドバー
         ここは変わらず、背景に溶け込ませます。
       */}
-      <aside className="w-80 flex-shrink-0 flex flex-col px-5 py-6">
+      <aside className="flex-shrink-0 flex flex-col px-5 py-6 w-[var(--sidebar-width)]">
         {sidebar}
       </aside>
 
@@ -30,7 +30,7 @@ export const MainLayout = ({ header, sidebar, children }: MainLayoutProps) => {
           これにより「部屋の看板」のような役割になります。
         */}
         {header && (
-          <header className="h-16 flex items-center px-8 flex-shrink-0">
+          <header className="h-[var(--spacing-header)] flex items-center px-8 flex-shrink-0">
             {/* 
               必要であれば、ここで文字色やフォントサイズを調整して
               「タイトルっぽさ」を出します。
@@ -45,7 +45,7 @@ export const MainLayout = ({ header, sidebar, children }: MainLayoutProps) => {
           mr-4 (右) mb-4 (下) の余白を入れることで、
           画面の右下に独立して浮いているように見せます。
         */}
-        <section className="flex-1 flex flex-col min-w-0 mr-5 mb-5 rounded-[28px] bg-white/90 backdrop-blur-sm shadow-[0_18px_50px_-32px_rgba(27,35,46,0.45)] overflow-hidden ring-1 ring-surface-900/5">
+        <section className="flex-1 flex flex-col min-w-0 mr-[var(--spacing-gutter)] mb-[var(--spacing-gutter)] rounded-[var(--radius-card)] bg-white/90 backdrop-blur-sm shadow-[var(--shadow-card)] overflow-hidden ring-1 ring-surface-900/5">
           {children}
         </section>
 
