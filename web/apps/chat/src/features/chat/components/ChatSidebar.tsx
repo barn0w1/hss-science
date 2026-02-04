@@ -7,17 +7,13 @@ export const ChatSidebar = ({ isSidebarOpen, onToggleSidebar }: ChatSidebarProps
 	return (
 		<div className="relative flex flex-col h-full gap-6 pt-14">
 			<button
-				className="absolute left-0 top-0 h-10 w-10 rounded-[var(--radius-pill)] bg-white border border-surface-200 flex items-center justify-center text-surface-600 hover:bg-surface-50 transition"
+				className="absolute left-0 top-0 h-9 w-9 rounded-full bg-white/80 border border-surface-200 flex items-center justify-center text-surface-500 hover:text-surface-700 hover:bg-white transition"
 				onClick={onToggleSidebar}
 				aria-label={isSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
 				type="button"
 			>
 				<span className="sr-only">Toggle sidebar</span>
-				<div className="flex flex-col gap-1">
-					<span className="block h-[2px] w-4 rounded-full bg-surface-500" />
-					<span className="block h-[2px] w-4 rounded-full bg-surface-500" />
-					<span className="block h-[2px] w-4 rounded-full bg-surface-500" />
-				</div>
+				<span className="text-xs font-medium">{isSidebarOpen ? '◀' : '▶'}</span>
 			</button>
 
 			{isSidebarOpen && (
