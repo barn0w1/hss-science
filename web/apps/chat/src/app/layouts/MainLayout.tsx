@@ -8,48 +8,47 @@ interface MainLayoutProps {
 
 export const MainLayout = ({ header, sidebar, children }: MainLayoutProps) => {
   return (
-    // ■ 全体の背景:
-    // ここを少し濃いめの色（surface-200など）にすると、
-    // 上に乗る要素の「白さ」や「輝き」がより際立ちます。
-    <div className="flex h-screen w-full overflow-hidden bg-surface-200/50 text-surface-900">
+    <div className="flex h-screen w-full overflow-hidden bg-surface-50 text-surface-900">
       
       {/* 
-        ■ サイドバーエリア:
-        【改善点】
-        1. 背景色を削除（透明に）。親の背景をそのまま見せることで「箱感」を消す。
-        2. `p-4` (内側の余白) を追加。
-           これで中身（リスト）が画面端にへばりつかず、
-           メインエリアと同じような「浮遊感」の予兆を作ります。
+        1. 左側: サイドバー
+        ここは変わらず、背景に溶け込ませます。
       */}
-      <aside className="w-80 flex-shrink-0 flex flex-col p-4">
-        {/* 
-          この中に配置されるリストアイテム（部屋一覧など）に
-          `hover:bg-surface-200/50 rounded-lg` などを適用すると、
-          文字だけが空間に浮いているような、モダンな見た目になります。
-        */}
+      <aside className="w-80 flex-shrink-0 flex flex-col px-5 py-6">
         {sidebar}
       </aside>
 
       {/* 
-        ■ メインエリア:
-        【改善点】
-        margin (m-4) を削除し、親の flex gap や padding で制御しても良いですが、
-        ここでは「右側と上下に余白を持つ」形に整えます。
-        
-        my-4 mr-4: 上・下・右に余白。左はサイドバーとの距離感で調整。
+        2. 右側: コンテンツエリアのラッパー
+        ここを縦(flex-col)に並べることで、「Header」と「Card」を分離します。
       */}
-      <main className="flex-1 flex flex-col min-w-0 my-4 mr-4 rounded-3xl bg-white shadow-xl shadow-surface-300/20 overflow-hidden ring-1 ring-surface-900/5">
+      <main className="flex-1 flex flex-col min-w-0">
         
+        {/* 
+          A. Header (カードの外側)
+          白い背景を持たせず、グレーの背景の上に直接文字を置きます。
+          これにより「部屋の看板」のような役割になります。
+        */}
         {header && (
-          // ヘッダーの高さを少し広げ(h-18)、ゆったりさせるのも高級感を出すコツ
-          <header className="h-[72px] flex items-center px-8 border-b border-surface-100 bg-white/80 backdrop-blur-md z-10">
+          <header className="h-16 flex items-center px-8 flex-shrink-0">
+            {/* 
+              必要であれば、ここで文字色やフォントサイズを調整して
+              「タイトルっぽさ」を出します。
+            */}
             {header}
           </header>
         )}
 
-        <section className="flex-1 relative overflow-hidden bg-white">
+        {/* 
+          B. Main Content (浮遊するカード)
+          Headerの下に配置。
+          mr-4 (右) mb-4 (下) の余白を入れることで、
+          画面の右下に独立して浮いているように見せます。
+        */}
+        <section className="flex-1 flex flex-col min-w-0 mr-5 mb-5 rounded-[28px] bg-white/90 backdrop-blur-sm shadow-[0_18px_50px_-32px_rgba(27,35,46,0.45)] overflow-hidden ring-1 ring-surface-900/5">
           {children}
         </section>
+
       </main>
     </div>
   );
