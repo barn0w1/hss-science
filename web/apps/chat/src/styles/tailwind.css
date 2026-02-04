@@ -37,6 +37,15 @@
   --layout-sidebar-toggle-x: calc(var(--layout-sidebar-collapsed-width) / 2);
   --layout-header-hover-bg: rgba(255, 255, 255, 0.6);
   --layout-header-hover-fg: var(--color-surface-700);
+  --layout-sidebar-item-height: 40px;
+  --layout-sidebar-item-radius: 12px;
+  --layout-sidebar-item-gap: 6px;
+  --layout-sidebar-text: var(--color-surface-600);
+  --layout-sidebar-text-active: var(--color-surface-900);
+  --layout-sidebar-bg-hover: rgba(255, 255, 255, 0.6);
+  --layout-sidebar-bg-active: rgba(255, 255, 255, 0.85);
+  --layout-sidebar-border-active: var(--color-surface-200);
+  --layout-sidebar-skeleton: var(--color-surface-100);
 
   /* radius */
   --radius-panel: 24px;

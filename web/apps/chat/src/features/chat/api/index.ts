@@ -1,20 +1,18 @@
-// features/chat/api/index.ts
-import type { Room, Message } from '../types';
+// src/features/chat/api/index.ts
+import type { Room } from '../types';
 import { MockChatRepository } from './mock';
 import { RestChatRepository } from './rest';
 
-// Repository
-// バックエンドがあろうがなかろうが、このメソッドがあることは絶対保証するということ
+// Repository Interface
+// UIが必要とする「操作」の定義
 export interface ChatRepository {
   getRooms(): Promise<Room[]>;
-  getMessages(roomId: string): Promise<Message[]>;
-  sendMessage(roomId: string, content: string): Promise<Message>;
 }
 
-// ■ 2. 環境変数による切り替え (Dependency Injection)
-const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
+// Dependency Injection
+// 環境変数 (VITE_USE_MOCK) で実装を切り替え
+const USE_MOCK = true; // 開発中は強制的にtrueにしておいてもOK
 
-// アプリ全体で使うインスタンスをここで決定してexportする
-export const chatRepository: ChatRepository = USE_MOCK 
-  ? new MockChatRepository() 
+export const chatRepository: ChatRepository = USE_MOCK
+  ? new MockChatRepository()
   : new RestChatRepository();
