@@ -24,7 +24,7 @@ export const ChatSidebar = ({ isSidebarOpen }: ChatSidebarProps) => {
       {/* DMエリア */}
       <div className="flex-shrink-0 max-h-[40%] flex flex-col min-h-0">
         {isSidebarOpen && (
-          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-surface-500 flex items-center justify-between">
+          <div className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wider text-surface-500 flex items-center justify-between">
             <span>Direct Messages</span>
           </div>
         )}
@@ -40,12 +40,12 @@ export const ChatSidebar = ({ isSidebarOpen }: ChatSidebarProps) => {
         </div>
       </div>
 
-      {isSidebarOpen && <div className="mx-3 my-2 border-t border-surface-200/50 flex-shrink-0" />}
+      {isSidebarOpen && <div className="mx-2 my-2 border-t border-surface-200/50 flex-shrink-0" />}
 
       {/* Spaceエリア */}
       <div className="flex-1 flex flex-col min-h-0">
         {isSidebarOpen && (
-          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-surface-500 flex items-center justify-between">
+          <div className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wider text-surface-500 flex items-center justify-between">
             <span>Spaces</span>
           </div>
         )}
@@ -88,15 +88,15 @@ const SidebarItem = ({ item, isSidebarOpen, onClick }: SidebarItemProps) => {
       style={{ height: 'var(--layout-sidebar-item-height)' }}
     >
       {!isSidebarOpen && item.isActive && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-7 bg-surface-700 rounded-r-full" />
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-4 bg-[var(--layout-sidebar-accent)] rounded-r-full" />
       )}
 
       <div className="relative flex-shrink-0">
         {item.iconUrl ? (
-          <img src={item.iconUrl} alt="" className="w-8 h-8 rounded-lg object-cover bg-surface-200" />
+          <img src={item.iconUrl} alt="" className="w-6 h-6 rounded-md object-cover bg-surface-200" />
         ) : (
           <div className={`
-            w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold
+            w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-semibold
             ${item.isActive ? 'bg-surface-200 text-surface-800' : 'bg-surface-200 text-surface-500'}
           `}>
             {item.fallbackInitial}
@@ -105,33 +105,38 @@ const SidebarItem = ({ item, isSidebarOpen, onClick }: SidebarItemProps) => {
         
         {/* 閉じた時のバッジ */}
         {!isSidebarOpen && item.unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-surface-800 text-[10px] text-white ring-2 ring-white">
-            {item.unreadCount}
-          </span>
+          <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-[var(--layout-sidebar-accent)] ring-2 ring-white" />
+        )}
+        {!isSidebarOpen && item.unreadCount === 0 && item.isPinned && (
+          <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-surface-300 ring-2 ring-white" />
         )}
       </div>
 
       {isSidebarOpen && (
         <>
           <div className="ml-3 flex-1 text-left min-w-0">
-            <div className={`text-sm font-medium truncate ${item.unreadCount > 0 ? 'text-surface-900 font-semibold' : ''}`}>
+            <div className={`text-xs font-medium truncate ${item.unreadCount > 0 ? 'text-surface-900 font-semibold' : ''}`}>
               {item.displayName}
             </div>
           </div>
           <div className="flex items-center gap-1">
-            {item.isPinned && <span className="text-[10px] text-surface-400">•</span>}
-            {item.unreadCount > 0 && (
-              <span className="min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-surface-800 text-[10px] font-bold text-white">
-                {item.unreadCount}
-              </span>
-            )}
+            {item.unreadCount > 0 ? (
+              <span className="h-2 w-2 rounded-full bg-[var(--layout-sidebar-accent)]" />
+            ) : item.isPinned ? (
+              <svg viewBox="0 0 16 16" className="h-2.5 w-2.5 text-surface-400" aria-hidden="true">
+                <path
+                  d="M10 2l4 4-2 2-4-4-3 3-1 5-1-1 5-1 3-3-4-4 3-3z"
+                  fill="currentColor"
+                />
+              </svg>
+            ) : null}
           </div>
         </>
       )}
       
       {/* 閉じた時のツールチップ */}
       {!isSidebarOpen && (
-        <div className="absolute left-full ml-2 px-2 py-1 bg-surface-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
+        <div className="absolute left-full ml-2 px-2 py-1 bg-surface-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
           {item.displayName}
         </div>
       )}
@@ -143,13 +148,13 @@ const SidebarItem = ({ item, isSidebarOpen, onClick }: SidebarItemProps) => {
 // サブコンポーネント: スケルトン
 // ------------------------------------------------------------------
 const SidebarSkeleton = ({ isSidebarOpen }: { isSidebarOpen: boolean }) => (
-  <div className="flex flex-col h-full gap-4 pt-4 px-2 animate-pulse">
+  <div className="flex flex-col h-full gap-3 pt-3 px-2 animate-pulse">
     <div className="space-y-2">
       {Array.from({ length: 3 }).map((_, i) => (
         <div
           key={i}
           className={`rounded-[var(--layout-sidebar-item-radius)] bg-[var(--layout-sidebar-skeleton)] ${
-            isSidebarOpen ? 'w-full' : 'w-10'
+            isSidebarOpen ? 'w-full' : 'w-8'
           }`}
           style={{ height: 'var(--layout-sidebar-item-height)' }}
         />
@@ -161,7 +166,7 @@ const SidebarSkeleton = ({ isSidebarOpen }: { isSidebarOpen: boolean }) => (
         <div
           key={i}
           className={`rounded-[var(--layout-sidebar-item-radius)] bg-[var(--layout-sidebar-skeleton)] ${
-            isSidebarOpen ? 'w-full' : 'w-10'
+            isSidebarOpen ? 'w-full' : 'w-8'
           }`}
           style={{ height: 'var(--layout-sidebar-item-height)' }}
         />

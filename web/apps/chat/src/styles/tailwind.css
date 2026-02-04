@@ -16,6 +16,14 @@
   --color-primary-800: #1b3783;
   --color-primary-900: #14285e;
 
+  /* accent */
+  --color-accent-50: #ecfeff;
+  --color-accent-100: #cffafe;
+  --color-accent-200: #a5f3fc;
+  --color-accent-300: #67e8f9;
+  --color-accent-400: #22d3ee;
+  --color-accent-500: #06b6d4;
+
   /* surface */
   --color-surface-50: #f7f8fb;
   --color-surface-100: #eef1f6;
@@ -37,15 +45,16 @@
   --layout-sidebar-toggle-x: calc(var(--layout-sidebar-collapsed-width) / 2);
   --layout-header-hover-bg: var(--layout-sidebar-bg-hover);
   --layout-header-hover-fg: var(--layout-sidebar-text-active);
-  --layout-sidebar-item-height: 40px;
-  --layout-sidebar-item-radius: 12px;
-  --layout-sidebar-item-gap: 6px;
+  --layout-sidebar-item-height: 32px;
+  --layout-sidebar-item-radius: 16px;
+  --layout-sidebar-item-gap: 3px;
   --layout-sidebar-text: var(--color-surface-600);
   --layout-sidebar-text-active: var(--color-surface-900);
-  --layout-sidebar-bg-hover: rgba(255, 255, 255, 0.6);
-  --layout-sidebar-bg-active: rgba(255, 255, 255, 0.85);
+  --layout-sidebar-bg-hover: var(--color-accent-50);
+  --layout-sidebar-bg-active: var(--color-accent-100);
   --layout-sidebar-border-active: var(--color-surface-200);
   --layout-sidebar-skeleton: var(--color-surface-100);
+  --layout-sidebar-accent: var(--color-accent-500);
 
   /* radius */
   --radius-panel: 24px;
