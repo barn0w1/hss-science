@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    /* ---- colors (Google Chat系・ニュートラル) ---- */
+    --bg: 255 255 255;
+    --panel: 249 250 251;
+    --fg: 32 33 36;        /* Googleっぽい本文色 */
+    --muted: 95 99 104;   /* 補助テキスト */
+    --border: 218 220 224;
+    --accent: 26 115 232; /* Google Blue */
+  }
+
+  html {
+    font-family:
+      Inter,
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      Roboto,
+      "Helvetica Neue",
+      Arial,
+      sans-serif;
+
+    font-size: 14px; /* ← Google Chat感の正体 */
+  }
+
+  body {
+    background-color: rgb(var(--bg));
+    color: rgb(var(--fg));
+    line-height: 1.5;
+  }
+}
