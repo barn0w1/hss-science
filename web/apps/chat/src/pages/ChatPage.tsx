@@ -7,12 +7,14 @@ export const ChatPage = () => {
 
   return (
     <MainLayout
-      header={<ChatHeader />}
-      sidebar={
-        <ChatSidebar
+      header={
+        <ChatHeader
           isSidebarOpen={isSidebarOpen}
           onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
         />
+      }
+      sidebar={
+        <ChatSidebar isSidebarOpen={isSidebarOpen} />
       }
       isSidebarOpen={isSidebarOpen}
     >
