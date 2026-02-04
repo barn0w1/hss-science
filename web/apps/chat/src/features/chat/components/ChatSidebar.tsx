@@ -29,7 +29,7 @@ export const ChatSidebar = ({ isSidebarOpen }: ChatSidebarProps) => {
             <span>Direct Messages</span>
           </div>
         )}
-        <div className="overflow-y-auto px-2" style={{ rowGap: 'var(--layout-sidebar-item-gap)' }}>
+        <div className="overflow-y-auto px-2 flex flex-col" style={{ rowGap: 'var(--layout-sidebar-item-gap)' }}>
           {dms.map((item) => (
             <SidebarItem
               key={item.id}
@@ -50,7 +50,7 @@ export const ChatSidebar = ({ isSidebarOpen }: ChatSidebarProps) => {
             <span>Spaces</span>
           </div>
         )}
-        <div className="overflow-y-auto px-2" style={{ rowGap: 'var(--layout-sidebar-item-gap)' }}>
+        <div className="overflow-y-auto px-2 flex flex-col" style={{ rowGap: 'var(--layout-sidebar-item-gap)' }}>
           {spaces.map((item) => (
             <SidebarItem
               key={item.id}
@@ -144,29 +144,45 @@ const SidebarItem = ({ item, isSidebarOpen, onClick }: SidebarItemProps) => {
 // サブコンポーネント: スケルトン
 // ------------------------------------------------------------------
 const SidebarSkeleton = ({ isSidebarOpen }: { isSidebarOpen: boolean }) => (
-  <div className="flex flex-col h-full gap-3 pt-3 px-2 animate-pulse">
-    <div className="space-y-2">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <div
-          key={i}
-          className={`rounded-[var(--layout-sidebar-item-radius)] bg-[var(--layout-sidebar-skeleton)] ${
-            isSidebarOpen ? 'w-full' : 'w-8'
-          }`}
-          style={{ height: 'var(--layout-sidebar-item-height)' }}
-        />
-      ))}
+  <div className="flex flex-col h-full py-4 animate-pulse">
+    <div className="flex-1 flex flex-col min-h-0">
+      {isSidebarOpen && (
+        <div className="px-2 py-1">
+          <div className="h-3 w-24 rounded-full bg-[var(--layout-sidebar-skeleton)]" />
+        </div>
+      )}
+      <div className="overflow-y-auto px-2 flex flex-col" style={{ rowGap: 'var(--layout-sidebar-item-gap)' }}>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className={`rounded-[var(--layout-sidebar-item-radius)] bg-[var(--layout-sidebar-skeleton)] ${
+              isSidebarOpen ? 'w-full' : 'w-8'
+            }`}
+            style={{ height: 'var(--layout-sidebar-item-height)' }}
+          />
+        ))}
+      </div>
     </div>
 
-    <div className="flex-1 space-y-2 pt-4 border-t border-surface-200">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div
-          key={i}
-          className={`rounded-[var(--layout-sidebar-item-radius)] bg-[var(--layout-sidebar-skeleton)] ${
-            isSidebarOpen ? 'w-full' : 'w-8'
-          }`}
-          style={{ height: 'var(--layout-sidebar-item-height)' }}
-        />
-      ))}
+    {isSidebarOpen && <div className="mx-2 my-2 border-t border-surface-200/50 flex-shrink-0" />}
+
+    <div className="flex-1 flex flex-col min-h-0">
+      {isSidebarOpen && (
+        <div className="px-2 py-1">
+          <div className="h-3 w-16 rounded-full bg-[var(--layout-sidebar-skeleton)]" />
+        </div>
+      )}
+      <div className="overflow-y-auto px-2 flex flex-col" style={{ rowGap: 'var(--layout-sidebar-item-gap)' }}>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className={`rounded-[var(--layout-sidebar-item-radius)] bg-[var(--layout-sidebar-skeleton)] ${
+              isSidebarOpen ? 'w-full' : 'w-8'
+            }`}
+            style={{ height: 'var(--layout-sidebar-item-height)' }}
+          />
+        ))}
+      </div>
     </div>
   </div>
 );
