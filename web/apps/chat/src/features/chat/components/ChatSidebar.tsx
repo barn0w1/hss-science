@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
 import { useChatStore } from '../state';
 import { useSidebarData, type SidebarItemData } from '../hooks/useSidebarData';
 
@@ -123,12 +124,7 @@ const SidebarItem = ({ item, isSidebarOpen, onClick }: SidebarItemProps) => {
             {item.unreadCount > 0 ? (
               <span className="h-2 w-2 rounded-full bg-[var(--layout-sidebar-accent)]" />
             ) : item.isPinned ? (
-              <svg viewBox="0 0 16 16" className="h-2.5 w-2.5 text-surface-400" aria-hidden="true">
-                <path
-                  d="M10 2l4 4-2 2-4-4-3 3-1 5-1-1 5-1 3-3-4-4 3-3z"
-                  fill="currentColor"
-                />
-              </svg>
+              <PushPinOutlinedIcon className="!h-3 !w-3 text-surface-400" fontSize="inherit" />
             ) : null}
           </div>
         </>
