@@ -26,7 +26,6 @@ export const ChatSidebar = ({ isSidebarOpen }: ChatSidebarProps) => {
         {isSidebarOpen && (
           <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-surface-500 flex items-center justify-between">
             <span>Direct Messages</span>
-            <span className="bg-surface-100 text-surface-500 px-1.5 rounded text-[10px]">{dms.length}</span>
           </div>
         )}
         <div className="overflow-y-auto px-2" style={{ rowGap: 'var(--layout-sidebar-item-gap)' }}>
@@ -48,7 +47,6 @@ export const ChatSidebar = ({ isSidebarOpen }: ChatSidebarProps) => {
         {isSidebarOpen && (
           <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-surface-500 flex items-center justify-between">
             <span>Spaces</span>
-            <button className="text-surface-400 hover:text-surface-700">+</button>
           </div>
         )}
         <div className="overflow-y-auto px-2" style={{ rowGap: 'var(--layout-sidebar-item-gap)' }}>
