@@ -1,3 +1,5 @@
+// src/features/chat/types.ts
+
 // ------------------------------------------------------------------
 // Core Entities
 // ------------------------------------------------------------------
@@ -8,46 +10,42 @@ export interface User {
   id: string;
   name: string;
   email?: string;
-  avatarUrl?: string; // アイコン画像
-  status: UserStatus; // オンライン状態
-  bio?: string;       // プロフィール一言（コミュニティなのであると良い）
+  avatarUrl?: string;
+  status: UserStatus;
+  bio?: string;
+}
+
+// ------------------------------------------------------------------
+// Sidebar UI State (Common)
+// ------------------------------------------------------------------
+interface RoomUIState {
+  unreadCount: number;  // 未読件数
+  isPinned: boolean;    // ピン留めされているか
+  isMuted: boolean;     // 通知をミュートしているか
+  lastActiveAt: string; // 最終更新日時 (並び順用)
 }
 
 // ------------------------------------------------------------------
 // Rooms (Spaces & DMs)
 // ------------------------------------------------------------------
 
-// Space: 永続的なコミュニティの場所（トピック、プロジェクト、雑談広場）
-export interface Space {
+// Space: コミュニティの「広場」
+export interface Space extends RoomUIState {
   type: 'space';
   id: string;
   name: string;
-  description?: string; // 「〇〇について語る場所です」など
-  iconUrl?: string;     // スペースごとのアイコン（重要）
-  
-  // 権限や公開範囲（将来的な拡張用）
-  isPublic: boolean;    // 誰でも参加できるか、招待制か
-  
-  // UI用状態
-  unreadCount: number;
-  lastActiveAt: string; // 並び替え用 (ISO String)
+  description?: string;
+  iconUrl?: string;
+  isPublic: boolean;
 }
 
-// DM: 個人または複数人での会話
-export interface DirectMessage {
+// DM: 個人の「会話」
+export interface DirectMessage extends RoomUIState {
   type: 'dm';
   id: string;
-  
-  // DMの場合、ルーム名は自動生成（相手の名前など）する場合が多いが、
-  // グループDMで名前をつけることもあるのでnameを持つ
-  name?: string; 
-  
-  memberIds: string[]; // 参加者（相手が誰かを知るため）
-  
-  // UI用状態
-  unreadCount: number;
-  lastActiveAt: string;
+  name?: string; // グループDM用。1対1ならundefinedで相手の名前を表示
+  memberIds: string[];
 }
 
-// Room: リスト表示でSpaceとDMを統一して扱うためのUnion型
+// Room: リスト表示用Union型
 export type Room = Space | DirectMessage;
