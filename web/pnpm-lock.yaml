@@ -8,7 +8,7 @@ importers:
 
   .: {}
 
-  apps/accounts:
+  apps/chat:
     dependencies:
       '@hss-science/api':
         specifier: workspace:*
