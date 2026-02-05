@@ -58,7 +58,6 @@ export const ChatSidebar = () => {
               w-[var(--sidebar-item-size)] h-[var(--sidebar-item-size)]
               rounded-[var(--sidebar-item-radius)]
               bg-[var(--sidebar-bg-active)] text-[var(--sidebar-text-active)]
-              border border-[var(--app-border)]
               hover:bg-[var(--sidebar-bg-hover)] hover:text-[var(--sidebar-text-hover)]
               hover:shadow-[var(--sidebar-shadow-active)] hover:scale-105
               active:scale-95
