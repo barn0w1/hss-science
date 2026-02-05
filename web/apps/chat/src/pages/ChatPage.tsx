@@ -1,6 +1,5 @@
 import { MainLayout } from '@/app/layouts/MainLayout';
-import { ChatContent, ChatHeader, ChatSidebar } from '@/features/chat/components/Chat';
-import { useState } from 'react';
+import { ChatContent, ChatHeader, ChatSidebar } from '@/features/chat/components/ChatComponents';
 
 export const ChatPage = () => {
   return (
