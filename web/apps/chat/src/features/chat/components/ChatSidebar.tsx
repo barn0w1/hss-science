@@ -3,6 +3,7 @@ import { useState } from 'react';
 import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
+import AddOutlinedIcon from '@mui/icons-material/AddOutlined';
 
 import { DebugPlaceholder } from '@/shared/ui/DebugPlaceholder';
 
@@ -24,6 +25,9 @@ const ChatSidebarLayout = ({ children }: { children: ReactNode }) => (
 export const ChatSidebar = () => {
   const [activeId, setActiveId] = useState('home');
 
+  const railButtonBaseClass =
+    'relative flex items-center justify-center outline-none transition-all duration-200 ease-out active:scale-90 active:duration-75';
+
   const menuItems = [
     { id: 'home', label: 'Home', icon: HomeOutlinedIcon },
     { id: 'dm', label: 'DM', icon: ChatBubbleOutlineIcon },
@@ -33,20 +37,35 @@ export const ChatSidebar = () => {
   return (
     <ChatSidebarLayout>
       <div className="flex flex-col items-center h-full w-full py-4">
-        <nav className="flex flex-col items-center w-full" style={{ rowGap: 'var(--sidebar-item-gap)' }}>
+        <nav className="flex flex-col items-center w-full gap-[var(--sidebar-item-gap)]">
           {menuItems.map((item) => (
             <SidebarRailItem
               key={item.id}
               item={item}
               isActive={activeId === item.id}
               onClick={() => setActiveId(item.id)}
+              baseClassName={railButtonBaseClass}
             />
           ))}
         </nav>
         
         {/* Bottom Area (Settings / User) */}
-        <div className="mt-auto pb-4">
-           {/* 必要に応じて追加 */}
+        <div className="mt-auto pb-4 flex flex-col items-center">
+          <button
+            aria-label="New"
+            className={`
+              ${railButtonBaseClass}
+              w-[var(--sidebar-item-size)] h-[var(--sidebar-item-size)]
+              rounded-[var(--sidebar-item-radius)]
+              bg-[var(--sidebar-bg-active)] text-[var(--sidebar-text-active)]
+              border border-[var(--app-border)]
+              hover:bg-[var(--sidebar-bg-hover)] hover:text-[var(--sidebar-text-hover)]
+              hover:shadow-[var(--sidebar-shadow-active)] hover:scale-105
+              active:scale-95
+            `}
+          >
+            <AddOutlinedIcon style={{ fontSize: '24px' }} />
+          </button>
         </div>
       </div>
     </ChatSidebarLayout>
@@ -61,9 +80,10 @@ interface SidebarRailItemProps {
   };
   isActive: boolean;
   onClick: () => void;
+  baseClassName: string;
 }
 
-const SidebarRailItem = ({ item, isActive, onClick }: SidebarRailItemProps) => {
+const SidebarRailItem = ({ item, isActive, onClick, baseClassName }: SidebarRailItemProps) => {
   const Icon = item.icon;
   
   return (
@@ -71,21 +91,15 @@ const SidebarRailItem = ({ item, isActive, onClick }: SidebarRailItemProps) => {
       <button
         onClick={onClick}
         className={`
-          relative flex items-center justify-center outline-none 
-          transition-all duration-200 ease-out
-          /* 2. Tactile Feedback: クリック時に少し縮む */
-          active:scale-90 active:duration-75
+          ${baseClassName}
+          w-[var(--sidebar-item-size)] h-[var(--sidebar-item-size)]
+          rounded-[var(--sidebar-item-radius)]
           ${
             isActive
               ? 'bg-[var(--sidebar-bg-active)] text-[var(--sidebar-text-active)] shadow-[var(--sidebar-shadow-active)] scale-100'
               : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-bg-hover)] hover:text-[var(--sidebar-text-hover)] hover:scale-105'
           }
         `}
-        style={{ 
-          width: 'var(--sidebar-item-size)', 
-          height: 'var(--sidebar-item-size)',
-          borderRadius: 'var(--sidebar-item-radius)'
-        }}
       >
         <Icon 
           className="transition-transform duration-300"
