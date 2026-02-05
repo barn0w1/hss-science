@@ -1,151 +1,79 @@
-import { useEffect } from 'react';
-import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
-import { useChatStore } from '../state';
-import { useSidebarData, type SidebarItemData } from '../hooks/useSidebarData';
+import { useState } from 'react';
+import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
+import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
+import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
+import CloudQueueOutlinedIcon from '@mui/icons-material/CloudQueueOutlined';
 
 export const ChatSidebar = () => {
-  const fetchRooms = useChatStore((state) => state.fetchRooms);
-  const setActiveRoom = useChatStore((state) => state.setActiveRoom);
-  const { spaces, dms, isLoading } = useSidebarData();
+  const [activeId, setActiveId] = useState('home');
 
-  useEffect(() => {
-    fetchRooms();
-  }, [fetchRooms]);
+  const menuItems = [
+    { id: 'home', label: 'Home', icon: HomeOutlinedIcon },
+    { id: 'inbox', label: 'Inbox', icon: InboxOutlinedIcon },
+    { id: 'spaces', label: 'Spaces', icon: GroupsOutlinedIcon },
+    { id: 'drive', label: 'Drive', icon: CloudQueueOutlinedIcon },
+  ];
 
   return (
-    <div className="flex flex-col h-full py-4">
-      <SidebarSection
-        title="Direct Messages"
-        items={dms}
-        isLoading={isLoading}
-        onSelect={setActiveRoom}
-      />
-
-      <SidebarDivider />
-
-      <SidebarSection
-        title="Spaces"
-        items={spaces}
-        isLoading={isLoading}
-        onSelect={setActiveRoom}
-      />
+    <div className="flex flex-col items-center h-full w-full py-2">
+      <nav className="flex flex-col items-center w-full" style={{ rowGap: 'var(--layout-sidebar-item-gap)' }}>
+        {menuItems.map((item) => (
+          <SidebarRailItem
+            key={item.id}
+            item={item}
+            isActive={activeId === item.id}
+            onClick={() => setActiveId(item.id)}
+          />
+        ))}
+      </nav>
     </div>
   );
 };
 
-interface SidebarSectionProps {
-  title: string;
-  items: SidebarItemData[];
-  isLoading: boolean;
-  onSelect: (id: string) => void;
-}
-
-const SidebarSection = ({
-  title,
-  items,
-  isLoading,
-  onSelect,
-}: SidebarSectionProps) => {
-  return (
-    <div className="flex-1 flex flex-col min-h-0">
-      <div className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wider text-surface-500 flex items-center justify-between flex-shrink-0 min-h-[20px]">
-        <span>{title}</span>
-      </div>
-      
-      <div
-        className="overflow-y-auto px-2 flex flex-col"
-        style={{ rowGap: 'var(--layout-sidebar-item-gap)' }}
-      >
-        {isLoading ? (
-          Array.from({ length: 6 }).map((_, i) => (
-            <SidebarSkeletonItem key={i} />
-          ))
-        ) : (
-          items.map((item) => (
-            <SidebarItem
-              key={item.id}
-              item={item}
-              onClick={() => onSelect(item.id)}
-            />
-          ))
-        )}
-      </div>
-    </div>
-  );
-};
-
-const SidebarDivider = () => (
-  <div className="mx-2 my-2 border-t border-surface-200/50 flex-shrink-0" />
-);
-
-const SidebarSkeletonItem = () => (
-  <div
-    className="rounded-[var(--layout-sidebar-item-radius)] bg-[var(--layout-sidebar-skeleton)] animate-pulse w-full"
-    style={{ height: 'var(--layout-sidebar-item-height)' }}
-  />
-);
-
-interface SidebarItemProps {
-  item: SidebarItemData;
+interface SidebarRailItemProps {
+  item: {
+    id: string;
+    label: string;
+    icon: React.ElementType;
+  };
+  isActive: boolean;
   onClick: () => void;
 }
 
-const SidebarItem = ({ item, onClick }: SidebarItemProps) => {
+const SidebarRailItem = ({ item, isActive, onClick }: SidebarRailItemProps) => {
+  const Icon = item.icon;
+  
   return (
     <button
       onClick={onClick}
-      className={`relative group w-full flex items-center outline-none rounded-[var(--layout-sidebar-item-radius)] transition-all px-3 ${
-        item.isActive
-          ? 'bg-[var(--layout-sidebar-bg-active)] text-[var(--layout-sidebar-text-active)]'
-          : 'text-[var(--layout-sidebar-text)] hover:bg-[var(--layout-sidebar-bg-hover)]'
+      className={`relative group flex items-center justify-center outline-none transition-all duration-300 ease-out ${
+        isActive
+          ? 'bg-[var(--layout-sidebar-bg-active)] text-[var(--layout-sidebar-text-active)] shadow-[0_4px_12px_rgba(0,0,0,0.05)]'
+          : 'text-[var(--layout-sidebar-text)] hover:bg-[var(--layout-sidebar-bg-hover)] hover:text-surface-900'
       }`}
-      style={{ height: 'var(--layout-sidebar-item-height)' }}
+      style={{ 
+        width: 'var(--layout-sidebar-item-width)', 
+        height: 'var(--layout-sidebar-item-height)',
+        borderRadius: 'var(--layout-sidebar-item-radius)'
+      }}
     >
-      <div className="relative flex-shrink-0">
-        {item.iconUrl ? (
-          <img
-            src={item.iconUrl}
-            alt=""
-            className="rounded-md object-cover bg-surface-200"
-            style={{
-              width: 'var(--layout-sidebar-item-icon-size)',
-              height: 'var(--layout-sidebar-item-icon-size)',
-            }}
-          />
-        ) : (
-          <div
-            className={`rounded-md flex items-center justify-center font-semibold text-[10px] ${
-              item.isActive ? 'bg-surface-200 text-surface-800' : 'bg-surface-200 text-surface-500'
-            }`}
-            style={{
-              width: 'var(--layout-sidebar-item-icon-size)',
-              height: 'var(--layout-sidebar-item-icon-size)',
-            }}
-          >
-            {item.fallbackInitial}
-          </div>
-        )}
+      <Icon 
+        style={{ 
+          fontSize: 'var(--layout-sidebar-item-icon-size)' 
+        }} 
+      />
+      
+      {/* Tooltip */}
+      <div className="absolute left-full ml-4 px-3 py-1.5 bg-surface-900 text-white text-xs font-semibold rounded-lg opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl top-1/2 -translate-y-1/2">
+        {item.label}
+        {/* Arrow */}
+        <div className="absolute right-full top-1/2 -translate-y-1/2 border-[6px] border-transparent border-r-surface-900" />
       </div>
-
-      <div className="ml-3 flex-1 text-left min-w-0">
-        <div
-          className={`truncate font-medium text-[var(--layout-sidebar-item-text-size)] ${
-            item.unreadCount > 0 ? 'text-surface-900 font-semibold' : ''
-          }`}
-        >
-          {item.displayName}
-        </div>
-      </div>
-      <div className="flex items-center gap-1">
-        {item.unreadCount > 0 ? (
-          <span className="h-2 w-2 rounded-full bg-[var(--layout-sidebar-accent)]" />
-        ) : item.isPinned ? (
-          <PushPinOutlinedIcon
-            className="!h-3 !w-3 text-surface-500"
-            fontSize="inherit"
-          />
-        ) : null}
-      </div>
+      
+      {/* Active Indicator Pillage (optional, nice for docks) */}
+      {isActive && (
+        <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-1 h-5 bg-primary-500 rounded-r-full" />
+      )}
     </button>
   );
 };
