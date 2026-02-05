@@ -38,24 +38,20 @@
 
   /* layout */
   --layout-header-height: 64px;
-  --layout-gutter: 16px;
-  --layout-header-padding-x: var(--layout-gutter);
   --layout-sidebar-width: 80px;
-  --layout-header-hover-bg: var(--layout-sidebar-bg-hover);
-  --layout-header-hover-fg: var(--layout-sidebar-text-active);
-  --layout-sidebar-item-height: 48px;
-  --layout-sidebar-item-width: 48px;
-  --layout-sidebar-item-radius: 16px;
-  --layout-sidebar-item-gap: 16px;
-  --layout-sidebar-item-text-size: 0px; /* Hidden */
-  --layout-sidebar-item-icon-size: 24px;
-  --layout-sidebar-text: var(--color-surface-400);
-  --layout-sidebar-text-active: var(--color-primary-600);
-  --layout-sidebar-bg-hover: var(--color-surface-100);
-  --layout-sidebar-bg-active: var(--color-primary-50);
-  --layout-sidebar-border-active: var(--color-surface-200);
-  --layout-sidebar-skeleton: var(--color-surface-100);
-  --layout-sidebar-accent: var(--color-accent-500);
+  --layout-padding: 24px;
+  
+  /* sidebar component */
+  --sidebar-item-size: 48px;
+  --sidebar-item-radius: 16px;
+  --sidebar-item-gap: 16px;
+  --sidebar-inner-padding: 32px; /* Additional Y-axis padding for dock */
+  --sidebar-icon-size: 24px;
+  --sidebar-text: var(--color-surface-400);
+  --sidebar-text-active: var(--color-primary-600);
+  --sidebar-bg-hover: var(--color-surface-100);
+  --sidebar-bg-active: var(--color-primary-50);
+  --sidebar-accent: var(--color-accent-500);
 
   /* radius */
   --radius-panel: 24px;
@@ -76,5 +72,30 @@
   * {
     scrollbar-width: thin;
     scrollbar-color: var(--color-surface-300) transparent;
+  }
+}
+
+@layer components {
+  /* 
+   * Root Layout System 
+   */
+  .layout-screen {
+    @apply flex flex-col h-screen w-full overflow-hidden;
+  }
+
+  .layout-header {
+    @apply flex-none h-[var(--layout-header-height)] w-full flex items-center z-10;
+  }
+
+  .layout-main {
+    @apply flex-1 flex min-w-0 min-h-0;
+  }
+
+  .layout-sidebar {
+    @apply flex-none w-[var(--layout-sidebar-width)];
+  }
+
+  .layout-content {
+    @apply flex-1 flex flex-col min-w-0 min-h-0;
   }
 }

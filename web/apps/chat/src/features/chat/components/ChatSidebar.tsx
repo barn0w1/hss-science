@@ -48,18 +48,18 @@ const SidebarRailItem = ({ item, isActive, onClick }: SidebarRailItemProps) => {
       onClick={onClick}
       className={`relative group flex items-center justify-center outline-none transition-all duration-300 ease-out ${
         isActive
-          ? 'bg-[var(--layout-sidebar-bg-active)] text-[var(--layout-sidebar-text-active)] shadow-[0_4px_12px_rgba(0,0,0,0.05)]'
-          : 'text-[var(--layout-sidebar-text)] hover:bg-[var(--layout-sidebar-bg-hover)] hover:text-surface-900'
+          ? 'bg-[var(--sidebar-bg-active)] text-[var(--sidebar-text-active)] shadow-sm'
+          : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-bg-hover)] hover:text-surface-900'
       }`}
       style={{ 
-        width: 'var(--layout-sidebar-item-width)', 
-        height: 'var(--layout-sidebar-item-height)',
-        borderRadius: 'var(--layout-sidebar-item-radius)'
+        width: 'var(--sidebar-item-size)', 
+        height: 'var(--sidebar-item-size)',
+        borderRadius: 'var(--sidebar-item-radius)'
       }}
     >
       <Icon 
         style={{ 
-          fontSize: 'var(--layout-sidebar-item-icon-size)' 
+          fontSize: 'var(--sidebar-icon-size)' 
         }} 
       />
       
