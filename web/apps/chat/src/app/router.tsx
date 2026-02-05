@@ -14,7 +14,7 @@ export const AppRouter = () => {
         <Route path="/chat/space/:id" element={<ChatPage />} />
 
         {/* Catch all - redirect to home */}
-        <Route path="*" element={<Navigate to="/chat/home" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
