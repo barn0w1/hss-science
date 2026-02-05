@@ -5,7 +5,7 @@ import { DebugPlaceholder } from '@/shared/ui/DebugPlaceholder';
 // Layout Debug Mode
 // Set this to true to replace content with colored placeholders
 // ----------------------------------------------------------------------
-const IS_LAYOUT_DEBUG = import.meta.env.VITE_LAYOUT_DEBUG === 'true';
+const IS_LAYOUT_DEBUG = false;
 
 interface MainLayoutProps {
   header?: ReactNode;
