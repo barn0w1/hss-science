@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
-import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
+import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
-import CloudQueueOutlinedIcon from '@mui/icons-material/CloudQueueOutlined';
+
 import { DebugPlaceholder } from '@/shared/ui/DebugPlaceholder';
 
 const IS_LAYOUT_DEBUG = false;
@@ -26,9 +26,8 @@ export const ChatSidebar = () => {
 
   const menuItems = [
     { id: 'home', label: 'Home', icon: HomeOutlinedIcon },
-    { id: 'inbox', label: 'Inbox', icon: InboxOutlinedIcon },
+    { id: 'dm', label: 'DM', icon: ChatBubbleOutlineIcon },
     { id: 'spaces', label: 'Spaces', icon: GroupsOutlinedIcon },
-    { id: 'drive', label: 'Drive', icon: CloudQueueOutlinedIcon },
   ];
 
   return (
