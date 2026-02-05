@@ -6,7 +6,6 @@ import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import AddOutlinedIcon from '@mui/icons-material/AddOutlined';
 
 import { DebugPlaceholder } from '@/shared/ui/DebugPlaceholder';
-import { useChatStore } from '@/features/chat/state';
 
 const IS_LAYOUT_DEBUG = false;
 
@@ -26,39 +25,28 @@ const ChatSidebarLayout = ({ children }: { children: ReactNode }) => (
 export const ChatSidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const setOverlayType = useChatStore((state) => state.setOverlayType);
-  const overlayType = useChatStore((state) => state.overlayType);
 
   const railButtonBaseClass =
     'relative flex items-center justify-center outline-none transition-all duration-200 ease-out active:scale-90 active:duration-75';
 
   const menuItems = [
-    { id: 'home', label: 'Home', icon: HomeOutlinedIcon, type: 'route' as const, path: '/chat/home' },
-    { id: 'dm', label: 'DM', icon: ChatBubbleOutlineIcon, type: 'overlay' as const, overlayKey: 'dm' as const },
-    { id: 'spaces', label: 'Spaces', icon: GroupsOutlinedIcon, type: 'overlay' as const, overlayKey: 'space' as const },
+    { id: 'home', label: 'Home', icon: HomeOutlinedIcon, path: '/chat/home' },
+    { id: 'dm', label: 'DM', icon: ChatBubbleOutlineIcon, path: '/chat/dm' },
+    { id: 'spaces', label: 'Spaces', icon: GroupsOutlinedIcon, path: '/chat/space' },
   ];
 
-  // Determine active item based on current path and overlay state
+  // Determine active item based on current path
   const getActiveId = () => {
-    if (overlayType === 'dm') return 'dm';
-    if (overlayType === 'space') return 'spaces';
-    if (location.pathname === '/chat/home') return 'home';
     if (location.pathname.startsWith('/chat/dm')) return 'dm';
     if (location.pathname.startsWith('/chat/space')) return 'spaces';
-    return 'home';
+    if (location.pathname === '/chat/home') return 'home';
+    return null;
   };
 
   const activeId = getActiveId();
 
   const handleItemClick = (item: typeof menuItems[number]) => {
-    if (item.type === 'route') {
-      // Navigate to route and close overlay
-      setOverlayType(null);
-      navigate(item.path!);
-    } else {
-      // Toggle overlay
-      setOverlayType(overlayType === item.overlayKey ? null : item.overlayKey);
-    }
+    navigate(item.path);
   };
 
   return (
