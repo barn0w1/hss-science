@@ -15,12 +15,12 @@ export const MainLayout = ({ header, sidebar, children }: MainLayoutProps) => {
         </header>
       )}
 
-      <main className="flex-1 flex min-w-0 px-[var(--layout-gutter)] pb-[var(--layout-gutter)] min-h-0">
-        <aside className="flex-shrink-0 flex flex-col py-6 overflow-hidden w-[var(--layout-sidebar-width)] px-4">
+      <main className="flex-1 flex min-w-0 pr-[var(--layout-gutter)] pb-[var(--layout-gutter)] min-h-0">
+        <aside className="flex-shrink-0 flex flex-col py-4 w-[var(--layout-sidebar-width)] items-center">
           {sidebar}
         </aside>
 
-        <section className="flex-1 flex flex-col min-w-0 ml-[var(--layout-gutter)] rounded-[var(--radius-panel)] bg-white/80 backdrop-blur-sm overflow-hidden">
+        <section className="flex-1 flex flex-col min-w-0 ml-2 rounded-[var(--radius-panel)] bg-white/80 backdrop-blur-sm overflow-hidden shadow-sm">
           {children}
         </section>
       </main>

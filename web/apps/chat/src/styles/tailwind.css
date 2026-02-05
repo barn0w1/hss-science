@@ -45,14 +45,14 @@
   --layout-header-hover-fg: var(--layout-sidebar-text-active);
   --layout-sidebar-item-height: 48px;
   --layout-sidebar-item-width: 48px;
-  --layout-sidebar-item-radius: 12px;
-  --layout-sidebar-item-gap: 12px;
+  --layout-sidebar-item-radius: 16px;
+  --layout-sidebar-item-gap: 16px;
   --layout-sidebar-item-text-size: 0px; /* Hidden */
-  --layout-sidebar-item-icon-size: 26px;
-  --layout-sidebar-text: var(--color-surface-500);
+  --layout-sidebar-item-icon-size: 24px;
+  --layout-sidebar-text: var(--color-surface-400);
   --layout-sidebar-text-active: var(--color-primary-600);
-  --layout-sidebar-bg-hover: var(--color-surface-200);
-  --layout-sidebar-bg-active: #ffffff;
+  --layout-sidebar-bg-hover: var(--color-surface-100);
+  --layout-sidebar-bg-active: var(--color-primary-50);
   --layout-sidebar-border-active: var(--color-surface-200);
   --layout-sidebar-skeleton: var(--color-surface-100);
   --layout-sidebar-accent: var(--color-accent-500);

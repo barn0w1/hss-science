@@ -63,16 +63,9 @@ const SidebarRailItem = ({ item, isActive, onClick }: SidebarRailItemProps) => {
         }} 
       />
       
-      {/* Tooltip */}
-      <div className="absolute left-full ml-4 px-3 py-1.5 bg-surface-900 text-white text-xs font-semibold rounded-lg opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl top-1/2 -translate-y-1/2">
-        {item.label}
-        {/* Arrow */}
-        <div className="absolute right-full top-1/2 -translate-y-1/2 border-[6px] border-transparent border-r-surface-900" />
-      </div>
-      
-      {/* Active Indicator Pillage (optional, nice for docks) */}
+      {/* Active Indicator: A subtle dot or small bar to the left */}
       {isActive && (
-        <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-1 h-5 bg-primary-500 rounded-r-full" />
+        <div className="absolute -left-3 top-1/2 -translate-y-1/2 h-8 w-1 bg-primary-500 rounded-full" />
       )}
     </button>
   );
