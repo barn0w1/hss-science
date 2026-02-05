@@ -20,7 +20,7 @@ const ChatContentLayout = ({ children }: { children: ReactNode }) => (
 export const ChatContent = () => {
     return (
         <ChatContentLayout>
-            <div className="h-full flex flex-col rounded-[var(--radius-panel)] overflow-hidden">
+            <div className="layout-content-body h-full flex flex-col rounded-[var(--radius-panel)] overflow-hidden">
                 <div className="border-b border-surface-100 px-10 py-6">
                     <div className="flex items-center justify-between">
                         <div>

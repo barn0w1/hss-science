@@ -40,7 +40,11 @@
   --layout-header-height: 64px;
   --layout-sidebar-width: 80px;
 
-  --layout-padding: 24px; /* general */
+  --layout-padding: 16px; /* general */
+
+  /* layout surface colors */
+  --layout-surface: var(--color-surface-100);
+  --layout-content-surface: var(--color-surface-50);
   
   /* sidebar component */
   --sidebar-item-size: 48px;
@@ -76,3 +80,31 @@
   }
 }
 
+@layer components {
+  /* 
+   * Root Layout System 
+   */
+  .layout-screen {
+    @apply flex flex-col h-screen w-full overflow-hidden;
+  }
+
+  .layout-header {
+    @apply flex-none h-[var(--layout-header-height)] w-full flex items-center z-10 bg-[var(--layout-surface)];
+  }
+
+  .layout-main {
+    @apply flex-1 flex min-w-0 min-h-0;
+  }
+
+  .layout-sidebar {
+    @apply flex-none w-[var(--layout-sidebar-width)] bg-[var(--layout-surface)];
+  }
+
+  .layout-content {
+    @apply flex-1 flex flex-col min-w-0 min-h-0 bg-[var(--layout-surface)];
+  }
+
+  .layout-content-body {
+    @apply bg-[var(--layout-content-surface)];
+  }
+}
