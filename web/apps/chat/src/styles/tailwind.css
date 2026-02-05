@@ -51,12 +51,15 @@
   --sidebar-item-radius: 16px;
   --sidebar-item-gap: 16px;
   --sidebar-inner-padding: 32px; /* Additional Y-axis padding for dock */
-  --sidebar-icon-size: 24px;
+  --sidebar-icon-size: 26px;
+
   --sidebar-text: var(--color-surface-400);
+  --sidebar-text-hover: var(--color-surface-600);
   --sidebar-text-active: var(--color-primary-600);
-  --sidebar-bg-hover: var(--color-surface-100);
-  --sidebar-bg-active: var(--color-primary-50);
-  --sidebar-accent: var(--color-accent-500);
+
+  --sidebar-bg-hover: var(--color-surface-200); /* ホバー時は少し濃く */
+  --sidebar-bg-active: #ffffff; /* アクティブ時は白抜きで浮かせる */
+  --sidebar-shadow-active: 0 4px 12px -2px rgba(58, 125, 255, 0.15);
 
   /* radius */
   --radius-panel: 24px;
