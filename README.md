@@ -12,3 +12,7 @@ automation.
 This is a personal project built for a specific community.
 It is not intended to be a general-purpose or open-source platform.
 The codebase is optimized for the needs of hss-science.org.
+
+Memo:
+
+ハイライト: 1年のハイライトを集計
