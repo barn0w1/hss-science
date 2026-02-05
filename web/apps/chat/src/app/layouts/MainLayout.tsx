@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { DebugPlaceholder } from '@/shared/ui/DebugPlaceholder';
 
 // ----------------------------------------------------------------------
 // Layout Debug Mode
@@ -45,9 +46,3 @@ export const MainLayout = ({ header, sidebar, children }: MainLayoutProps) => {
     </div>
   );
 };
-
-const DebugPlaceholder = ({ label, color }: { label: string; color: string }) => (
-  <div className={`w-full h-full ${color} border-2 border-dashed flex items-center justify-center text-xs font-mono font-bold uppercase tracking-widest select-none rounded-[inherit]`}>
-    {label}
-  </div>
-);
