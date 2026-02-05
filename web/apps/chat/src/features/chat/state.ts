@@ -10,16 +10,20 @@ interface ChatState {
   // UI Status
   isLoading: boolean;
   error: string | null;
+  overlayType: 'dm' | 'space' | null; // For DM/Space list overlay
 
   // Actions
   // 部屋一覧を取得する
   fetchRooms: () => Promise<void>;
-  
+
   // 選択中の部屋を変更する
-  setActiveRoom: (roomId: string) => void;
+  setActiveRoom: (roomId: string | null) => void;
 
   // 部屋の状態を更新する (ピン留めやミュートなどのOptimistic UI用)
   updateRoom: (roomId: string, updates: Partial<Room>) => void;
+
+  // オーバーレイの表示/非表示を切り替える
+  setOverlayType: (type: 'dm' | 'space' | null) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -27,6 +31,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeRoomId: null,
   isLoading: false,
   error: null,
+  overlayType: null,
 
   fetchRooms: async () => {
     // 1. ローディング開始
@@ -47,9 +52,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     } catch (err) {
       console.error('Failed to fetch rooms:', err);
-      set({ 
-        error: 'Failed to load rooms.', 
-        isLoading: false 
+      set({
+        error: 'Failed to load rooms.',
+        isLoading: false
       });
     }
   },
@@ -64,5 +69,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         room.id === roomId ? { ...room, ...updates } as Room : room
       ),
     }));
+  },
+
+  setOverlayType: (type) => {
+    set({ overlayType: type });
   },
 }));
