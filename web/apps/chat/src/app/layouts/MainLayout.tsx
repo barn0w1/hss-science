@@ -4,11 +4,9 @@ interface MainLayoutProps {
   header?: ReactNode;
   sidebar: ReactNode;
   children: ReactNode;
-
-  isSidebarOpen?: boolean;
 }
 
-export const MainLayout = ({ header, sidebar, isSidebarOpen = true, children }: MainLayoutProps) => {
+export const MainLayout = ({ header, sidebar, children }: MainLayoutProps) => {
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-surface-50 text-surface-900 pt-[var(--layout-header-height)]">
       {header && (
@@ -18,13 +16,7 @@ export const MainLayout = ({ header, sidebar, isSidebarOpen = true, children }: 
       )}
 
       <main className="flex-1 flex min-w-0 px-[var(--layout-gutter)] pb-[var(--layout-gutter)] min-h-0">
-        <aside
-          className={`flex-shrink-0 flex flex-col py-6 overflow-hidden ${
-            isSidebarOpen
-              ? 'w-[var(--layout-sidebar-width)] px-5 opacity-100'
-              : 'w-[var(--layout-sidebar-collapsed-width)] px-3 opacity-100'
-          }`}
-        >
+        <aside className="flex-shrink-0 flex flex-col py-6 overflow-hidden w-[var(--layout-sidebar-width)] px-4">
           {sidebar}
         </aside>
 

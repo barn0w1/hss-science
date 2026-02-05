@@ -3,20 +3,10 @@ import { ChatContent, ChatHeader, ChatSidebar } from '@/features/chat/components
 import { useState } from 'react';
 
 export const ChatPage = () => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-
   return (
     <MainLayout
-      header={
-        <ChatHeader
-          isSidebarOpen={isSidebarOpen}
-          onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
-        />
-      }
-      sidebar={
-        <ChatSidebar isSidebarOpen={isSidebarOpen} />
-      }
-      isSidebarOpen={isSidebarOpen}
+      header={<ChatHeader />}
+      sidebar={<ChatSidebar />}
     >
       <ChatContent />
     </MainLayout>

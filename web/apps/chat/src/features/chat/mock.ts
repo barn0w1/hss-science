@@ -107,6 +107,39 @@ const spaces: Space[] = [
     isMuted: true, // ミュートアイコンテスト用
     lastActiveAt: new Date(Date.now() - 86400000).toISOString(), // 1日前
   },
+  {
+    type: 'space',
+    id: 's7',
+    name: 'Microsoft',
+    iconUrl: 'https://content.webtarget.dev/minecraft/server-icon.png',
+    isPublic: true,
+    unreadCount: 0,
+    isPinned: false,
+    isMuted: true, // ミュートアイコンテスト用
+    lastActiveAt: new Date(Date.now() - 86400000).toISOString(), // 1日前
+  },
+  {
+    type: 'space',
+    id: 's8',
+    name: 'Google',
+    iconUrl: 'https://content.webtarget.dev/minecraft/server-icon.png',
+    isPublic: true,
+    unreadCount: 0,
+    isPinned: false,
+    isMuted: true, // ミュートアイコンテスト用
+    lastActiveAt: new Date(Date.now() - 86400000).toISOString(), // 1日前
+  },
+  {
+    type: 'space',
+    id: 's9',
+    name: 'Apple',
+    iconUrl: 'https://content.webtarget.dev/minecraft/server-icon.png',
+    isPublic: true,
+    unreadCount: 0,
+    isPinned: false,
+    isMuted: true, // ミュートアイコンテスト用
+    lastActiveAt: new Date(Date.now() - 86400000).toISOString(), // 1日前
+  },
 ];
 
 // ------------------------------------------------------------------
