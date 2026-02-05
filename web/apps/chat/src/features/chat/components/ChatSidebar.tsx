@@ -109,8 +109,6 @@ const SidebarRailItem = ({ item, isActive, onClick }: SidebarRailItemProps) => {
         transition-all duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl
       ">
         {item.label}
-        {/* 三角形の矢印 */}
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-[4px] border-[4px] border-transparent border-r-[var(--color-surface-800)]" />
       </div>
     </div>
   );
