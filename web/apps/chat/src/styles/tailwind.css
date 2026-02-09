@@ -1,126 +1,54 @@
 @import "tailwindcss";
 
 @theme {
-  /* fonts */
-  --font-sans: "Inter", "Noto Sans JP", "Helvetica Neue", Arial, sans-serif;
-
-  /* colors */
-  --color-primary-50: #f1f7ff;
-  --color-primary-100: #dfeaff;
-  --color-primary-200: #b7d3ff;
-  --color-primary-300: #8ab8ff;
-  --color-primary-400: #5a98ff;
-  --color-primary-500: #3a7dff; /* Main */
-  --color-primary-600: #2e63d6;
-  --color-primary-700: #244cad;
-  --color-primary-800: #1b3783;
-  --color-primary-900: #14285e;
-
-  /* accent */
-  --color-accent-50: #ecfeff;
-  --color-accent-100: #cffafe;
-  --color-accent-200: #a5f3fc;
-  --color-accent-300: #67e8f9;
-  --color-accent-400: #22d3ee;
-  --color-accent-500: #06b6d4;
-
-  /* surface */
-  --color-surface-50: #f7f8fb;
-  --color-surface-100: #eef1f6;
-  --color-surface-200: #e1e6ef;
-  --color-surface-300: #c7d0dd;
-  --color-surface-400: #9fb0c3;
-  --color-surface-500: #6f8197;
-  --color-surface-600: #55657a;
-  --color-surface-700: #3e4b5c;
-  --color-surface-800: #2b3645;
-  --color-surface-900: #1b232e;
-
-  /* layout */
-  --layout-header-height: 64px;
-  --layout-sidebar-width: 80px;
-
-  --layout-padding: 16px; /* general */
-
-  /* layout surface colors */
-  --layout-surface: var(--color-surface-100);
-  --layout-content-surface: var(--color-surface-50);
-  
-  /* sidebar component */
-  --sidebar-item-size: 48px;
-  --sidebar-item-radius: 16px;
-  --sidebar-item-gap: 16px;
-  --sidebar-inner-padding: 32px; /* Additional Y-axis padding for dock */
-  --sidebar-icon-size: 26px;
-
-  --sidebar-text: var(--color-surface-400);
-  --sidebar-text-hover: var(--color-surface-600);
-  --sidebar-text-active: var(--color-primary-600);
-
-  --sidebar-bg-hover: var(--color-surface-200); /* ホバー時は少し濃く */
-  --sidebar-bg-active: #ffffff; /* アクティブ時は白抜きで浮かせる */
-  --sidebar-shadow-active: 0 4px 12px -2px rgba(58, 125, 255, 0.15);
-
-  /* radius */
-  --radius-panel: 24px;
-  --radius-pill: 16px;
-
-  /* app theme (semantic) */
-  --app-bg: var(--color-surface-50);
-  --app-surface: var(--color-surface-100);
-  --app-surface-alt: var(--color-surface-50);
-  --app-border: var(--color-surface-200);
-  --app-border-strong: var(--color-surface-300);
-  --app-text: var(--color-surface-900);
-  --app-text-muted: var(--color-surface-600);
-  --app-primary: var(--color-primary-500);
-  --app-primary-strong: var(--color-primary-600);
-  --app-accent: var(--color-accent-500);
-  
+  --font-sans: "Inter", "Noto Sans JP", system-ui, -apple-system, sans-serif;
 }
 
 @layer base {
   body {
-    background-color: var(--app-bg);
-    color: var(--app-text);
-    font-family: var(--font-sans);
-    letter-spacing: -0.01em;
-    
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: var(--color-surface-300) transparent;
+    @apply font-sans antialiased bg-slate-100 text-gray-900;
   }
 }
 
 @layer components {
-  /* 
-   * Root Layout System 
-   */
+  /* --- Layout (Screen & App Shell) --- */
   .layout-screen {
-    @apply flex flex-col h-screen w-full overflow-hidden;
+    @apply flex flex-col h-screen w-full overflow-hidden bg-slate-100;
   }
-
   .layout-header {
-    @apply flex-none h-[var(--layout-header-height)] w-full flex items-center z-10 bg-[var(--layout-surface)];
+    @apply flex-none h-16 w-full flex items-center bg-slate-100;
   }
-
   .layout-main {
-    @apply flex-1 flex min-w-0 min-h-0;
+    @apply flex-1 overflow-hidden px-4 pb-4;
   }
 
-  .layout-sidebar {
-    @apply flex-none w-[var(--layout-sidebar-width)] bg-[var(--layout-surface)];
+  /* --- Main Area Layout (2-Column Structure) --- */
+  .layout-area {
+    @apply flex h-full w-full overflow-hidden;
+  }
+  .layout-area-left {
+    @apply flex-none h-full relative z-10;
+  }
+  .layout-area-resizer {
+    @apply flex-none flex items-center justify-center z-20 h-full select-none touch-none;
+  }
+  .layout-area-right {
+    @apply flex-1 min-w-0 h-full relative z-0;
   }
 
-  .layout-content {
-    @apply flex-1 flex flex-col min-w-0 min-h-0 bg-[var(--layout-surface)];
+  /* --- Panel Layout (White Cards) --- */
+  .panel-card {
+    /* 背景白、枠線、角丸、影、そして中身がはみ出さないようにoverflow-hidden */
+    @apply flex flex-col h-full w-full bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden;
   }
 
-  .layout-content-body {
-    @apply bg-[var(--layout-content-surface)];
+  .panel-header {
+    /* 固定高、下線、横スクロール禁止(overflow-hidden) */
+    @apply flex-none min-h-[3.5rem] px-4 py-2 border-b border-slate-100 flex items-center bg-white z-10 overflow-hidden;
+  }
+
+  .panel-content {
+    /* 残りの高さを埋める。min-h-0はFlex内でのスクロールバグ防止に必須 */
+    @apply flex-1 min-h-0 w-full relative;
   }
 }
