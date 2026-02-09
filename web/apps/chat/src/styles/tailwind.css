@@ -6,20 +6,20 @@
 
 @layer base {
   body {
-    @apply font-sans antialiased bg-slate-100 text-gray-900;
+    @apply font-sans antialiased bg-slate-50 text-gray-900;
   }
 }
 
 @layer components {
   /* --- Layout (Screen & App Shell) --- */
   .layout-screen {
-    @apply flex flex-col h-screen w-full overflow-hidden bg-slate-100;
+    @apply flex flex-col h-screen w-full overflow-hidden bg-slate-50;
   }
   .layout-header {
-    @apply flex-none h-16 w-full flex items-center bg-slate-100;
+    @apply flex-none h-16 w-full flex items-center bg-slate-50;
   }
   .layout-main {
-    @apply flex-1 overflow-hidden px-4 pb-4;
+    @apply flex-1 overflow-hidden px-3 pb-3;
   }
 
   /* --- Main Area Layout (2-Column Structure) --- */
