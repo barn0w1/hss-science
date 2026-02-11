@@ -6,49 +6,54 @@
 
 @layer base {
   body {
-    @apply font-sans antialiased bg-slate-50 text-gray-900;
+    /* 背景: コンテンツ（白）とのコントラストを作るための薄いグレー */
+    @apply font-sans antialiased bg-slate-100 text-gray-900;
   }
 }
 
 @layer components {
   /* --- Layout (Screen & App Shell) --- */
   .layout-screen {
-    @apply flex flex-col h-screen w-full overflow-hidden bg-slate-50;
+    @apply flex flex-col h-screen w-full overflow-hidden bg-slate-100;
   }
   .layout-header {
-    @apply flex-none h-16 w-full flex items-center bg-slate-50;
+    @apply flex-none h-16 w-full flex items-center bg-slate-100 px-4;
   }
   .layout-main {
-    @apply flex-1 overflow-hidden px-3 pb-3;
+    @apply flex-1 overflow-hidden px-3 pb-3; 
   }
 
-  /* --- Main Area Layout (2-Column Structure) --- */
+  /* --- Main Area Layout --- */
   .layout-area {
     @apply flex h-full w-full overflow-hidden;
   }
+
   .layout-area-left {
     @apply flex-none h-full relative z-10;
   }
+
   .layout-area-resizer {
-    @apply flex-none flex items-center justify-center z-20 h-full select-none touch-none;
+    /* 16px の隙間 */
+    @apply flex-none w-4 flex items-center justify-center z-20 h-full select-none touch-none relative;
   }
+
   .layout-area-right {
     @apply flex-1 min-w-0 h-full relative z-0;
   }
 
-  /* --- Panel Layout (White Cards) --- */
+  /* --- Panel Layout --- */
   .panel-card {
-    /* 背景白、枠線、角丸、影、そして中身がはみ出さないようにoverflow-hidden */
-    @apply flex flex-col h-full w-full bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden;
+    /* ★変更点: shadow を削除。
+       ボーダー(border-slate-200)だけで境界を表現します。
+       フラットデザインではこれで十分な区切りになります。
+    */
+    @apply flex flex-col h-full w-full bg-white border border-slate-200 rounded-2xl overflow-hidden;
   }
-
+  
   .panel-header {
-    /* 固定高、下線、横スクロール禁止(overflow-hidden) */
     @apply flex-none min-h-[3.5rem] px-4 py-2 border-b border-slate-100 flex items-center bg-white z-10 overflow-hidden;
   }
-
   .panel-content {
-    /* 残りの高さを埋める。min-h-0はFlex内でのスクロールバグ防止に必須 */
     @apply flex-1 min-h-0 w-full relative;
   }
 }

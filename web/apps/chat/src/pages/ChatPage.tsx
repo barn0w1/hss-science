@@ -12,7 +12,7 @@ export const ChatPage = () => {
     <MainLayout
       header={
         <div className="flex items-center justify-between px-4 w-full">
-          <span className="font-bold text-lg text-slate-700">App Title</span>
+          <span className="font-bold text-lg text-slate-700">Chat</span>
           <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-sm text-slate-500 hover:text-slate-800">
             {isSidebarOpen ? 'Close Sidebar' : 'Open Sidebar'}
           </button>
