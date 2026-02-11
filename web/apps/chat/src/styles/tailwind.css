@@ -34,7 +34,7 @@
 
   .layout-area-resizer {
     /* 16px の隙間 */
-    @apply flex-none w-4 flex items-center justify-center z-20 h-full select-none touch-none relative;
+    @apply flex-none w-3 flex items-center justify-center z-20 h-full select-none touch-none relative;
   }
 
   .layout-area-right {

@@ -1,39 +1,24 @@
 import type { ReactNode } from 'react';
 
 interface PanelLayoutProps {
-  /** * パネルのヘッダー部分。
-   * タイトルや閉じるボタンなど、すべてのヘッダー要素をここに渡します。
-   * スクロールは発生しません。
-   */
+  /** ヘッダー部分 (ボタン、タイトル、検索窓なんでもOK) */
   header?: ReactNode;
-  
-  /** * メインコンテンツ。
-   * スクロール制御（overflow-y-autoなど）は、このchildrenの直下で行ってください。
-   */
+  /** コンテンツ部分 */
   children: ReactNode;
-  
-  /** 追加のスタイル */
   className?: string;
 }
 
-export const PanelLayout = ({ 
-  header, 
-  children, 
-  className = '' 
-}: PanelLayoutProps) => {
+export const PanelLayout = ({ header, children, className = '' }: PanelLayoutProps) => {
   return (
     <section className={`panel-card ${className}`}>
-      {/* --- Header Area (Fixed & No Scroll) --- */}
+      {/* ヘッダーエリア: 高さ固定・ボーダーあり */}
       {header && (
         <header className="panel-header">
-          {/* ヘッダーの中身は呼び出し側で制御します。
-            例: <div className="flex w-full justify-between items-center">...</div>
-          */}
           {header}
         </header>
       )}
 
-      {/* --- Main Content Container --- */}
+      {/* コンテンツエリア: 残りの高さを埋める */}
       <div className="panel-content">
         {children}
       </div>
