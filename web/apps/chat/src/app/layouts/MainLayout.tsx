@@ -9,11 +9,10 @@ const IS_LAYOUT_DEBUG = false;
 
 interface MainLayoutProps {
   header?: ReactNode;
-  sidebar: ReactNode;
   children: ReactNode;
 }
 
-export const MainLayout = ({ header, sidebar, children }: MainLayoutProps) => {
+export const MainLayout = ({ header, children }: MainLayoutProps) => {
   return (
     <div className="layout-screen">
       {header && (
@@ -27,21 +26,11 @@ export const MainLayout = ({ header, sidebar, children }: MainLayoutProps) => {
       )}
 
       <main className="layout-main">
-        <aside className="layout-sidebar">
-          {IS_LAYOUT_DEBUG ? (
-            <DebugPlaceholder label="Sidebar" color="bg-red-500/20 border-red-500/50 text-red-700" />
-          ) : (
-            sidebar
-          )}
-        </aside>
-
-        <section className="layout-content">
-          {IS_LAYOUT_DEBUG ? (
-            <DebugPlaceholder label="Content Area" color="bg-blue-500/20 border-blue-500/50 text-blue-700" />
-          ) : (
-            children
-          )}
-        </section>
+        {IS_LAYOUT_DEBUG ? (
+          <DebugPlaceholder label="Content Area" color="bg-blue-500/20 border-blue-500/50 text-blue-700" />
+        ) : (
+          children
+        )}
       </main>
     </div>
   );
