@@ -6,54 +6,58 @@
 
 @layer base {
   body {
-    /* 背景: コンテンツ（白）とのコントラストを作るための薄いグレー */
-    @apply font-sans antialiased bg-slate-100 text-gray-900;
+    @apply font-sans antialiased text-gray-900 bg-white;
   }
 }
 
 @layer components {
-  /* --- Layout (Screen & App Shell) --- */
-  .layout-screen {
-    @apply flex flex-col h-screen w-full overflow-hidden bg-slate-100;
-  }
-  .layout-header {
-    @apply flex-none h-16 w-full flex items-center bg-slate-100 px-4;
-  }
-  .layout-main {
-    @apply flex-1 overflow-hidden px-3 pb-3; 
+  /* --- Root Wrapper --- */
+  .layout-root {
+    @apply h-screen w-full overflow-hidden bg-white; 
   }
 
-  /* --- Main Area Layout --- */
+  /* --- App Container (Grid Layout) --- */
+  .layout-app-container {
+    @apply grid w-full h-full max-w-[75rem] mx-auto bg-white border-x border-gray-200;
+    grid-template-rows: 4rem minmax(0, 1fr);
+  }
+
+  .layout-header {
+    @apply w-full h-full flex items-center border-b border-gray-300 bg-white z-20;
+  }
+
+  .layout-main {
+    @apply w-full h-full relative overflow-hidden; 
+  }
+
+  /* --- Main Area Layout (Horizontal Flex for Split Pane) --- */
   .layout-area {
-    @apply flex h-full w-full overflow-hidden;
+    @apply flex w-full h-full overflow-hidden;
   }
 
   .layout-area-left {
-    @apply flex-none h-full relative z-10;
-  }
-
-  .layout-area-resizer {
-    /* 16px の隙間 */
-    @apply flex-none w-3 flex items-center justify-center z-20 h-full select-none touch-none relative;
+    /* ★変更点: 幅を w-80 (320px) に固定。
+       これだけあれば、アイコン(40px) + 余白 + 名前 + 1行テキスト が綺麗に収まります。
+       背景は bg-gray-50 で右側のチャットエリア(白)と自然に分離させます。
+    */
+    @apply flex-none w-80 h-full bg-white border-r border-gray-300 relative z-10;
   }
 
   .layout-area-right {
-    @apply flex-1 min-w-0 h-full relative z-0;
+    @apply flex-1 min-w-0 h-full bg-white relative z-0;
   }
 
-  /* --- Panel Layout --- */
+  /* --- Panel Layout (Inner Cards) --- */
   .panel-card {
-    /* ★変更点: shadow を削除。
-       ボーダー(border-slate-200)だけで境界を表現します。
-       フラットデザインではこれで十分な区切りになります。
-    */
-    @apply flex flex-col h-full w-full bg-white border border-slate-200 rounded-2xl overflow-hidden;
+    @apply grid w-full h-full bg-white overflow-hidden;
+    grid-template-rows: 4rem minmax(0, 1fr);
   }
   
   .panel-header {
-    @apply flex-none min-h-[3.5rem] px-4 py-2 border-b border-slate-100 flex items-center bg-white z-10 overflow-hidden;
+    @apply w-full h-full px-6 flex items-center border-b border-gray-300 bg-white z-10;
   }
+
   .panel-content {
-    @apply flex-1 min-h-0 w-full relative;
+    @apply w-full h-full relative overflow-y-auto;
   }
 }
