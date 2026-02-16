@@ -1,10 +1,6 @@
 import type { ReactNode } from 'react';
 import { DebugPlaceholder } from '@/shared/ui/DebugPlaceholder';
 
-// ----------------------------------------------------------------------
-// Layout Debug Mode
-// Set this to true to replace content with colored placeholders
-// ----------------------------------------------------------------------
 const IS_LAYOUT_DEBUG = false;
 
 interface MainLayoutProps {
@@ -14,24 +10,33 @@ interface MainLayoutProps {
 
 export const MainLayout = ({ header, children }: MainLayoutProps) => {
   return (
-    <div className="layout-screen">
-      {header && (
-        <header className="layout-header">
-          {IS_LAYOUT_DEBUG ? (
-            <DebugPlaceholder label="Header Area" color="bg-yellow-500/20 border-yellow-500/50 text-yellow-700" />
-          ) : (
-            header
-          )}
-        </header>
-      )}
-
-      <main className="layout-main">
-        {IS_LAYOUT_DEBUG ? (
-          <DebugPlaceholder label="Content Area" color="bg-blue-500/20 border-blue-500/50 text-blue-700" />
-        ) : (
-          children
+    // 画面全体を覆うラッパー
+    <div className="layout-root">
+      
+      {/* アプリ本体のコンテナ（最大幅制限＋中央寄せ） */}
+      <div className="layout-app-container">
+        
+        {/* ヘッダーエリア（Chromeのような検索バー） */}
+        {header && (
+          <header className="layout-header">
+            {IS_LAYOUT_DEBUG ? (
+              <DebugPlaceholder label="Chrome-like Search Header" color="bg-yellow-500/20 border-yellow-500/50 text-yellow-700" />
+            ) : (
+              header
+            )}
+          </header>
         )}
-      </main>
+
+        {/* メインコンテンツエリア（Instagram型のサイドバー＋チャット） */}
+        <main className="layout-main">
+          {IS_LAYOUT_DEBUG ? (
+            <DebugPlaceholder label="Content Area (Sidebar + Chat)" color="bg-blue-500/20 border-blue-500/50 text-blue-700" />
+          ) : (
+            children
+          )}
+        </main>
+
+      </div>
     </div>
   );
 };
