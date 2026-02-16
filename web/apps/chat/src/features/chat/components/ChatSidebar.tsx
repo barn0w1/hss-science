@@ -1,10 +1,7 @@
 // features/chat/components/ChatSidebar.tsx
-import { useState } from 'react';
-import { Hash, Inbox, User } from 'lucide-react';
+import { Hash, Pin } from 'lucide-react';
 
-type FilterType = 'all' | 'space' | 'dm';
-
-// ダミーデータを配列で定義（実運用ではAPIから取得するイメージ）
+// ダミーデータ
 const mockChats = [
   {
     id: '1',
@@ -15,6 +12,7 @@ const mockChats = [
     avatar: 'https://content.webtarget.dev/icons/00.webp',
     unread: false,
     isActive: false,
+    isPinned: true,
   },
   {
     id: '2',
@@ -23,8 +21,9 @@ const mockChats = [
     preview: 'It\'s a blast',
     time: '4h',
     avatar: 'https://content.webtarget.dev/icons/01.webp',
-    unread: true, // 未読
+    unread: true,
     isActive: false,
+    isPinned: false,
   },
   {
     id: '3',
@@ -32,9 +31,10 @@ const mockChats = [
     name: 'AlphaZero',
     preview: 'Alice: 8/10 is impressive!',
     time: '2d',
-    avatar: null, // Spaceは画像なし
+    avatar: null,
     unread: false,
-    isActive: true, // 現在選択中
+    isActive: true,
+    isPinned: true,
   },
   {
     id: '4',
@@ -45,98 +45,86 @@ const mockChats = [
     avatar: 'https://content.webtarget.dev/icons/02.webp',
     unread: false,
     isActive: false,
+    isPinned: false,
   },
 ];
 
 export const ChatSidebar = () => {
-  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const pinnedChats = mockChats.filter(chat => chat.isPinned);
+  const recentChats = mockChats.filter(chat => !chat.isPinned);
 
-  // フィルター処理
-  const filteredChats = mockChats.filter((chat) => {
-    if (activeFilter === 'all') return true;
-    return chat.type === activeFilter;
-  });
+  const renderChatItem = (chat: typeof mockChats[0]) => (
+    <div
+      key={chat.id}
+      className={`group flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-all duration-200 ${
+        chat.isActive 
+          ? 'bg-gray-100/70' 
+          : 'hover:bg-gray-50'
+      }`}
+    >
+      {/* アバター領域：w-10 h-10 に縮小し、シャープな印象に */}
+      <div className="relative flex-shrink-0">
+        {chat.type === 'dm' ? (
+          <img 
+            src={chat.avatar!} 
+            alt={chat.name} 
+            className="w-10 h-10 rounded-full object-cover border border-gray-200/50 shadow-sm"
+          />
+        ) : (
+          <div className="w-10 h-10 rounded-[14px] bg-gray-100 text-gray-500 flex items-center justify-center border border-gray-200/60 shadow-sm">
+            <Hash size={18} strokeWidth={2.5} />
+          </div>
+        )}
+        
+        {/* 未読バッジ：少し小さく上品に */}
+        {chat.unread && (
+          <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-blue-500 border-2 border-white rounded-full"></div>
+        )}
+      </div>
+
+      {/* テキスト領域：フォントサイズを絞り、コントラストを強調 */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center">
+        <div className="flex justify-between items-center mb-0.5">
+          <span className={`truncate text-sm tracking-tight ${chat.unread ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'}`}>
+            {chat.name}
+          </span>
+          <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+            {chat.isPinned && <Pin size={10} className="text-gray-300 fill-gray-300" />}
+            <span className="text-[11px] font-medium text-gray-400">{chat.time}</span>
+          </div>
+        </div>
+        <span className={`text-xs truncate ${chat.unread ? 'font-medium text-gray-800' : 'font-light text-gray-500'}`}>
+          {chat.preview}
+        </span>
+      </div>
+    </div>
+  );
 
   return (
     <div className="w-full h-full flex flex-col bg-white">
-      
-      {/* --- リストヘッダー & フィルター --- */}
-      <div className="px-4 pt-6 pb-4 flex items-center justify-between border-b border-gray-100">
-        <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-          Messages
-        </h2>
+      {/* pt-2 で少しだけ上のゆとりを減らし、ヘッダーとの一体感を出す */}
+      <div className="flex-1 overflow-y-auto pt-2 pb-4">
         
-        <div className="flex bg-gray-100 p-0.5 rounded-md">
-          <button
-            onClick={() => setActiveFilter('all')}
-            className={`p-1.5 rounded-sm transition-all ${activeFilter === 'all' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
-          >
-            <Inbox size={14} />
-          </button>
-          <button
-            onClick={() => setActiveFilter('space')}
-            className={`p-1.5 rounded-sm transition-all ${activeFilter === 'space' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
-          >
-            <Hash size={14} />
-          </button>
-          <button
-            onClick={() => setActiveFilter('dm')}
-            className={`p-1.5 rounded-sm transition-all ${activeFilter === 'dm' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
-          >
-            <User size={14} />
-          </button>
-        </div>
-      </div>
-
-      {/* --- リスト部分 (大きく、贅沢な余白で) --- */}
-      <div className="flex-1 overflow-y-auto">
-        {filteredChats.map((chat) => (
-          <div
-            key={chat.id}
-            className={`flex items-center gap-4 px-4 py-3 cursor-pointer transition-colors ${
-              chat.isActive 
-                ? 'bg-gray-100/80' // Instagramの選択中ハイライトのような色
-                : 'hover:bg-gray-50'
-            }`}
-          >
-            {/* アイコン画像エリア (w-14 h-14 とかなり大きめに設定) */}
-            <div className="relative flex-shrink-0">
-              {chat.type === 'dm' ? (
-                <img 
-                  src={chat.avatar!} 
-                  alt={chat.name} 
-                  className="w-14 h-14 rounded-full object-cover border border-gray-200"
-                />
-              ) : (
-                // Space用のダミーアイコン (角丸四角形にしてDMの丸と区別)
-                <div className="w-14 h-14 rounded-2xl bg-brand/10 text-brand flex items-center justify-center border border-brand/20">
-                  <Hash size={24} />
-                </div>
-              )}
-              
-              {/* 未読のブルードット */}
-              {chat.unread && (
-                <div className="absolute top-0 right-0 w-3.5 h-3.5 bg-blue-500 border-2 border-white rounded-full"></div>
-              )}
+        {pinnedChats.length > 0 && (
+          <div className="mb-1">
+            {/* セクション見出し：極小サイズにして、ノイズにならないように */}
+            <div className="px-5 py-2 text-[10px] font-bold text-gray-400/80 uppercase tracking-widest">
+              Pinned
             </div>
-
-            {/* テキスト情報エリア */}
-            <div className="flex-1 min-w-0 flex flex-col justify-center">
-              <div className="flex justify-between items-baseline mb-1">
-                <span className={`truncate text-base ${chat.unread ? 'font-bold text-gray-900' : 'font-medium text-gray-800'}`}>
-                  {chat.name}
-                </span>
-                <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
-                  {chat.time}
-                </span>
-              </div>
-              <span className={`text-sm truncate ${chat.unread ? 'font-semibold text-gray-800' : 'text-gray-500'}`}>
-                {chat.preview}
-              </span>
-            </div>
-            
+            {pinnedChats.map(renderChatItem)}
           </div>
-        ))}
+        )}
+
+        {recentChats.length > 0 && (
+          <div className="mt-2">
+            {/* ボーダーを極細の透過グレーにし、主張を和らげる */}
+            <div className="px-5 py-2 text-[10px] font-bold text-gray-400/80 uppercase tracking-widest border-t border-gray-100/80 pt-3">
+              Recent
+            </div>
+            {recentChats.map(renderChatItem)}
+          </div>
+        )}
+        
       </div>
     </div>
   );
