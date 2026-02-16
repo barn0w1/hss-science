@@ -1,141 +1,142 @@
-import type { ReactNode } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
-import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
-import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
-import AddOutlinedIcon from '@mui/icons-material/AddOutlined';
+// features/chat/components/ChatSidebar.tsx
+import { useState } from 'react';
+import { Hash, Inbox, User } from 'lucide-react';
 
-import { DebugPlaceholder } from '@/shared/ui/DebugPlaceholder';
+type FilterType = 'all' | 'space' | 'dm';
 
-const IS_LAYOUT_DEBUG = false;
-
-const ChatSidebarLayout = ({ children }: { children: ReactNode }) => (
-  <div className="h-full w-full">
-    {IS_LAYOUT_DEBUG ? (
-      <DebugPlaceholder
-        label="Chat Sidebar"
-        color="bg-red-500/20 border-red-500/50 text-red-700"
-      />
-    ) : (
-      children
-    )}
-  </div>
-);
+// ダミーデータを配列で定義（実運用ではAPIから取得するイメージ）
+const mockChats = [
+  {
+    id: '1',
+    type: 'dm',
+    name: 'Alice Smith',
+    preview: 'You sent a post',
+    time: '3m',
+    avatar: 'https://content.webtarget.dev/icons/00.webp',
+    unread: false,
+    isActive: false,
+  },
+  {
+    id: '2',
+    type: 'dm',
+    name: 'Home! Atlanta',
+    preview: 'It\'s a blast',
+    time: '4h',
+    avatar: 'https://content.webtarget.dev/icons/01.webp',
+    unread: true, // 未読
+    isActive: false,
+  },
+  {
+    id: '3',
+    type: 'space',
+    name: 'AlphaZero',
+    preview: 'Alice: 8/10 is impressive!',
+    time: '2d',
+    avatar: null, // Spaceは画像なし
+    unread: false,
+    isActive: true, // 現在選択中
+  },
+  {
+    id: '4',
+    type: 'dm',
+    name: 'Charlie Davis',
+    preview: 'Which led me here',
+    time: '5d',
+    avatar: 'https://content.webtarget.dev/icons/02.webp',
+    unread: false,
+    isActive: false,
+  },
+];
 
 export const ChatSidebar = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
 
-  const railButtonBaseClass =
-    'relative flex items-center justify-center outline-none transition-all duration-200 ease-out active:scale-90 active:duration-75';
-
-  const menuItems = [
-    { id: 'home', label: 'Home', icon: HomeOutlinedIcon, path: '/chat/home' },
-    { id: 'dm', label: 'DM', icon: ChatBubbleOutlineIcon, path: '/chat/dm' },
-    { id: 'spaces', label: 'Spaces', icon: GroupsOutlinedIcon, path: '/chat/space' },
-  ];
-
-  // Determine active item based on current path
-  const getActiveId = () => {
-    if (location.pathname.startsWith('/chat/dm')) return 'dm';
-    if (location.pathname.startsWith('/chat/space')) return 'spaces';
-    if (location.pathname === '/chat/home') return 'home';
-    return null;
-  };
-
-  const activeId = getActiveId();
-
-  const handleItemClick = (item: typeof menuItems[number]) => {
-    navigate(item.path);
-  };
+  // フィルター処理
+  const filteredChats = mockChats.filter((chat) => {
+    if (activeFilter === 'all') return true;
+    return chat.type === activeFilter;
+  });
 
   return (
-    <ChatSidebarLayout>
-      <div className="flex flex-col items-center h-full w-full py-4">
-        <nav className="flex flex-col items-center w-full gap-[var(--sidebar-item-gap)]">
-          {menuItems.map((item) => (
-            <SidebarRailItem
-              key={item.id}
-              item={item}
-              isActive={activeId === item.id}
-              onClick={() => handleItemClick(item)}
-              baseClassName={railButtonBaseClass}
-            />
-          ))}
-        </nav>
-
-        {/* Bottom Area (Settings / User) */}
-        <div className="mt-auto pb-4 flex flex-col items-center">
+    <div className="w-full h-full flex flex-col bg-white">
+      
+      {/* --- リストヘッダー & フィルター --- */}
+      <div className="px-4 pt-6 pb-4 flex items-center justify-between border-b border-gray-100">
+        <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+          Messages
+        </h2>
+        
+        <div className="flex bg-gray-100 p-0.5 rounded-md">
           <button
-            aria-label="New"
-            className={`
-              ${railButtonBaseClass}
-              w-[var(--sidebar-item-size)] h-[var(--sidebar-item-size)]
-              rounded-[var(--sidebar-item-radius)]
-              bg-[var(--sidebar-bg-active)] text-[var(--sidebar-text-active)]
-              hover:bg-[var(--sidebar-bg-hover)] hover:text-[var(--sidebar-text-hover)]
-              hover:shadow-[var(--sidebar-shadow-active)] hover:scale-105
-              active:scale-95
-            `}
+            onClick={() => setActiveFilter('all')}
+            className={`p-1.5 rounded-sm transition-all ${activeFilter === 'all' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
           >
-            <AddOutlinedIcon style={{ fontSize: '24px' }} />
+            <Inbox size={14} />
+          </button>
+          <button
+            onClick={() => setActiveFilter('space')}
+            className={`p-1.5 rounded-sm transition-all ${activeFilter === 'space' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            <Hash size={14} />
+          </button>
+          <button
+            onClick={() => setActiveFilter('dm')}
+            className={`p-1.5 rounded-sm transition-all ${activeFilter === 'dm' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            <User size={14} />
           </button>
         </div>
       </div>
-    </ChatSidebarLayout>
-  );
-};
 
-interface SidebarRailItemProps {
-  item: {
-    id: string;
-    label: string;
-    icon: React.ElementType;
-  };
-  isActive: boolean;
-  onClick: () => void;
-  baseClassName: string;
-}
+      {/* --- リスト部分 (大きく、贅沢な余白で) --- */}
+      <div className="flex-1 overflow-y-auto">
+        {filteredChats.map((chat) => (
+          <div
+            key={chat.id}
+            className={`flex items-center gap-4 px-4 py-3 cursor-pointer transition-colors ${
+              chat.isActive 
+                ? 'bg-gray-100/80' // Instagramの選択中ハイライトのような色
+                : 'hover:bg-gray-50'
+            }`}
+          >
+            {/* アイコン画像エリア (w-14 h-14 とかなり大きめに設定) */}
+            <div className="relative flex-shrink-0">
+              {chat.type === 'dm' ? (
+                <img 
+                  src={chat.avatar!} 
+                  alt={chat.name} 
+                  className="w-14 h-14 rounded-full object-cover border border-gray-200"
+                />
+              ) : (
+                // Space用のダミーアイコン (角丸四角形にしてDMの丸と区別)
+                <div className="w-14 h-14 rounded-2xl bg-brand/10 text-brand flex items-center justify-center border border-brand/20">
+                  <Hash size={24} />
+                </div>
+              )}
+              
+              {/* 未読のブルードット */}
+              {chat.unread && (
+                <div className="absolute top-0 right-0 w-3.5 h-3.5 bg-blue-500 border-2 border-white rounded-full"></div>
+              )}
+            </div>
 
-const SidebarRailItem = ({ item, isActive, onClick, baseClassName }: SidebarRailItemProps) => {
-  const Icon = item.icon;
-  
-  return (
-    <div className="relative group flex justify-center">
-      <button
-        onClick={onClick}
-        className={`
-          ${baseClassName}
-          w-[var(--sidebar-item-size)] h-[var(--sidebar-item-size)]
-          rounded-[var(--sidebar-item-radius)]
-          ${
-            isActive
-              ? 'bg-[var(--sidebar-bg-active)] text-[var(--sidebar-text-active)] shadow-[var(--sidebar-shadow-active)] scale-100'
-              : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-bg-hover)] hover:text-[var(--sidebar-text-hover)] hover:scale-105'
-          }
-        `}
-      >
-        <Icon 
-          className="transition-transform duration-300"
-          style={{ 
-            fontSize: 'var(--sidebar-icon-size)',
-            // アクティブ時はアイコンを少し大きく見せても良い
-            // transform: isActive ? 'scale(1.05)' : 'scale(1)'
-          }} 
-        />
-      </button>
-
-      {/* 
-         3. Modern Tooltip 
-         アイコンのみのUIには必須。ホバー時のみ右側にフワッと出す。
-      */}
-      <div className="
-        absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 
-        bg-[var(--color-surface-800)] text-white text-xs font-medium rounded-lg 
-        opacity-0 group-hover:opacity-100 translate-x-[-8px] group-hover:translate-x-0 
-        transition-all duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl
-      ">
-        {item.label}
+            {/* テキスト情報エリア */}
+            <div className="flex-1 min-w-0 flex flex-col justify-center">
+              <div className="flex justify-between items-baseline mb-1">
+                <span className={`truncate text-base ${chat.unread ? 'font-bold text-gray-900' : 'font-medium text-gray-800'}`}>
+                  {chat.name}
+                </span>
+                <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
+                  {chat.time}
+                </span>
+              </div>
+              <span className={`text-sm truncate ${chat.unread ? 'font-semibold text-gray-800' : 'text-gray-500'}`}>
+                {chat.preview}
+              </span>
+            </div>
+            
+          </div>
+        ))}
       </div>
     </div>
   );

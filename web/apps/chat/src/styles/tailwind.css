@@ -23,7 +23,7 @@
   }
 
   .layout-header {
-    @apply w-full h-full flex items-center px-6 border-b border-gray-300 bg-white z-20;
+    @apply w-full h-full flex items-center border-b border-gray-300 bg-white z-20;
   }
 
   .layout-main {
