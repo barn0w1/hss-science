@@ -10,10 +10,10 @@ export const ChatPage = () => {
     <MainLayout
       header={
         <div className="w-full h-full flex">
-          {/* --- 左側ヘッダー (変更なし) --- */}
+          {/* --- 左側ヘッダー --- */}
           <div className="flex-none w-80 h-full border-r border-gray-200 flex items-center px-5 justify-between bg-white">
             <div className="flex items-center gap-3.5 min-w-0 pr-2">
-              
+              {/* タイトル等が必要な場合はここ */}
             </div>
             <button className="flex-shrink-0 p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-all duration-200">
               <Edit size={16} />
@@ -22,14 +22,14 @@ export const ChatPage = () => {
 
           {/* --- 右側ヘッダー --- */}
           <div className="flex-1 h-full flex items-center px-6 justify-between bg-white">
-            {/* 検索バー：max-w-xlで幅を広げ、h-10で高さをアバターと合わせる */}
-            <div className="w-full max-w-xl h-10">
+            {/* 検索バー：アバターと同じ高さ(h-10)で完璧に揃う */}
+            <div className="w-full max-w-2xl">
               <GlobalSearchBar />
             </div>
             
             <div className="flex-none flex items-center gap-4 ml-4">
-              {/* アバター：h-10で検索バーと高さを統一 */}
-              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-gray-100 to-gray-200 border border-gray-200 shadow-sm cursor-pointer"></div>
+              {/* アバター：h-10 で検索バーと高さを統一 */}
+              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-gray-100 to-gray-200 border border-gray-200 cursor-pointer"></div>
             </div>
           </div>
         </div>
