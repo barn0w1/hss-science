@@ -7,7 +7,7 @@ const ChatContentLayout = ({ children }: { children: ReactNode }) => (
     <div className="h-full flex flex-col pr-[var(--layout-padding)] pb-[var(--layout-padding)]">
         {IS_LAYOUT_DEBUG ? (
             <DebugPlaceholder
-                label="Chat Content"
+                label="チャットコンテンツ"
                 color="bg-blue-500/20 border-blue-500/50 text-blue-700"
                 className="rounded-[var(--radius-panel)]"
             />

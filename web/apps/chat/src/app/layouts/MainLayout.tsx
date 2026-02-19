@@ -20,7 +20,7 @@ export const MainLayout = ({ header, children }: MainLayoutProps) => {
         {header && (
           <header className="layout-header">
             {IS_LAYOUT_DEBUG ? (
-              <DebugPlaceholder label="Chrome-like Search Header" color="bg-yellow-500/20 border-yellow-500/50 text-yellow-700" />
+              <DebugPlaceholder label="Chrome風検索ヘッダー" color="bg-yellow-500/20 border-yellow-500/50 text-yellow-700" />
             ) : (
               header
             )}
@@ -30,7 +30,7 @@ export const MainLayout = ({ header, children }: MainLayoutProps) => {
         {/* メインコンテンツエリア（Instagram型のサイドバー＋チャット） */}
         <main className="layout-main">
           {IS_LAYOUT_DEBUG ? (
-            <DebugPlaceholder label="Content Area (Sidebar + Chat)" color="bg-blue-500/20 border-blue-500/50 text-blue-700" />
+            <DebugPlaceholder label="コンテンツエリア（サイドバー＋チャット）" color="bg-blue-500/20 border-blue-500/50 text-blue-700" />
           ) : (
             children
           )}

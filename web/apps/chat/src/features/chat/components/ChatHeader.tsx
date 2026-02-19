@@ -7,7 +7,7 @@ const ChatHeaderLayout = ({ children }: { children: ReactNode }) => (
   <div className="h-full w-full">
     {IS_LAYOUT_DEBUG ? (
       <DebugPlaceholder
-        label="Chat Header"
+        label="チャットヘッダー"
         color="bg-yellow-500/20 border-yellow-500/50 text-yellow-700"
       />
     ) : (

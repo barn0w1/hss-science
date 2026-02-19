@@ -10,7 +10,7 @@ export const GlobalSearchBar = () => {
       />
       <input
         type="text"
-        placeholder="Search everything..."
+        placeholder="すべてを検索..."
         className="flex-1 bg-transparent border-none outline-none text-gray-900 placeholder-gray-500 text-[14px] w-full"
       />
     </div>
