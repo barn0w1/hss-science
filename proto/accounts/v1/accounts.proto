@@ -4,11 +4,120 @@ package hss_science.accounts.v1;
 
 option go_package = "github.com/barn0w1/hss-science/server/gen/accounts/v1;accountsv1";
 
-import "google/api/annotations.proto";
-import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 
+// AccountsService is the internal gRPC API for the centralized authentication
+// and identity service. It knows nothing about HTTP, cookies, or redirects.
+// All protocol-level concerns are handled by the BFF (gateway) layer.
 service AccountsService {
-  
+  // GetAuthURL generates an OAuth authorization URL and a cryptographic state
+  // value for the given provider. The BFF uses the returned URL to redirect
+  // the user's browser to the external IdP.
+  rpc GetAuthURL(GetAuthURLRequest) returns (GetAuthURLResponse);
+
+  // HandleProviderCallback processes the authorization code returned by the
+  // external IdP. It exchanges the code for tokens, fetches user info,
+  // upserts the user in the database, and returns a short-lived internal
+  // authorization code that the BFF can pass back to the requesting service.
+  rpc HandleProviderCallback(HandleProviderCallbackRequest) returns (HandleProviderCallbackResponse);
+
+  // ExchangeToken validates an internal authorization code and returns the
+  // authenticated user's information. Called by downstream service BFFs to
+  // establish their own sessions.
+  rpc ExchangeToken(ExchangeTokenRequest) returns (ExchangeTokenResponse);
+
+  // GetUser retrieves a user by their internal ID.
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
 }
 
+// --- GetAuthURL ---
 
+message GetAuthURLRequest {
+  // The OAuth provider to authenticate with (e.g., "discord").
+  string provider = 1;
+
+  // The URI where the requesting service wants the user redirected after
+  // authentication completes. Stored alongside the state for later retrieval.
+  string redirect_uri = 2;
+
+  // Optional client-supplied state for CSRF protection at the requesting
+  // service level. Stored and returned after the callback completes.
+  string client_state = 3;
+}
+
+message GetAuthURLResponse {
+  // The full authorization URL to redirect the user to.
+  string auth_url = 1;
+
+  // The generated state parameter (opaque to the BFF; used for callback
+  // verification).
+  string state = 2;
+}
+
+// --- HandleProviderCallback ---
+
+message HandleProviderCallbackRequest {
+  // The OAuth provider (e.g., "discord").
+  string provider = 1;
+
+  // The authorization code received from the external IdP.
+  string code = 2;
+
+  // The state parameter received from the external IdP callback, used to
+  // look up the original request context and verify integrity.
+  string state = 3;
+}
+
+message HandleProviderCallbackResponse {
+  // A short-lived internal authorization code issued by this service.
+  // The BFF appends this to the redirect_uri so the requesting service
+  // can exchange it for user information.
+  string auth_code = 1;
+
+  // The original redirect_uri stored when GetAuthURL was called.
+  string redirect_uri = 2;
+
+  // The original client_state stored when GetAuthURL was called.
+  string client_state = 3;
+
+  // The authenticated user.
+  User user = 4;
+}
+
+// --- ExchangeToken ---
+
+message ExchangeTokenRequest {
+  // The internal authorization code to validate.
+  string auth_code = 1;
+}
+
+message ExchangeTokenResponse {
+  // The authenticated user associated with the authorization code.
+  User user = 1;
+}
+
+// --- GetUser ---
+
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message GetUserResponse {
+  User user = 1;
+}
+
+// --- Shared Messages ---
+
+message User {
+  // Internal unique identifier (UUID).
+  string id = 1;
+
+  // Display name sourced from the identity provider.
+  string display_name = 2;
+
+  // Avatar URL sourced from the identity provider.
+  string avatar_url = 3;
+
+  google.protobuf.Timestamp created_at = 14;
+  google.protobuf.Timestamp updated_at = 15;
+}
