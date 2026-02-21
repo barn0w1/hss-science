@@ -8,44 +8,7 @@ import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 
 service AccountsService {
-  // Authorization endpoint
-  rpc Authorize(AuthorizeRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      get: "/v1/authorize"
-    };
-  }
-
-  // OAuth provider callback
-  rpc OAuthCallback(OAuthCallbackRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      get: "/v1/oauth/callback"
-    };
-  }
-
-  // Verify and consume auth code (one-time)
-  rpc VerifyAuthCode(VerifyAuthCodeRequest)
-      returns (VerifyAuthCodeResponse);
+  
 }
 
-message VerifyAuthCodeRequest {
-  string auth_code = 1;
-  string audience  = 2; // e.g. "drive"
-}
 
-message VerifyAuthCodeResponse {
-  string user_id = 1;
-  string role    = 2;
-
-  map<string, string> claims = 10;
-}
-
-message AuthorizeRequest {
-  string audience = 1;       // e.g. "drive"
-  string redirect_uri = 2;   // service callback URL
-  string state = 3;          // optional (CSRF)
-}
-
-message OAuthCallbackRequest {
-  string code = 1;   // Discord OAuth code
-  string state = 2;  // optional
-}
