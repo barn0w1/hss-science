@@ -13,7 +13,7 @@ WORKDIR /app
 COPY server ./server
 
 WORKDIR /app/server
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/bin/accounts ./services/accounts/cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/bin/accounts-bff ./bff/accounts/cmd/server
 
 # Runtime Stage
 FROM alpine:latest
@@ -25,6 +25,6 @@ RUN apk --no-cache add ca-certificates tzdata
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 
-COPY --from=builder /app/bin/accounts .
+COPY --from=builder /app/bin/accounts-bff .
 
-CMD ["./accounts"]
+CMD ["./accounts-bff"]

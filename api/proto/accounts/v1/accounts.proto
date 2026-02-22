@@ -21,6 +21,11 @@ service AccountsService {
   // authorization code that the BFF can pass back to the requesting service.
   rpc HandleProviderCallback(HandleProviderCallbackRequest) returns (HandleProviderCallbackResponse);
 
+  // IssueAuthCode issues an internal authorization code for an already
+  // authenticated user. Used by the BFF when an active Accounts session
+  // exists, skipping the external IdP round trip entirely.
+  rpc IssueAuthCode(IssueAuthCodeRequest) returns (IssueAuthCodeResponse);
+
   // ExchangeToken validates an internal authorization code and returns the
   // authenticated user's information. Called by downstream service BFFs to
   // establish their own sessions.
@@ -82,6 +87,18 @@ message HandleProviderCallbackResponse {
 
   // The authenticated user.
   User user = 4;
+}
+
+// --- IssueAuthCode ---
+
+message IssueAuthCodeRequest {
+  // Internal user ID from an existing Accounts session.
+  string user_id = 1;
+}
+
+message IssueAuthCodeResponse {
+  // A short-lived internal authorization code.
+  string auth_code = 1;
 }
 
 // --- ExchangeToken ---
