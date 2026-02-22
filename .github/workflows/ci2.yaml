@@ -25,7 +25,7 @@ jobs:
             changed:
               - 'server/services/${{ matrix.service }}/**'
               - 'server/platform/**'
-              - 'proto/**'
+              - 'api/proto/**'
               - 'server/go.mod'
               - 'server/go.sum'
 
@@ -73,7 +73,7 @@ jobs:
             changed:
               - 'web/apps/${{ matrix.app }}/**'
               - 'web/packages/**'
-              - 'proto/**'
+              - 'api/proto/**'
               - 'web/package.json'
               - 'web/pnpm-lock.yaml'
 
