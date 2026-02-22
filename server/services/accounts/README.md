@@ -1,47 +1,41 @@
 # Accounts (Auth) Service
 
 本サービスは、`hss-science` システム全体における統合認証基盤（Identity Provider: IdP）です。
-外部のOAuthプロバイダー（Discord等）を信頼できる親プロバイダーとして利用し、システム内の各マイクロサービス（Drive, Chat等）に対して、標準的な OAuth 2.0 の「認可コードフロー（Authorization Code Flow）」に準拠したSSO（シングルサインオン）を提供します。
 
+## 1. Domain (本サービスの中核となる概念と責務)
 
+このサービスは、システムにおける「ユーザーの同一性（Identity）」と「信頼（Trust）」を司るドメインです。
 
-## 1. BFFとgRPCの厳格な責務分離 (Crucial Rule)
-本サービスにおいて、最も重要なのはBFF（Web層）とgRPC（ドメイン層）の役割を明確に分けることです。AIエージェントはこの境界を絶対に越えない設計を行ってください。
+* **Identityの統合:** システム内の各マイクロサービス（Drive, Chat等）を横断して、ユーザーの同一性を一元的に管理・担保します。
+* **Trustの委譲:** パスワード等のクレデンシャルを自前で管理するリスクを避け、外部の信頼できるプロバイダー（現状はDiscord）に本人確認を委譲します。将来的にはGoogleやGitHubなど、複数のIdP（Identity Provider）を束ねる役割を担います。
+* **SSO (Single Sign-On) の提供:** システム内の各サービスに対し、標準的な OAuth 2.0 の「認可コードフロー（Authorization Code Flow）」の概念を利用した、セキュアで統一された認証フローを提供します。
+
+## 2. Usecase (本サービスが提供する機能)
+
+本サービスが実現しなければならない主要なユースケース（機能要件）は以下の通りです。
+
+1. **外部IdPへの誘導:** ログインを試みるユーザーに対し、外部プロバイダー（Discord等）の認証画面へ安全に誘導するためのセキュアな状態（`state`等の生成）を提供します。
+2. **外部認証の検証とユーザーの同定:** 外部IdPでの認証を終えて戻ってきたユーザーの情報を検証し、システム内部のユーザーとして同定します（新規なら登録、既存なら情報更新を行う Upsert 処理）。
+3. **内部用認可コードの発行と検証:** 外部IdPのトークンを直接他のサービスに露出させることはせず、代わりに短命な「内部用認可コード (Auth Code)」を発行します。各サービスからの要求に応じてこのコードを検証し、システム内部のユーザー情報を返却します。
+4. **ユーザー情報の提供:** 各マイクロサービスからの問い合わせに対し、統合されたユーザーの基本情報（ID、表示名、アバター等）を提供します。
+
+## 3. BFFとgRPCの厳格な責務分離 (Crucial Boundary)
+
+本サービスを実装する上で、BFF（Web層）とgRPC（ドメイン層）の役割を明確に分けることが最も重要です。この境界は絶対に越えないでください。
 
 * **Auth BFF (Gateway) の責務:**
-  * クライアントの差異やHTTPプロトコルの都合をすべて吸収する。
-  * HTTPリダイレクトの発行、Cookie（OAuthの `state` や `nonce` 等の一時的な検証用）の読み書き。
-  * Discordからのコールバック（HTTP GET）を受け取り、必要なパラメータを抽出して裏側のgRPCへ渡す。
+  * 「Webの都合」をすべて吸収します。
+  * HTTPリダイレクトの発行、Cookie（検証用の状態保持やセッション等）の読み書きを担当します。
+  * プロバイダーからのコールバック（HTTP GET）を受け取り、必要なパラメータだけを抽出してgRPCへ流します。
 * **Auth gRPC (Microservice) の責務:**
-  * 本質的な認証・認可のビジネスロジックのみを実行する。
-  * OAuthの `state` の生成・検証、Discord APIとの通信（トークン交換・ユーザー情報取得）、DBへのユーザーのUpsert、システム内部用 `auth_code` の生成と検証。
+  * 「本質的な認証・認可のビジネスロジック」に専念します。
+  * トークンの検証、プロバイダーAPIとの通信、ユーザーデータの永続化、内部認可コードの発行と検証を行います。
   * **※注意:** gRPC層はHTTP、Cookie、リダイレクトの概念を一切知りません。
 
-## 2. SSO認証フローの概念 (OAuth 2.0 Authorization Code Flow準拠)
+## 4. AI Agentへの期待 (Propose the Best Architecture)
 
-Driveサービスにログインする場合を例とした、全体的なシーケンスの概念です。
+上記の「Domain」「Usecase」「境界の制約」を理解した上で、以下の設計と実装をあなた（AI）の裁量で自律的に行ってください。
 
-1. **[Drive BFF] ログイン開始:** セッションがない場合、Drive BFFは Auth BFF のログインエンドポイントへリダイレクト。
-2. **[Auth BFF -> Discord] 外部認証:** Auth BFFは、gRPCからセキュアなURLとstateを取得し、Discordへリダイレクト。
-3. **[Discord -> Auth BFF -> Auth gRPC] コールバック:** DiscordからAuth BFFへ戻る。BFFはパラメータをgRPCへ流す。gRPCはDiscordと通信し、ユーザーを同定・DB登録する。
-4. **[Auth gRPC] 認可コードの発行:** Auth gRPCは、短命な内部用 `auth_code` を生成してBFFに返す。
-5. **[Auth BFF -> Drive BFF] リダイレクトバック:** Auth BFFは、指定された `redirect_uri` へ `auth_code` を付与してリダイレクト。
-6. **[Drive BFF -> Auth gRPC] トークン交換:** Drive BFFは `auth_code` を用いて、裏側から Auth gRPC (`ExchangeToken`) を呼び出し、内部ユーザー情報を取得。
-7. **[Drive BFF] セッション確立:** Drive BFFが独自のセキュアなCookie（セッション）を発行し、ログイン完了。
-
-## 3. gRPC API 設計のベースライン (Propose the Best)
-
-以下は概念的なAPIのリストです。**AIエージェントはこれに縛られず、上記の責務分離を満たす上で最も美しく、拡張性の高い `.proto` の設計を自ら考え、提案してください。**
-
-* `GetAuthURL`: DiscordのOAuthログインURLと状態（state）を生成する。
-* `HandleProviderCallback`: Discordの認証結果（code/state）を受け取り、検証とユーザー登録を行い、内部の `auth_code` を返す。
-* `ExchangeToken`: 各サービスのBFFが `auth_code` を提示した際に、それを検証して内部ユーザー情報を返す。
-* `GetUser`: ユーザー情報を取得する。
-
-## 4. データモデルのベースライン (Propose the Best)
-
-以下は想定される概念的なエンティティです。**後方互換性は一切気にせず、将来的な複数IdP（GoogleやGitHubなど）の追加も見据えた、AIが考える最強のテーブル設計（PostgreSQL）を提案してください。**
-
-* `users`: システムの統合ユーザー情報。
-* `user_identities`: 外部プロバイダーのIDと内部ユーザーIDの紐付け。
-* `auth_codes`: SSOのための短命な認可コード。
+* **API設計 (`api/proto/`):** BFFとgRPC間の通信仕様として、ユースケースを過不足なく満たす、最も美しく拡張性の高い Protocol Buffers を定義してください。
+* **データモデル (PostgreSQL):** 将来的な複数IdPへの対応や、セキュアな状態管理を見据えた、あなた自身が考える「最強のテーブル設計」を考案し、マイグレーションファイルを作成してください。
+* **実装と検証:** Goらしいシンプルさ（Idiomatic Go）を保ちながらコードを生成し、`go test` 等を用いて自律的に検証サイクルを回し、機能要件を満たしてください。
