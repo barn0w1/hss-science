@@ -1,3 +1,4 @@
+// Package provider implements OAuthProvider adapters for external identity providers.
 package provider
 
 import (
@@ -46,19 +47,23 @@ func NewDiscord(cfg DiscordConfig) *Discord {
 	}
 }
 
+// Name implements OAuthProvider.
 func (d *Discord) Name() string {
 	return "discord"
 }
 
+// AuthCodeURL implements OAuthProvider.
 func (d *Discord) AuthCodeURL(state string) string {
 	return d.config.AuthCodeURL(state, oauth2.AccessTypeOnline)
 }
 
+// Exchange implements OAuthProvider.
 func (d *Discord) Exchange(ctx context.Context, code string) (*oauth2.Token, error) {
 	return d.config.Exchange(ctx, code)
 }
 
-func (d *Discord) FetchUserInfo(ctx context.Context, token *oauth2.Token) (*UserInfo, error) {
+// FetchUserInfo implements OAuthProvider.
+func (d *Discord) FetchUserInfo(ctx context.Context, token *oauth2.Token) (_ *UserInfo, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, discordUserAPIURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("discord: create request: %w", err)
@@ -69,7 +74,11 @@ func (d *Discord) FetchUserInfo(ctx context.Context, token *oauth2.Token) (*User
 	if err != nil {
 		return nil, fmt.Errorf("discord: fetch user info: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("discord: close response body: %w", cerr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)

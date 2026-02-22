@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// Sentinel errors returned by repository implementations.
 var (
 	ErrUserNotFound     = errors.New("user not found")
 	ErrStateNotFound    = errors.New("oauth state not found or expired")

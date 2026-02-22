@@ -1,3 +1,4 @@
+// Package store provides PostgreSQL implementations of the domain repository interfaces.
 package store
 
 import (
@@ -21,16 +22,18 @@ type UserStore struct {
 	pool *pgxpool.Pool
 }
 
+// NewUserStore creates a UserStore backed by the given connection pool.
 func NewUserStore(pool *pgxpool.Pool) *UserStore {
 	return &UserStore{pool: pool}
 }
 
+// UpsertByProvider implements domain.UserRepository.
 func (s *UserStore) UpsertByProvider(ctx context.Context, account *domain.ExternalAccount, displayName, avatarURL string) (*domain.User, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Check if an external account with this provider+provider_user_id exists.
 	var existingUserID uuid.UUID
@@ -110,6 +113,7 @@ func (s *UserStore) UpsertByProvider(ctx context.Context, account *domain.Extern
 	return user, nil
 }
 
+// GetByID implements domain.UserRepository.
 func (s *UserStore) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 	return getUserByID(ctx, s.pool, id)
 }
@@ -135,10 +139,12 @@ type StateStore struct {
 	pool *pgxpool.Pool
 }
 
+// NewStateStore creates a StateStore backed by the given connection pool.
 func NewStateStore(pool *pgxpool.Pool) *StateStore {
 	return &StateStore{pool: pool}
 }
 
+// Create implements domain.StateRepository.
 func (s *StateStore) Create(ctx context.Context, state *domain.OAuthState) error {
 	_, err := s.pool.Exec(ctx,
 		`INSERT INTO oauth_states (state, provider, redirect_uri, client_state, expires_at)
@@ -148,6 +154,7 @@ func (s *StateStore) Create(ctx context.Context, state *domain.OAuthState) error
 	return err
 }
 
+// Consume implements domain.StateRepository.
 func (s *StateStore) Consume(ctx context.Context, stateValue string) (*domain.OAuthState, error) {
 	var st domain.OAuthState
 	err := s.pool.QueryRow(ctx,
@@ -165,6 +172,7 @@ func (s *StateStore) Consume(ctx context.Context, stateValue string) (*domain.OA
 	return &st, nil
 }
 
+// DeleteExpired implements domain.StateRepository.
 func (s *StateStore) DeleteExpired(ctx context.Context) (int64, error) {
 	tag, err := s.pool.Exec(ctx,
 		`DELETE FROM oauth_states WHERE expires_at <= NOW()`,
@@ -180,10 +188,12 @@ type AuthCodeStore struct {
 	pool *pgxpool.Pool
 }
 
+// NewAuthCodeStore creates an AuthCodeStore backed by the given connection pool.
 func NewAuthCodeStore(pool *pgxpool.Pool) *AuthCodeStore {
 	return &AuthCodeStore{pool: pool}
 }
 
+// Create implements domain.AuthCodeRepository.
 func (s *AuthCodeStore) Create(ctx context.Context, code *domain.AuthCode) error {
 	_, err := s.pool.Exec(ctx,
 		`INSERT INTO auth_codes (code, user_id, expires_at)
@@ -193,6 +203,7 @@ func (s *AuthCodeStore) Create(ctx context.Context, code *domain.AuthCode) error
 	return err
 }
 
+// Consume implements domain.AuthCodeRepository.
 func (s *AuthCodeStore) Consume(ctx context.Context, codeValue string) (*domain.AuthCode, error) {
 	var ac domain.AuthCode
 	err := s.pool.QueryRow(ctx,
@@ -211,6 +222,7 @@ func (s *AuthCodeStore) Consume(ctx context.Context, codeValue string) (*domain.
 	return &ac, nil
 }
 
+// DeleteExpired implements domain.AuthCodeRepository.
 func (s *AuthCodeStore) DeleteExpired(ctx context.Context) (int64, error) {
 	tag, err := s.pool.Exec(ctx,
 		`DELETE FROM auth_codes WHERE expires_at <= NOW()`,

@@ -25,6 +25,7 @@ func NewServer(svc *service.AccountsService) *Server {
 	return &Server{svc: svc}
 }
 
+// GetAuthURL implements AccountsServiceServer.
 func (s *Server) GetAuthURL(ctx context.Context, req *accountsv1.GetAuthURLRequest) (*accountsv1.GetAuthURLResponse, error) {
 	if req.GetProvider() == "" {
 		return nil, status.Error(codes.InvalidArgument, "provider is required")
@@ -44,6 +45,7 @@ func (s *Server) GetAuthURL(ctx context.Context, req *accountsv1.GetAuthURLReque
 	}, nil
 }
 
+// HandleProviderCallback implements AccountsServiceServer.
 func (s *Server) HandleProviderCallback(ctx context.Context, req *accountsv1.HandleProviderCallbackRequest) (*accountsv1.HandleProviderCallbackResponse, error) {
 	if req.GetProvider() == "" {
 		return nil, status.Error(codes.InvalidArgument, "provider is required")
@@ -68,6 +70,7 @@ func (s *Server) HandleProviderCallback(ctx context.Context, req *accountsv1.Han
 	}, nil
 }
 
+// IssueAuthCode implements AccountsServiceServer.
 func (s *Server) IssueAuthCode(ctx context.Context, req *accountsv1.IssueAuthCodeRequest) (*accountsv1.IssueAuthCodeResponse, error) {
 	if req.GetUserId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
@@ -88,6 +91,7 @@ func (s *Server) IssueAuthCode(ctx context.Context, req *accountsv1.IssueAuthCod
 	}, nil
 }
 
+// ExchangeToken implements AccountsServiceServer.
 func (s *Server) ExchangeToken(ctx context.Context, req *accountsv1.ExchangeTokenRequest) (*accountsv1.ExchangeTokenResponse, error) {
 	if req.GetAuthCode() == "" {
 		return nil, status.Error(codes.InvalidArgument, "auth_code is required")
@@ -103,6 +107,7 @@ func (s *Server) ExchangeToken(ctx context.Context, req *accountsv1.ExchangeToke
 	}, nil
 }
 
+// GetUser implements AccountsServiceServer.
 func (s *Server) GetUser(ctx context.Context, req *accountsv1.GetUserRequest) (*accountsv1.GetUserResponse, error) {
 	if req.GetUserId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")

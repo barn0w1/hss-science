@@ -1,3 +1,4 @@
+// Package domain defines the core entities and value objects for the accounts service.
 package domain
 
 import (

@@ -269,10 +269,7 @@ func TestHandleProviderCallback(t *testing.T) {
 			t.Fatal("expected error for invalid state")
 		}
 		if !errors.Is(err, domain.ErrStateNotFound) {
-			// The error is wrapped, so check the message.
-			if !errors.Is(errors.Unwrap(err), domain.ErrStateNotFound) {
-				// Accept any error here — the important thing is it fails.
-			}
+			t.Fatalf("expected ErrStateNotFound, got: %v", err)
 		}
 	})
 
