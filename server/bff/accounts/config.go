@@ -1,3 +1,4 @@
+// Package accounts implements the HTTP BFF handler and configuration for the accounts service.
 package accounts
 
 import (

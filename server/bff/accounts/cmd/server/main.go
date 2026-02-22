@@ -1,3 +1,4 @@
+// Command server starts the Accounts BFF HTTP service.
 package main
 
 import (
@@ -45,7 +46,11 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("connect to accounts gRPC: %w", err)
 	}
-	defer conn.Close()
+	defer func() {
+		if cerr := conn.Close(); cerr != nil {
+			slog.Error("close gRPC connection", "error", cerr)
+		}
+	}()
 	grpcClient := accountsv1.NewAccountsServiceClient(conn)
 
 	// Session manager.

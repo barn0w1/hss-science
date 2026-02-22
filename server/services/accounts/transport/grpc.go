@@ -1,3 +1,4 @@
+// Package transport implements the gRPC server for the accounts service.
 package transport
 
 import (

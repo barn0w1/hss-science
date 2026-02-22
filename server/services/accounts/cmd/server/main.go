@@ -1,3 +1,4 @@
+// Command server starts the Accounts gRPC service.
 package main
 
 import (
