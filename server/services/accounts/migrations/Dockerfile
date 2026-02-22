@@ -1,5 +1,4 @@
 FROM migrate/migrate
 COPY . /migrations/
-# The orchestrator will inject DATABASE_URL at runtime
-ENTRYPOINT ["migrate", "-path", "/migrations", "-database"]
-CMD ["${DATABASE_URL}", "up"]
+# ENTRYPOINT をシェル実行に上書きし、環境変数を展開させる
+ENTRYPOINT ["sh", "-c", "migrate -path /migrations -database \"$DATABASE_URL\" up"]
