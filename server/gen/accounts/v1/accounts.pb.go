@@ -7,10 +7,9 @@
 package accountsv1
 
 import (
-	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -23,28 +22,34 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type VerifyAuthCodeRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AuthCode      string                 `protobuf:"bytes,1,opt,name=auth_code,json=authCode,proto3" json:"auth_code,omitempty"`
-	Audience      string                 `protobuf:"bytes,2,opt,name=audience,proto3" json:"audience,omitempty"` // e.g. "drive"
+type GetAuthURLRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The OAuth provider to authenticate with (e.g., "discord").
+	Provider string `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`
+	// The URI where the requesting service wants the user redirected after
+	// authentication completes. Stored alongside the state for later retrieval.
+	RedirectUri string `protobuf:"bytes,2,opt,name=redirect_uri,json=redirectUri,proto3" json:"redirect_uri,omitempty"`
+	// Optional client-supplied state for CSRF protection at the requesting
+	// service level. Stored and returned after the callback completes.
+	ClientState   string `protobuf:"bytes,3,opt,name=client_state,json=clientState,proto3" json:"client_state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *VerifyAuthCodeRequest) Reset() {
-	*x = VerifyAuthCodeRequest{}
+func (x *GetAuthURLRequest) Reset() {
+	*x = GetAuthURLRequest{}
 	mi := &file_accounts_v1_accounts_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *VerifyAuthCodeRequest) String() string {
+func (x *GetAuthURLRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*VerifyAuthCodeRequest) ProtoMessage() {}
+func (*GetAuthURLRequest) ProtoMessage() {}
 
-func (x *VerifyAuthCodeRequest) ProtoReflect() protoreflect.Message {
+func (x *GetAuthURLRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_accounts_v1_accounts_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -56,167 +61,181 @@ func (x *VerifyAuthCodeRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use VerifyAuthCodeRequest.ProtoReflect.Descriptor instead.
-func (*VerifyAuthCodeRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetAuthURLRequest.ProtoReflect.Descriptor instead.
+func (*GetAuthURLRequest) Descriptor() ([]byte, []int) {
 	return file_accounts_v1_accounts_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *VerifyAuthCodeRequest) GetAuthCode() string {
+func (x *GetAuthURLRequest) GetProvider() string {
 	if x != nil {
-		return x.AuthCode
+		return x.Provider
 	}
 	return ""
 }
 
-func (x *VerifyAuthCodeRequest) GetAudience() string {
-	if x != nil {
-		return x.Audience
-	}
-	return ""
-}
-
-type VerifyAuthCodeResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Role          string                 `protobuf:"bytes,2,opt,name=role,proto3" json:"role,omitempty"`
-	Claims        map[string]string      `protobuf:"bytes,10,rep,name=claims,proto3" json:"claims,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *VerifyAuthCodeResponse) Reset() {
-	*x = VerifyAuthCodeResponse{}
-	mi := &file_accounts_v1_accounts_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *VerifyAuthCodeResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*VerifyAuthCodeResponse) ProtoMessage() {}
-
-func (x *VerifyAuthCodeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accounts_v1_accounts_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use VerifyAuthCodeResponse.ProtoReflect.Descriptor instead.
-func (*VerifyAuthCodeResponse) Descriptor() ([]byte, []int) {
-	return file_accounts_v1_accounts_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *VerifyAuthCodeResponse) GetUserId() string {
-	if x != nil {
-		return x.UserId
-	}
-	return ""
-}
-
-func (x *VerifyAuthCodeResponse) GetRole() string {
-	if x != nil {
-		return x.Role
-	}
-	return ""
-}
-
-func (x *VerifyAuthCodeResponse) GetClaims() map[string]string {
-	if x != nil {
-		return x.Claims
-	}
-	return nil
-}
-
-type AuthorizeRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Audience      string                 `protobuf:"bytes,1,opt,name=audience,proto3" json:"audience,omitempty"`                          // e.g. "drive"
-	RedirectUri   string                 `protobuf:"bytes,2,opt,name=redirect_uri,json=redirectUri,proto3" json:"redirect_uri,omitempty"` // service callback URL
-	State         string                 `protobuf:"bytes,3,opt,name=state,proto3" json:"state,omitempty"`                                // optional (CSRF)
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AuthorizeRequest) Reset() {
-	*x = AuthorizeRequest{}
-	mi := &file_accounts_v1_accounts_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AuthorizeRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AuthorizeRequest) ProtoMessage() {}
-
-func (x *AuthorizeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accounts_v1_accounts_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AuthorizeRequest.ProtoReflect.Descriptor instead.
-func (*AuthorizeRequest) Descriptor() ([]byte, []int) {
-	return file_accounts_v1_accounts_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *AuthorizeRequest) GetAudience() string {
-	if x != nil {
-		return x.Audience
-	}
-	return ""
-}
-
-func (x *AuthorizeRequest) GetRedirectUri() string {
+func (x *GetAuthURLRequest) GetRedirectUri() string {
 	if x != nil {
 		return x.RedirectUri
 	}
 	return ""
 }
 
-func (x *AuthorizeRequest) GetState() string {
+func (x *GetAuthURLRequest) GetClientState() string {
+	if x != nil {
+		return x.ClientState
+	}
+	return ""
+}
+
+type GetAuthURLResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The full authorization URL to redirect the user to.
+	AuthUrl string `protobuf:"bytes,1,opt,name=auth_url,json=authUrl,proto3" json:"auth_url,omitempty"`
+	// The generated state parameter (opaque to the BFF; used for callback
+	// verification).
+	State         string `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAuthURLResponse) Reset() {
+	*x = GetAuthURLResponse{}
+	mi := &file_accounts_v1_accounts_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAuthURLResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAuthURLResponse) ProtoMessage() {}
+
+func (x *GetAuthURLResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_accounts_v1_accounts_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAuthURLResponse.ProtoReflect.Descriptor instead.
+func (*GetAuthURLResponse) Descriptor() ([]byte, []int) {
+	return file_accounts_v1_accounts_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *GetAuthURLResponse) GetAuthUrl() string {
+	if x != nil {
+		return x.AuthUrl
+	}
+	return ""
+}
+
+func (x *GetAuthURLResponse) GetState() string {
 	if x != nil {
 		return x.State
 	}
 	return ""
 }
 
-type OAuthCallbackRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`   // Discord OAuth code
-	State         string                 `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"` // optional
+type HandleProviderCallbackRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The OAuth provider (e.g., "discord").
+	Provider string `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`
+	// The authorization code received from the external IdP.
+	Code string `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
+	// The state parameter received from the external IdP callback, used to
+	// look up the original request context and verify integrity.
+	State         string `protobuf:"bytes,3,opt,name=state,proto3" json:"state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *OAuthCallbackRequest) Reset() {
-	*x = OAuthCallbackRequest{}
+func (x *HandleProviderCallbackRequest) Reset() {
+	*x = HandleProviderCallbackRequest{}
+	mi := &file_accounts_v1_accounts_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HandleProviderCallbackRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HandleProviderCallbackRequest) ProtoMessage() {}
+
+func (x *HandleProviderCallbackRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_accounts_v1_accounts_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HandleProviderCallbackRequest.ProtoReflect.Descriptor instead.
+func (*HandleProviderCallbackRequest) Descriptor() ([]byte, []int) {
+	return file_accounts_v1_accounts_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *HandleProviderCallbackRequest) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *HandleProviderCallbackRequest) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+func (x *HandleProviderCallbackRequest) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+type HandleProviderCallbackResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A short-lived internal authorization code issued by this service.
+	// The BFF appends this to the redirect_uri so the requesting service
+	// can exchange it for user information.
+	AuthCode string `protobuf:"bytes,1,opt,name=auth_code,json=authCode,proto3" json:"auth_code,omitempty"`
+	// The original redirect_uri stored when GetAuthURL was called.
+	RedirectUri string `protobuf:"bytes,2,opt,name=redirect_uri,json=redirectUri,proto3" json:"redirect_uri,omitempty"`
+	// The original client_state stored when GetAuthURL was called.
+	ClientState string `protobuf:"bytes,3,opt,name=client_state,json=clientState,proto3" json:"client_state,omitempty"`
+	// The authenticated user.
+	User          *User `protobuf:"bytes,4,opt,name=user,proto3" json:"user,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HandleProviderCallbackResponse) Reset() {
+	*x = HandleProviderCallbackResponse{}
 	mi := &file_accounts_v1_accounts_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *OAuthCallbackRequest) String() string {
+func (x *HandleProviderCallbackResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*OAuthCallbackRequest) ProtoMessage() {}
+func (*HandleProviderCallbackResponse) ProtoMessage() {}
 
-func (x *OAuthCallbackRequest) ProtoReflect() protoreflect.Message {
+func (x *HandleProviderCallbackResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_accounts_v1_accounts_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -228,52 +247,435 @@ func (x *OAuthCallbackRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OAuthCallbackRequest.ProtoReflect.Descriptor instead.
-func (*OAuthCallbackRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use HandleProviderCallbackResponse.ProtoReflect.Descriptor instead.
+func (*HandleProviderCallbackResponse) Descriptor() ([]byte, []int) {
 	return file_accounts_v1_accounts_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *OAuthCallbackRequest) GetCode() string {
+func (x *HandleProviderCallbackResponse) GetAuthCode() string {
 	if x != nil {
-		return x.Code
+		return x.AuthCode
 	}
 	return ""
 }
 
-func (x *OAuthCallbackRequest) GetState() string {
+func (x *HandleProviderCallbackResponse) GetRedirectUri() string {
 	if x != nil {
-		return x.State
+		return x.RedirectUri
 	}
 	return ""
+}
+
+func (x *HandleProviderCallbackResponse) GetClientState() string {
+	if x != nil {
+		return x.ClientState
+	}
+	return ""
+}
+
+func (x *HandleProviderCallbackResponse) GetUser() *User {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+type IssueAuthCodeRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Internal user ID from an existing Accounts session.
+	UserId        string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IssueAuthCodeRequest) Reset() {
+	*x = IssueAuthCodeRequest{}
+	mi := &file_accounts_v1_accounts_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IssueAuthCodeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IssueAuthCodeRequest) ProtoMessage() {}
+
+func (x *IssueAuthCodeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_accounts_v1_accounts_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IssueAuthCodeRequest.ProtoReflect.Descriptor instead.
+func (*IssueAuthCodeRequest) Descriptor() ([]byte, []int) {
+	return file_accounts_v1_accounts_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *IssueAuthCodeRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type IssueAuthCodeResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A short-lived internal authorization code.
+	AuthCode      string `protobuf:"bytes,1,opt,name=auth_code,json=authCode,proto3" json:"auth_code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IssueAuthCodeResponse) Reset() {
+	*x = IssueAuthCodeResponse{}
+	mi := &file_accounts_v1_accounts_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IssueAuthCodeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IssueAuthCodeResponse) ProtoMessage() {}
+
+func (x *IssueAuthCodeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_accounts_v1_accounts_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IssueAuthCodeResponse.ProtoReflect.Descriptor instead.
+func (*IssueAuthCodeResponse) Descriptor() ([]byte, []int) {
+	return file_accounts_v1_accounts_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *IssueAuthCodeResponse) GetAuthCode() string {
+	if x != nil {
+		return x.AuthCode
+	}
+	return ""
+}
+
+type ExchangeTokenRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The internal authorization code to validate.
+	AuthCode      string `protobuf:"bytes,1,opt,name=auth_code,json=authCode,proto3" json:"auth_code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExchangeTokenRequest) Reset() {
+	*x = ExchangeTokenRequest{}
+	mi := &file_accounts_v1_accounts_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExchangeTokenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExchangeTokenRequest) ProtoMessage() {}
+
+func (x *ExchangeTokenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_accounts_v1_accounts_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExchangeTokenRequest.ProtoReflect.Descriptor instead.
+func (*ExchangeTokenRequest) Descriptor() ([]byte, []int) {
+	return file_accounts_v1_accounts_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ExchangeTokenRequest) GetAuthCode() string {
+	if x != nil {
+		return x.AuthCode
+	}
+	return ""
+}
+
+type ExchangeTokenResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The authenticated user associated with the authorization code.
+	User          *User `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExchangeTokenResponse) Reset() {
+	*x = ExchangeTokenResponse{}
+	mi := &file_accounts_v1_accounts_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExchangeTokenResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExchangeTokenResponse) ProtoMessage() {}
+
+func (x *ExchangeTokenResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_accounts_v1_accounts_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExchangeTokenResponse.ProtoReflect.Descriptor instead.
+func (*ExchangeTokenResponse) Descriptor() ([]byte, []int) {
+	return file_accounts_v1_accounts_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ExchangeTokenResponse) GetUser() *User {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+type GetUserRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserRequest) Reset() {
+	*x = GetUserRequest{}
+	mi := &file_accounts_v1_accounts_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserRequest) ProtoMessage() {}
+
+func (x *GetUserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_accounts_v1_accounts_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserRequest.ProtoReflect.Descriptor instead.
+func (*GetUserRequest) Descriptor() ([]byte, []int) {
+	return file_accounts_v1_accounts_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *GetUserRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type GetUserResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	User          *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserResponse) Reset() {
+	*x = GetUserResponse{}
+	mi := &file_accounts_v1_accounts_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserResponse) ProtoMessage() {}
+
+func (x *GetUserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_accounts_v1_accounts_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserResponse.ProtoReflect.Descriptor instead.
+func (*GetUserResponse) Descriptor() ([]byte, []int) {
+	return file_accounts_v1_accounts_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *GetUserResponse) GetUser() *User {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+type User struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Internal unique identifier (UUID).
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Display name sourced from the identity provider.
+	DisplayName string `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// Avatar URL sourced from the identity provider.
+	AvatarUrl     string                 `protobuf:"bytes,3,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,15,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *User) Reset() {
+	*x = User{}
+	mi := &file_accounts_v1_accounts_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *User) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*User) ProtoMessage() {}
+
+func (x *User) ProtoReflect() protoreflect.Message {
+	mi := &file_accounts_v1_accounts_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use User.ProtoReflect.Descriptor instead.
+func (*User) Descriptor() ([]byte, []int) {
+	return file_accounts_v1_accounts_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *User) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *User) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *User) GetAvatarUrl() string {
+	if x != nil {
+		return x.AvatarUrl
+	}
+	return ""
+}
+
+func (x *User) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *User) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
 }
 
 var File_accounts_v1_accounts_proto protoreflect.FileDescriptor
 
 const file_accounts_v1_accounts_proto_rawDesc = "" +
 	"\n" +
-	"\x1aaccounts/v1/accounts.proto\x12\x17hss_science.accounts.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\"P\n" +
-	"\x15VerifyAuthCodeRequest\x12\x1b\n" +
-	"\tauth_code\x18\x01 \x01(\tR\bauthCode\x12\x1a\n" +
-	"\baudience\x18\x02 \x01(\tR\baudience\"\xd5\x01\n" +
-	"\x16VerifyAuthCodeResponse\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
-	"\x04role\x18\x02 \x01(\tR\x04role\x12S\n" +
-	"\x06claims\x18\n" +
-	" \x03(\v2;.hss_science.accounts.v1.VerifyAuthCodeResponse.ClaimsEntryR\x06claims\x1a9\n" +
-	"\vClaimsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"g\n" +
-	"\x10AuthorizeRequest\x12\x1a\n" +
-	"\baudience\x18\x01 \x01(\tR\baudience\x12!\n" +
-	"\fredirect_uri\x18\x02 \x01(\tR\vredirectUri\x12\x14\n" +
-	"\x05state\x18\x03 \x01(\tR\x05state\"@\n" +
-	"\x14OAuthCallbackRequest\x12\x12\n" +
-	"\x04code\x18\x01 \x01(\tR\x04code\x12\x14\n" +
-	"\x05state\x18\x02 \x01(\tR\x05state2\xdf\x02\n" +
+	"\x1aaccounts/v1/accounts.proto\x12\x17hss_science.accounts.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"u\n" +
+	"\x11GetAuthURLRequest\x12\x1a\n" +
+	"\bprovider\x18\x01 \x01(\tR\bprovider\x12!\n" +
+	"\fredirect_uri\x18\x02 \x01(\tR\vredirectUri\x12!\n" +
+	"\fclient_state\x18\x03 \x01(\tR\vclientState\"E\n" +
+	"\x12GetAuthURLResponse\x12\x19\n" +
+	"\bauth_url\x18\x01 \x01(\tR\aauthUrl\x12\x14\n" +
+	"\x05state\x18\x02 \x01(\tR\x05state\"e\n" +
+	"\x1dHandleProviderCallbackRequest\x12\x1a\n" +
+	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x12\n" +
+	"\x04code\x18\x02 \x01(\tR\x04code\x12\x14\n" +
+	"\x05state\x18\x03 \x01(\tR\x05state\"\xb6\x01\n" +
+	"\x1eHandleProviderCallbackResponse\x12\x1b\n" +
+	"\tauth_code\x18\x01 \x01(\tR\bauthCode\x12!\n" +
+	"\fredirect_uri\x18\x02 \x01(\tR\vredirectUri\x12!\n" +
+	"\fclient_state\x18\x03 \x01(\tR\vclientState\x121\n" +
+	"\x04user\x18\x04 \x01(\v2\x1d.hss_science.accounts.v1.UserR\x04user\"/\n" +
+	"\x14IssueAuthCodeRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"4\n" +
+	"\x15IssueAuthCodeResponse\x12\x1b\n" +
+	"\tauth_code\x18\x01 \x01(\tR\bauthCode\"3\n" +
+	"\x14ExchangeTokenRequest\x12\x1b\n" +
+	"\tauth_code\x18\x01 \x01(\tR\bauthCode\"J\n" +
+	"\x15ExchangeTokenResponse\x121\n" +
+	"\x04user\x18\x01 \x01(\v2\x1d.hss_science.accounts.v1.UserR\x04user\")\n" +
+	"\x0eGetUserRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"D\n" +
+	"\x0fGetUserResponse\x121\n" +
+	"\x04user\x18\x01 \x01(\v2\x1d.hss_science.accounts.v1.UserR\x04user\"\xce\x01\n" +
+	"\x04User\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x1d\n" +
+	"\n" +
+	"avatar_url\x18\x03 \x01(\tR\tavatarUrl\x129\n" +
+	"\n" +
+	"created_at\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\x0f \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt2\xc2\x04\n" +
 	"\x0fAccountsService\x12e\n" +
-	"\tAuthorize\x12).hss_science.accounts.v1.AuthorizeRequest\x1a\x16.google.protobuf.Empty\"\x15\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/authorize\x12r\n" +
-	"\rOAuthCallback\x12-.hss_science.accounts.v1.OAuthCallbackRequest\x1a\x16.google.protobuf.Empty\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/oauth/callback\x12q\n" +
-	"\x0eVerifyAuthCode\x12..hss_science.accounts.v1.VerifyAuthCodeRequest\x1a/.hss_science.accounts.v1.VerifyAuthCodeResponseBBZ@github.com/barn0w1/hss-science/server/gen/accounts/v1;accountsv1b\x06proto3"
+	"\n" +
+	"GetAuthURL\x12*.hss_science.accounts.v1.GetAuthURLRequest\x1a+.hss_science.accounts.v1.GetAuthURLResponse\x12\x89\x01\n" +
+	"\x16HandleProviderCallback\x126.hss_science.accounts.v1.HandleProviderCallbackRequest\x1a7.hss_science.accounts.v1.HandleProviderCallbackResponse\x12n\n" +
+	"\rIssueAuthCode\x12-.hss_science.accounts.v1.IssueAuthCodeRequest\x1a..hss_science.accounts.v1.IssueAuthCodeResponse\x12n\n" +
+	"\rExchangeToken\x12-.hss_science.accounts.v1.ExchangeTokenRequest\x1a..hss_science.accounts.v1.ExchangeTokenResponse\x12\\\n" +
+	"\aGetUser\x12'.hss_science.accounts.v1.GetUserRequest\x1a(.hss_science.accounts.v1.GetUserResponseBBZ@github.com/barn0w1/hss-science/server/gen/accounts/v1;accountsv1b\x06proto3"
 
 var (
 	file_accounts_v1_accounts_proto_rawDescOnce sync.Once
@@ -287,28 +689,42 @@ func file_accounts_v1_accounts_proto_rawDescGZIP() []byte {
 	return file_accounts_v1_accounts_proto_rawDescData
 }
 
-var file_accounts_v1_accounts_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_accounts_v1_accounts_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_accounts_v1_accounts_proto_goTypes = []any{
-	(*VerifyAuthCodeRequest)(nil),  // 0: hss_science.accounts.v1.VerifyAuthCodeRequest
-	(*VerifyAuthCodeResponse)(nil), // 1: hss_science.accounts.v1.VerifyAuthCodeResponse
-	(*AuthorizeRequest)(nil),       // 2: hss_science.accounts.v1.AuthorizeRequest
-	(*OAuthCallbackRequest)(nil),   // 3: hss_science.accounts.v1.OAuthCallbackRequest
-	nil,                            // 4: hss_science.accounts.v1.VerifyAuthCodeResponse.ClaimsEntry
-	(*emptypb.Empty)(nil),          // 5: google.protobuf.Empty
+	(*GetAuthURLRequest)(nil),              // 0: hss_science.accounts.v1.GetAuthURLRequest
+	(*GetAuthURLResponse)(nil),             // 1: hss_science.accounts.v1.GetAuthURLResponse
+	(*HandleProviderCallbackRequest)(nil),  // 2: hss_science.accounts.v1.HandleProviderCallbackRequest
+	(*HandleProviderCallbackResponse)(nil), // 3: hss_science.accounts.v1.HandleProviderCallbackResponse
+	(*IssueAuthCodeRequest)(nil),           // 4: hss_science.accounts.v1.IssueAuthCodeRequest
+	(*IssueAuthCodeResponse)(nil),          // 5: hss_science.accounts.v1.IssueAuthCodeResponse
+	(*ExchangeTokenRequest)(nil),           // 6: hss_science.accounts.v1.ExchangeTokenRequest
+	(*ExchangeTokenResponse)(nil),          // 7: hss_science.accounts.v1.ExchangeTokenResponse
+	(*GetUserRequest)(nil),                 // 8: hss_science.accounts.v1.GetUserRequest
+	(*GetUserResponse)(nil),                // 9: hss_science.accounts.v1.GetUserResponse
+	(*User)(nil),                           // 10: hss_science.accounts.v1.User
+	(*timestamppb.Timestamp)(nil),          // 11: google.protobuf.Timestamp
 }
 var file_accounts_v1_accounts_proto_depIdxs = []int32{
-	4, // 0: hss_science.accounts.v1.VerifyAuthCodeResponse.claims:type_name -> hss_science.accounts.v1.VerifyAuthCodeResponse.ClaimsEntry
-	2, // 1: hss_science.accounts.v1.AccountsService.Authorize:input_type -> hss_science.accounts.v1.AuthorizeRequest
-	3, // 2: hss_science.accounts.v1.AccountsService.OAuthCallback:input_type -> hss_science.accounts.v1.OAuthCallbackRequest
-	0, // 3: hss_science.accounts.v1.AccountsService.VerifyAuthCode:input_type -> hss_science.accounts.v1.VerifyAuthCodeRequest
-	5, // 4: hss_science.accounts.v1.AccountsService.Authorize:output_type -> google.protobuf.Empty
-	5, // 5: hss_science.accounts.v1.AccountsService.OAuthCallback:output_type -> google.protobuf.Empty
-	1, // 6: hss_science.accounts.v1.AccountsService.VerifyAuthCode:output_type -> hss_science.accounts.v1.VerifyAuthCodeResponse
-	4, // [4:7] is the sub-list for method output_type
-	1, // [1:4] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	10, // 0: hss_science.accounts.v1.HandleProviderCallbackResponse.user:type_name -> hss_science.accounts.v1.User
+	10, // 1: hss_science.accounts.v1.ExchangeTokenResponse.user:type_name -> hss_science.accounts.v1.User
+	10, // 2: hss_science.accounts.v1.GetUserResponse.user:type_name -> hss_science.accounts.v1.User
+	11, // 3: hss_science.accounts.v1.User.created_at:type_name -> google.protobuf.Timestamp
+	11, // 4: hss_science.accounts.v1.User.updated_at:type_name -> google.protobuf.Timestamp
+	0,  // 5: hss_science.accounts.v1.AccountsService.GetAuthURL:input_type -> hss_science.accounts.v1.GetAuthURLRequest
+	2,  // 6: hss_science.accounts.v1.AccountsService.HandleProviderCallback:input_type -> hss_science.accounts.v1.HandleProviderCallbackRequest
+	4,  // 7: hss_science.accounts.v1.AccountsService.IssueAuthCode:input_type -> hss_science.accounts.v1.IssueAuthCodeRequest
+	6,  // 8: hss_science.accounts.v1.AccountsService.ExchangeToken:input_type -> hss_science.accounts.v1.ExchangeTokenRequest
+	8,  // 9: hss_science.accounts.v1.AccountsService.GetUser:input_type -> hss_science.accounts.v1.GetUserRequest
+	1,  // 10: hss_science.accounts.v1.AccountsService.GetAuthURL:output_type -> hss_science.accounts.v1.GetAuthURLResponse
+	3,  // 11: hss_science.accounts.v1.AccountsService.HandleProviderCallback:output_type -> hss_science.accounts.v1.HandleProviderCallbackResponse
+	5,  // 12: hss_science.accounts.v1.AccountsService.IssueAuthCode:output_type -> hss_science.accounts.v1.IssueAuthCodeResponse
+	7,  // 13: hss_science.accounts.v1.AccountsService.ExchangeToken:output_type -> hss_science.accounts.v1.ExchangeTokenResponse
+	9,  // 14: hss_science.accounts.v1.AccountsService.GetUser:output_type -> hss_science.accounts.v1.GetUserResponse
+	10, // [10:15] is the sub-list for method output_type
+	5,  // [5:10] is the sub-list for method input_type
+	5,  // [5:5] is the sub-list for extension type_name
+	5,  // [5:5] is the sub-list for extension extendee
+	0,  // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_accounts_v1_accounts_proto_init() }
@@ -322,7 +738,7 @@ func file_accounts_v1_accounts_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_accounts_v1_accounts_proto_rawDesc), len(file_accounts_v1_accounts_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

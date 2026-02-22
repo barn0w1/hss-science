@@ -1,7 +1,7 @@
 version: v2
 
 inputs:
-  - directory: proto
+  - directory: api/proto
 
 plugins:
   # 1. Go Structs (Type Definitions)

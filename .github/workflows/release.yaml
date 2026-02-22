@@ -2,6 +2,7 @@ name: Release Docker Images
 
 on:
   push:
+    branches: ["main"]
     tags:
       - 'v*'
   workflow_dispatch:
@@ -21,14 +22,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: accounts-server
+          - name: accounts-grpc
             dockerfile: ./server/services/accounts/Dockerfile
-            image-name: accounts-server
+            image-name: accounts-grpc
+            type: backend
+
+          - name: accounts-bff
+            dockerfile: ./server/bff/accounts/Dockerfile
+            image-name: accounts-bff
             type: backend
 
           - name: drive-web
             dockerfile: ./web/apps/drive/Dockerfile
             image-name: drive-web
+            type: frontend
+
+          - name: chat-web
+            dockerfile: ./web/apps/chat/Dockerfile
+            image-name: chat-web
             type: frontend
 
     steps:
@@ -51,9 +62,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.REPO_NAME }}/${{ matrix.image-name }}
           tags: |
-            # "v" を除去したバージョン (例: v0.1.0-alpha -> 0.1.0-alpha)
-            type=semver,pattern={{version}}
-            # 必要であれば latest も付与
+            # タグ push 時: semver (例: v0.1.0 -> 0.1.0)
+            type=semver,pattern={{version}},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            # main push 時: Git SHA (短縮)
+            type=sha,prefix=,enable=${{ github.ref == 'refs/heads/main' }}
+            # 常に latest を付与
             type=raw,value=latest
 
       - name: Build and push Docker image

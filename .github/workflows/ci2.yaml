@@ -13,7 +13,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [accounts]
+        include:
+          - name: accounts-grpc
+            path: server/services/accounts
+            build: ./services/accounts/...
+          - name: accounts-bff
+            path: server/bff/accounts
+            build: ./bff/accounts/...
 
     steps:
       - uses: actions/checkout@v4
@@ -23,9 +29,11 @@ jobs:
         with:
           filters: |
             changed:
-              - 'server/services/${{ matrix.service }}/**'
+              - '${{ matrix.path }}/**'
+              - 'server/internal/**'
+              - 'server/gen/**'
               - 'server/platform/**'
-              - 'proto/**'
+              - 'api/proto/**'
               - 'server/go.mod'
               - 'server/go.sum'
 
@@ -46,12 +54,17 @@ jobs:
           working-directory: server
           args: >
             --timeout=5m
-            ./services/${{ matrix.service }}/...
+            ${{ matrix.build }}
+
+      - name: Test
+        if: steps.filter.outputs.changed == 'true'
+        working-directory: server
+        run: go test -v -count=1 ${{ matrix.build }}
 
       - name: Verify Build
         if: steps.filter.outputs.changed == 'true'
         working-directory: server
-        run: go build -v ./services/${{ matrix.service }}/...
+        run: go build -v ${{ matrix.build }}
 
   # Frontend (TypeScript) Workflow
   ci-frontend:
@@ -60,7 +73,6 @@ jobs:
       fail-fast: false
       matrix:
         app: [drive, chat]
-        # app: [accounts, dashboard, admin]
 
     steps:
       - uses: actions/checkout@v4
@@ -73,7 +85,7 @@ jobs:
             changed:
               - 'web/apps/${{ matrix.app }}/**'
               - 'web/packages/**'
-              - 'proto/**'
+              - 'api/proto/**'
               - 'web/package.json'
               - 'web/pnpm-lock.yaml'
 
