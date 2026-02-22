@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"os/signal"
 	"syscall"
@@ -18,27 +19,31 @@ import (
 
 	"github.com/barn0w1/hss-science/server/bff/accounts"
 	"github.com/barn0w1/hss-science/server/bff/internal/session"
+	"github.com/barn0w1/hss-science/server/internal/logging"
 
 	accountsv1 "github.com/barn0w1/hss-science/server/gen/accounts/v1"
 )
 
 func main() {
 	if err := run(); err != nil {
-		log.Fatalf("fatal: %v", err)
+		slog.Error("fatal", "error", err)
 	}
 }
 
 func run() error {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
 	// Load configuration.
 	cfg := accounts.LoadConfig()
+
+	// Structured logging.
+	logger := logging.Setup(cfg.Env, cfg.LogLevel, "accounts-bff")
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	// Connect to gRPC service.
 	conn, err := grpc.NewClient(cfg.GRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		return err
+		return fmt.Errorf("connect to accounts gRPC: %w", err)
 	}
 	defer conn.Close()
 	grpcClient := accountsv1.NewAccountsServiceClient(conn)
@@ -55,14 +60,15 @@ func run() error {
 	})
 
 	r := chi.NewRouter()
-	r.Use(middleware.Logger)
+	r.Use(logging.HTTPMiddleware(logger))
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RealIP)
 
-	oapi.HandlerFromMux(strictHandler, r)
+	oapi.HandlerFromMuxWithBaseURL(strictHandler, r, "/api/v1")
 
+	addr := ":" + cfg.Port
 	srv := &http.Server{
-		Addr:              cfg.HTTPAddr,
+		Addr:              addr,
 		Handler:           r,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
@@ -70,7 +76,7 @@ func run() error {
 	g, gctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		log.Printf("BFF listening on %s", cfg.HTTPAddr)
+		logger.Info("BFF server started", "addr", addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			return err
 		}
@@ -79,7 +85,7 @@ func run() error {
 
 	g.Go(func() error {
 		<-gctx.Done()
-		log.Println("shutting down BFF...")
+		logger.Info("shutting down BFF server")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		return srv.Shutdown(shutdownCtx)

@@ -1,17 +1,24 @@
 package accounts
 
 import (
+	"fmt"
 	"os"
 	"strings"
 )
 
 // Config holds the BFF configuration.
 type Config struct {
+	// Env is the runtime environment ("development" or "production").
+	Env string
+
+	// Port is the HTTP port number (without colon prefix).
+	Port string
+
+	// LogLevel is the structured log level (DEBUG, INFO, WARN, ERROR).
+	LogLevel string
+
 	// GRPCAddr is the address of the Accounts gRPC service.
 	GRPCAddr string
-
-	// HTTPAddr is the address the BFF HTTP server listens on.
-	HTTPAddr string
 
 	// Provider is the OAuth provider name (e.g., "discord").
 	Provider string
@@ -37,8 +44,10 @@ func LoadConfig() *Config {
 	audiences := parseAudiences(os.Getenv("ALLOWED_AUDIENCES"))
 
 	return &Config{
+		Env:             envOrDefault("ENV", "production"),
+		Port:            envOrDefault("PORT", "8080"),
+		LogLevel:        envOrDefault("LOG_LEVEL", "INFO"),
 		GRPCAddr:        envOrDefault("ACCOUNTS_GRPC_ADDR", "localhost:50051"),
-		HTTPAddr:        envOrDefault("HTTP_ADDR", ":8080"),
 		Provider:        envOrDefault("OAUTH_PROVIDER", "discord"),
 		SessionHashKey:  []byte(requiredEnv("SESSION_HASH_KEY")),
 		SessionBlockKey: []byte(requiredEnv("SESSION_BLOCK_KEY")),
@@ -100,7 +109,8 @@ func envOrDefault(key, defaultValue string) string {
 func requiredEnv(key string) string {
 	v := os.Getenv(key)
 	if v == "" {
-		panic("required environment variable " + key + " is not set")
+		fmt.Fprintf(os.Stderr, "required environment variable %s is not set\n", key)
+		os.Exit(1)
 	}
 	return v
 }

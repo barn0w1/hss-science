@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -15,6 +16,7 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	accountsv1 "github.com/barn0w1/hss-science/server/gen/accounts/v1"
+	"github.com/barn0w1/hss-science/server/internal/logging"
 	"github.com/barn0w1/hss-science/server/services/accounts/provider"
 	"github.com/barn0w1/hss-science/server/services/accounts/service"
 	"github.com/barn0w1/hss-science/server/services/accounts/store"
@@ -23,32 +25,38 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		log.Fatalf("fatal: %v", err)
+		slog.Error("fatal", "error", err)
+		os.Exit(1)
 	}
 }
 
 func run() error {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	// Configuration from environment.
-	grpcAddr := envOrDefault("GRPC_ADDR", ":50051")
+	// Configuration from environment (fail-fast on missing required vars).
+	env := envOrDefault("ENV", "production")
+	port := envOrDefault("PORT", "50051")
+	logLevel := envOrDefault("LOG_LEVEL", "INFO")
 	databaseURL := requiredEnv("DATABASE_URL")
 	discordClientID := requiredEnv("DISCORD_CLIENT_ID")
 	discordClientSecret := requiredEnv("DISCORD_CLIENT_SECRET")
 	discordRedirectURL := requiredEnv("DISCORD_REDIRECT_URL")
 
+	// Structured logging.
+	logger := logging.Setup(env, logLevel, "accounts-grpc")
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	// Database connection pool.
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
-		return err
+		return fmt.Errorf("connect to database: %w", err)
 	}
 	defer pool.Close()
 
 	if err := pool.Ping(ctx); err != nil {
-		return err
+		return fmt.Errorf("ping database: %w", err)
 	}
-	log.Println("connected to database")
+	logger.Info("connected to database")
 
 	// Repositories.
 	userStore := store.NewUserStore(pool)
@@ -68,28 +76,31 @@ func run() error {
 	// Service layer.
 	svc := service.New(userStore, stateStore, authCodeStore, providers, 10*time.Minute, 5*time.Minute)
 
-	// gRPC server.
-	grpcServer := grpc.NewServer()
+	// gRPC server with logging interceptor.
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(logging.UnaryServerInterceptor(logger)),
+	)
 	accountsv1.RegisterAccountsServiceServer(grpcServer, transport.NewServer(svc))
 	reflection.Register(grpcServer)
 
-	lis, err := net.Listen("tcp", grpcAddr)
+	addr := ":" + port
+	lis, err := net.Listen("tcp", addr)
 	if err != nil {
-		return err
+		return fmt.Errorf("listen on %s: %w", addr, err)
 	}
 
 	g, gctx := errgroup.WithContext(ctx)
 
 	// Start gRPC server.
 	g.Go(func() error {
-		log.Printf("gRPC server listening on %s", grpcAddr)
+		logger.Info("gRPC server started", "addr", addr)
 		return grpcServer.Serve(lis)
 	})
 
 	// Graceful shutdown.
 	g.Go(func() error {
 		<-gctx.Done()
-		log.Println("shutting down gRPC server...")
+		logger.Info("shutting down gRPC server")
 		grpcServer.GracefulStop()
 		return nil
 	})
@@ -104,14 +115,14 @@ func run() error {
 				return nil
 			case <-ticker.C:
 				if n, err := stateStore.DeleteExpired(context.Background()); err != nil {
-					log.Printf("cleanup expired states: %v", err)
+					logger.Error("cleanup expired states", "error", err)
 				} else if n > 0 {
-					log.Printf("cleaned up %d expired states", n)
+					logger.Info("cleaned up expired states", "count", n)
 				}
 				if n, err := authCodeStore.DeleteExpired(context.Background()); err != nil {
-					log.Printf("cleanup expired auth codes: %v", err)
+					logger.Error("cleanup expired auth codes", "error", err)
 				} else if n > 0 {
-					log.Printf("cleaned up %d expired auth codes", n)
+					logger.Info("cleaned up expired auth codes", "count", n)
 				}
 			}
 		}
@@ -130,7 +141,8 @@ func envOrDefault(key, defaultValue string) string {
 func requiredEnv(key string) string {
 	v := os.Getenv(key)
 	if v == "" {
-		log.Fatalf("required environment variable %s is not set", key)
+		fmt.Fprintf(os.Stderr, "required environment variable %s is not set\n", key)
+		os.Exit(1)
 	}
 	return v
 }
