@@ -6,7 +6,6 @@ RUN corepack enable
 
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./web/
 COPY web/apps/chat/package.json ./web/apps/chat/
-COPY web/packages/api/package.json ./web/packages/api/
 
 WORKDIR /app/web
 RUN pnpm install --frozen-lockfile
