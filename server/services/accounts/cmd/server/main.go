@@ -38,11 +38,6 @@ func run() error {
 	}
 	defer db.Close()
 
-	if err := runMigrations(db); err != nil {
-		return fmt.Errorf("run migrations: %w", err)
-	}
-	log.Info("database migrations applied")
-
 	jwtMinter, err := accounts.NewJWTMinter(cfg.JWTPrivateKeyPath, cfg.JWTIssuer, cfg.AccessTokenTTL, cfg.RefreshTokenTTL)
 	if err != nil {
 		return fmt.Errorf("init jwt minter: %w", err)
@@ -71,15 +66,6 @@ func run() error {
 
 	log.Info("gRPC server listening", "port", cfg.Port)
 	return grpcServer.Serve(lis)
-}
-
-func runMigrations(db *sqlx.DB) error {
-	data, err := accounts.MigrationsFS.ReadFile("migrations/001_init.sql")
-	if err != nil {
-		return fmt.Errorf("read migration file: %w", err)
-	}
-	_, err = db.Exec(string(data))
-	return err
 }
 
 func newLogger(env, level string) *slog.Logger {
