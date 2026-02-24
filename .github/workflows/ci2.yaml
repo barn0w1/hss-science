@@ -18,6 +18,10 @@ jobs:
             path: server/services/accounts
             build: ./services/accounts/...
 
+          - name: drive-bff
+            path: server/bff/drive
+            build: ./bff/drive/...
+
     steps:
       - uses: actions/checkout@v4
 
@@ -29,7 +33,9 @@ jobs:
               - '${{ matrix.path }}/**'
               - 'server/internal/**'
               - 'server/gen/**'
+              - 'server/bff/gen/**'
               - 'api/proto/**'
+              - 'api/openapi/**'
               - 'server/go.mod'
               - 'server/go.sum'
 

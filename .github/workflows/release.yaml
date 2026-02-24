@@ -28,6 +28,12 @@ jobs:
             image-name: accounts-grpc
             type: backend
 
+          - name: drive-bff
+            dockerfile: ./server/bff/drive/Dockerfile
+            context: .
+            image-name: drive-bff
+            type: backend
+
           - name: drive-web
             dockerfile: ./web/apps/drive/Dockerfile
             context: .

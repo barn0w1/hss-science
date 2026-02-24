@@ -1,10 +1,10 @@
 # OpenAPI Codegen
 OAPI_CODEGEN := go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
 
-.PHONY: gen-all gen-drive
+.PHONY: gen-all gen-drive gen-proto gen-keys
 
 # gen all
-gen-all: gen-drive
+gen-all: gen-proto gen-drive
 
 # Drive API
 gen-drive:
@@ -16,7 +16,12 @@ gen-drive:
 		api/openapi/drive/v1/drive.yaml
 
 # protobuf code generation
-.PHONY: gen-proto
-
 gen-proto:
 	buf generate
+
+# Generate Ed25519 key pair for local development
+gen-keys:
+	@echo "Generating Ed25519 key pair for development..."
+	openssl genpkey -algorithm Ed25519 -out dev_ed25519_private.pem
+	openssl pkey -in dev_ed25519_private.pem -pubout -out dev_ed25519_public.pem
+	@echo "Keys generated: dev_ed25519_private.pem, dev_ed25519_public.pem"

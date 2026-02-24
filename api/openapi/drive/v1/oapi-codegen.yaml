@@ -4,7 +4,7 @@ package: drive
 generate:
   chi-server: true
   models: true
-  strict-server: true
+  strict-server: false
   embedded-spec: true
 
 output-options:
