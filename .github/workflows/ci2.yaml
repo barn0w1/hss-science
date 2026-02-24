@@ -17,9 +17,6 @@ jobs:
           - name: accounts-grpc
             path: server/services/accounts
             build: ./services/accounts/...
-          - name: accounts-bff
-            path: server/bff/accounts
-            build: ./bff/accounts/...
 
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +29,6 @@ jobs:
               - '${{ matrix.path }}/**'
               - 'server/internal/**'
               - 'server/gen/**'
-              - 'server/platform/**'
               - 'api/proto/**'
               - 'server/go.mod'
               - 'server/go.sum'
