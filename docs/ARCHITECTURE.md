@@ -1,83 +1,212 @@
 # hss-science System Architecture & AI Guidelines
 
-本ドキュメントは、hss-scienceシステムの全体アーキテクチャ、コンポーネントの責務、および実装上の原則を定義したものです。
-AIエージェントによるコード生成およびリファクタリングは、この基本思想に準拠しつつも、**形式に縛られず、常に「最も合理的で美しい設計」を自律的に追求してください。**
+This document defines the overall architecture, infrastructure, and implementation principles of the hss-science system.
 
-## 1. 基本思想 (Core Philosophy)
+When generating or refactoring code, AI agents must adhere to these foundational principles while **avoiding rigid formalism and continuously pursuing the most rational and elegant design possible.**
 
-本システムは**「関心の分離（Separation of Concerns）」**と**「透明性の高さ（Explicit over Implicit）」**を重視します。
-ただし、これらは「過剰な抽象化」を推奨するものではありません。複雑さを持ち込む重厚なORMや過度なレイヤー分けを避け、Go言語らしいシンプルで追跡可能な設計（Idiomatic Go）を維持してください。
+---
 
-## 2. システムトポロジーと責務の境界 【絶対制約】
+## 1. Core Philosophy & The Twelve-Factor App
 
-システムはフロントエンド（Web）、BFF、バックエンド（gRPC Microservices）の3層構造です。**この境界線は絶対に越えないでください。**
+This system is designed with scalability and team development in mind. At its foundation are:
 
-* **Reverse Proxy (Caddy):** 最前面のTLS終端とルーティング。
-* **BFF (Custom HTTP Server):**
-* **責務:** HTTPリクエスト/レスポンス、CORS、リダイレクト、Cookieベースのセッション管理、gRPCエラーのHTTPステータス変換。
-* **制約:** `grpc-gateway` は不使用。DBへの直接アクセスは厳禁。
+* **Separation of Concerns**
+* **The Twelve-Factor App methodology**
 
+AI agents must strictly follow these principles and avoid excessive abstraction (e.g., heavy ORMs or meaningless layering).
 
-* **Microservices (gRPC - `auth`, `drive`, `chat`等):**
-* **責務:** 純粋なドメインロジックの実行とデータ永続化。
-* **制約:** HTTP、Cookie、リダイレクトの概念を一切持たせない。認証情報はContext経由で受け取る。
+### Stateless Processes (12-Factor: VI)
 
+All application processes — especially BFFs — must be stateless.
+Any data that must be shared or persisted must be stored in a database (Accounts service or respective domain services).
 
+### Config in Environment (12-Factor: III)
 
-## 3. 通信仕様とスキーマ駆動開発 (Schema-Driven Development) 【絶対制約】
+All configuration must be provided via environment variables. Hardcoding credentials or environment-dependent values is strictly prohibited.
 
-外部向けと内部向けのAPI境界を明確に分け、それぞれに単一の真実の源泉（Single Source of Truth）となるスキーマを定義し、そこからのコード生成を基本とします。
+* Environment variables such as `ENV` (`development`, `staging`, `production`), `PORT`, `LOG_LEVEL`, etc., must be enumerated in `.env.example`.
+* At startup, environment variables must be parsed.
+* If required variables are missing, the application must **fail fast** (`fmt.Fprintf(os.Stderr, ...)` + `os.Exit(1)`).
 
-* **外部向けAPI (Frontend ⇔ BFF):**
-  * 配置先: `api/openapi/`
-  * 仕様: **OpenAPI (YAML)** を正とします。この定義はフロントエンドの型生成にも使用されます。
-  * 実装方針: BFFのルーティングや型定義は、手書きせずに `oapi-codegen` などのツールを用いてスキーマから自律的にコード生成（Go）を行うアプローチを推奨・許可します。
+### Disposability (12-Factor: IX)
 
-* **内部向け通信 (BFF ⇔ Microservices):**
-  * 配置先: `api/proto/`
-  * 仕様: **Protocol Buffers** を正とします。HTTPルーティング用アノテーション（`google.api.http`等）は一切記述しません。
-  * 実装方針: `.proto` ファイルから、gRPCのサーバー/クライアントコード（Go）を生成してください（`buf generate` や `protoc` の使用を想定）。
+Containers must start quickly and handle graceful shutdown properly upon receiving `SIGTERM`.
 
-**※ AI Agentへの指示:**
-スキーマを定義または変更した際は、忘れずにコード生成コマンドを自律的に実行し、生成されたコードをもとに実装を進めてください。
+### Logs as Event Streams (12-Factor: XI)
 
-## 4. データマネジメント
+Structured logging is mandatory.
 
-* **Database per Service:** 各gRPCサービスは完全に独立したPostgreSQLデータベースを持つ。他サービスのDBへの直接アクセス・JOINは厳禁。
-* **柔軟な技術選定:** 重厚なORM（GORM等）は基本避けますが、`database/sql` と `sqlx` の組み合わせをベースとしつつ、AIの判断でより型安全で記述量の減るツール（例: `sqlc` など）が適していると判断した場合は、理由とともに積極的に提案してください。
+* Use Go’s standard `log/slog`.
+* Logs must always be written to standard output (`os.Stdout`).
+* The default format is JSON (fallback to text format only when `ENV=development`).
+* Logs must include contextual metadata such as:
 
-## 5. 認証・認可アーキテクチャ (SSO)
+  * `service` name
+  * `trace_id` or `request_id`
+    This ensures full request traceability.
 
-システム全体で統合されたIdPと、各サービスで独立したセッションを組み合わせます。
+---
 
-1. **Central IdP (`auth` サービス):** Discord OAuthを親プロバイダーとするシステム全体のIdP。UIは持たず、認可コードフローのバックエンド処理に特化。
-2. **独立したサービスセッション:** `auth` サービスでの認証後、各BFFは**独立した独自のセッション**を発行・管理する。
+## 2. Loose Coupling & Routing Boundaries (ABSOLUTE CONSTRAINT)
 
-## 6. AI向け実装ガイドライン (AI Autonomy & Propose the Best)
+To ensure independent scalability and development across components, boundaries must be strictly enforced.
 
-既存の実装や後方互換性に忖度する必要はありません。基本思想に合致する限り、**AIが考える最も洗練された理想的な実装を最優先し、既存コードをスクラップ＆ビルドして構いません。**
+### Reverse Proxy (Caddy)
 
-* **破壊的変更の推奨:** より美しいドメインモデリングや効率的なクエリがある場合、後方互換性なしで作り直す提案を歓迎します。
-* **最強のアプローチの提案:** 実装手順（スキーマ→ドメイン→ロジック→BFF）はあくまで目安です。AIの知見で「この技術スタックのポテンシャルを最も引き出せる」と判断したアプローチを遠慮なく適用してください。
-* **エラーと依存関係:** gRPC層（`status`, `codes`）とBFF層（HTTPステータス）の明確なマッピング美を保つこと。
+Responsible for TLS termination and routing.
 
-## 7. ディレクトリ構造と柔軟なアーキテクチャ (Pragmatic Architecture)
+* `/*` (root path): Serves frontend SPA static assets (built with Vite).
+* `/api/*`: Reverse proxies to BFFs corresponding to each subdomain (e.g., `drive.hss-science.org`, `chat...`).
 
-全gRPCサービスは「関心の分離」を担保するため、クリーンアーキテクチャ（ヘキサゴナルアーキテクチャ）の**概念**をベースとします。
+### BFF (Custom HTTP Server)
 
-* `domain/` (モデル・インターフェース)
-* `usecase/` (ビジネスロジック)
-* `adapter/` (DBや外部APIの具象実装)
-* `transport/` (gRPC入出力)
+**Responsibilities:**
 
-**※ AIへの特記事項 (Flexible Rule):**
-クリーンアーキテクチャは手段であり目的ではありません。単純なCRUD機能に対して過剰なインターフェースやレイヤーを設ける（オーバーエンジニアリング）のは避けてください。機能の複雑さに応じて、レイヤーを統合するなど、Goらしいシンプルで実用的な構成へのアレンジを歓迎します。
+* HTTP request/response handling
+* CORS
+* Redirects
+* Cookie-based session management
 
+**Constraints:**
 
-## 8. AI Agentの自律的開発サイクル (Autonomous Workflow)
+* `grpc-gateway` must not be used.
+* Direct database access is strictly prohibited.
 
-AI Agentは人間の細かな指示を待つのではなく、以下のサイクルを自律的に回してください。
+### Microservices (gRPC — `accounts`, `drive`, `chat`, etc.)
 
-1. **Schema First & Generation:** 仕様（`api/openapi/` や `api/proto/`）を最初に定義・修正し、必要なコード生成（`oapi-codegen` や `buf generate` 等）を自律的に実行した上で、コアとなるインターフェースやデータ構造の設計に入ること。
-2. **実用的なテストの作成:** 実装の妥当性を担保するテストを自律的に作成する。過剰なモック化にこだわる必要はなく、状況に応じて実用的で価値のあるテスト（TDDに縛られすぎないアプローチ）を選択すること。
-3. **自律的なリファクタリング (Self-Correction):** エラーやコードの密結合を発見した際は、人に許可を求めず自律的に修正・リファクタリングを行い、クリーンな状態で完了させること。
+**Responsibilities:**
+
+* Pure domain logic execution
+* Data persistence
+
+**Constraints:**
+
+* Must not contain any HTTP or Cookie concepts.
+* Authentication information (`internal_user_id`) must be received via `context`.
+
+---
+
+## 3. Infrastructure & Deployment
+
+Conventional orchestration tools such as Kubernetes or Docker Compose are not used.
+Instead, a **custom Go-based container orchestrator** directly operates the Docker Engine API to achieve simple and fully controlled operations.
+
+### Image Management
+
+* Use multi-stage builds.
+* Image registry: GHCR (GitHub Packages).
+
+### Tag Strategy
+
+* Image tags must default to Git SHA hashes.
+* The `latest` tag must only be updated upon explicit deployment instruction.
+
+```mermaid
+graph LR
+    A[GitHub Actions <br/> Build & Push] -->|Push SHA tag| B[(GHCR <br/> ghcr.io)]
+    C[Custom Go <br/> Orchestrator] -->|Pull & Deploy| B
+    C -->|Docker Engine API| D[Containers <br/> BFF / gRPC]
+```
+
+---
+
+## 4. Schema-Driven Development & Contracts (ABSOLUTE CONSTRAINT)
+
+Each component must depend only on **contracts (schemas)**, never on internal implementations of other components.
+
+### External API (Frontend ⇔ BFF)
+
+* Define **OpenAPI (YAML)** specifications under `api/openapi/`.
+* Use tools such as `oapi-codegen` to autonomously generate Go code.
+
+### Internal Communication (BFF ⇔ Microservices)
+
+* Define **Protocol Buffers** under `api/proto/`.
+* Generate gRPC code using tools such as `buf generate`.
+* Do not include HTTP annotations (`google.api.http`).
+
+### Instruction to AI Agents
+
+Whenever a schema is defined or modified:
+
+1. Execute code generation commands autonomously.
+2. Implement code that satisfies the generated interfaces.
+
+Schema generation must always precede implementation.
+
+---
+
+## 5. Testing Strategy (Decoupled Systems)
+
+To prevent dependency hell at scale, **local full-system E2E testing (e.g., large `docker-compose up`) is strictly prohibited.**
+
+Testing must be completed at each architectural layer independently.
+
+```
+        ┌─────────────┐
+        │ Manual Test │  ← Smoke tests in staging/production
+       ─┴─────────────┴─
+      ┌──────────────────┐
+      │ Integration Test │  ← Limited tests using testcontainers (DB/external deps)
+     ─┴──────────────────┴─
+    ┌────────────────────────┐
+    │       Unit Test        │  ← Fast tests using mocks/stubs (primary focus)
+    └────────────────────────┘
+```
+
+### Prohibited Practices
+
+* Shared test databases
+* Inter-test execution order dependencies
+
+Each test must be completely independent.
+
+* BFF layer tests must mock backend services.
+* Microservice tests must not assume the existence of BFF.
+
+---
+
+## 6. Data Management
+
+### Database per Service
+
+Each gRPC service must have a completely independent PostgreSQL database (or schema).
+
+* Direct access to another service’s database is strictly prohibited.
+* Cross-service JOINs are strictly prohibited.
+
+### Technology Selection
+
+Heavy ORMs (e.g., GORM) should generally be avoided.
+
+* Base approach: `database/sql` + `sqlx`
+* If a more type-safe tool (e.g., `sqlc`) is more appropriate, AI agents should proactively propose and adopt it.
+
+---
+
+## 7. Authentication & Authorization Responsibilities
+
+See `docs/AUTH.md` for details.
+
+---
+
+## 8. Autonomous AI Development Cycle & Implementation Guidelines
+
+There is no obligation to preserve existing implementations or backward compatibility.
+
+As long as the core philosophy is respected, AI agents should prioritize the most refined and ideal implementation they can conceive. Scrap-and-build refactoring is fully permitted.
+
+### 1. Schema First & Generation
+
+Define or modify specifications first.
+Execute code generation autonomously before beginning implementation.
+
+### 2. Practical & Isolated Testing
+
+Do not be dogmatic about TDD.
+Use mocks and database containers pragmatically to create tests that can validate behavior independently of other components.
+
+### 3. Autonomous Refactoring (Self-Correction)
+
+Do not fear breaking changes.
+If a more elegant domain model or a more efficient implementation exists, refactor autonomously without seeking permission.

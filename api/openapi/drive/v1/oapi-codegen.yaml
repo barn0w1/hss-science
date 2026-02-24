@@ -1,0 +1,13 @@
+package: drive
+
+# Option
+generate:
+  chi-server: true
+  models: true
+  strict-server: false
+  embedded-spec: true
+
+output-options:
+  skip-fmt: false
+  skip-prune: false
+  nullable-type: true

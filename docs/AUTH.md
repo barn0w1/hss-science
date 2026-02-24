@@ -1,56 +1,113 @@
-# HSS Science Platform - 認証・認可アーキテクチャ設計書
+# HSS Science Platform – Authentication & Authorization Architecture
 
-## 1. 設計思想と基本方針 (Design Philosophy)
+## 1. Design Philosophy & Core Principles
 
-本プラットフォームは、最新のエンタープライズ・セキュリティのベストプラクティスに基づき、以下の基本方針で設計されています。
-
-* **完全なパスワードレス (Passwordless):** 自システムでパスワードを管理せず、認証（AuthN）はすべてGoogle OIDCに委譲する。
-* **関心の分離 (Separation of Concerns):** BFFはルーティングとセッション（Cookie）管理に徹し、ビジネスロジックとトークン発行（鍵管理）はバックエンドの `Account Service` に隠蔽する。
-* **強固なセッション管理:** XSS攻撃を無効化する `HttpOnly` Cookieと、CSRFを防ぐ `SameSite=Strict` + カスタムヘッダー検証を採用する。
-* **ハイブリッド・トークン:** 普段のAPIはDBアクセスゼロの「ステートレス（Access Token）」で高速化しつつ、デバイスごとの強制ログアウトを可能にする「ステートフル（Refresh Token）」なセッション管理を両立する。
-* **ドメインごとのセキュリティ境界:** DriveとChatで完全に独立したCookieを発行し、一方の脆弱性が他方に波及しないゼロトラスト構造とする。
+To balance enterprise-grade security with optimized development and operational cost, this platform adopts an architecture based on the following three pillars.
 
 ---
 
-## 2. システム・コンポーネント構成 (Architecture Diagram)
+### 1.1 Architectural Separation & Boundary Enforcement
 
-ネットワークのエッジ（境界）から最深部のDBまでのデータの流れとコンポーネントの配置です。
+The system is designed to minimize coupling and reduce the blast radius of failures or vulnerabilities.
+
+#### Separation of Concerns (BFF vs Backend Responsibilities)
+
+**Policy:**
+The BFF (API Gateway) is strictly responsible for request routing and Cookie read/write operations.
+Business logic processing and token issuance (including private key management) are encapsulated within the `Accounts Service`, which resides in a secure internal network.
+
+**Objective:**
+To remove sensitive state and key material from the externally exposed BFF layer and harden the overall system.
+
+#### Security Boundary Isolation (Zero-Trust by Domain)
+
+**Policy:**
+Cookies (tokens) must not be shared across different services/subdomains (e.g., Drive and Chat). Each service maintains an independent session.
+
+**Objective:**
+If a vulnerability exists in one frontend (e.g., Chat), its impact must not propagate to other services (e.g., Drive).
+
+---
+
+### 1.2 Authentication & Authorization
+
+The system preserves user convenience while minimizing management risk and database load.
+
+#### Passwordless Strategy (Delegation to External IdP)
+
+**Policy:**
+The system does not store or manage user passwords internally.
+Authentication (AuthN) is fully delegated to external Identity Providers such as Google OIDC.
+
+**Objective:**
+To eliminate password hashing, reset flows, and associated implementation costs, while fundamentally reducing credential leakage risk.
+
+---
+
+#### Hybrid Token Strategy (Performance + Control)
+
+**Policy:**
+Use a combination of:
+
+* Short-lived **Access Tokens** (stateless)
+* Long-lived **Refresh Tokens** (stateful, managed in DB)
+
+**Objective:**
+Enable zero-DB-access for frequently invoked APIs while retaining strict session control capabilities (e.g., forced logout after device loss).
+
+---
+
+### 1.3 Session & Communication Protection
+
+To address SPA-specific vulnerabilities, a layered defense model is adopted.
+
+#### Practical Session Management (Multi-layer XSS / CSRF Defense)
+
+**Policy:**
+
+1. All tokens must be issued as `HttpOnly` Cookies to prevent JavaScript access.
+2. Cookie attributes default to `SameSite=Lax`, balancing usability and security.
+3. All SPA API requests must include a custom header (e.g., `X-Requested-With`), which the BFF validates.
+
+**Objective:**
+To eliminate token theft via XSS while leveraging CORS behavior to effectively mitigate CSRF attacks.
+
+---
+
+## 2. System Component Topology
+
+The following illustrates the standard data flow from the network edge to internal databases.
 
 ```mermaid
 graph TD
-    %% Clients
-    SPA_Drive["Drive SPA (React/Vue)"]
-    SPA_Chat["Chat SPA (React/Vue)"]
+    SPA_Drive["Drive SPA (React etc.)"]
+    SPA_Chat["Chat SPA (React etc.)"]
 
-    %% Edge & Proxy
     subgraph "Edge & Network Layer"
         CF["Cloudflare Edge & Tunnel"]
         Caddy["Reverse Proxy (Caddy)"]
     end
 
-    %% BFF Layer
     subgraph "Gateway Layer (Stateless)"
         BFF_Drive["Drive BFF (Go)"]
         BFF_Chat["Chat BFF (Go)"]
     end
 
-    %% Backend Layer
-    subgraph "Backend Services (gRPC / Isolated Network)"
+    subgraph "Backend Services (gRPC)"
         AccountSvc["Accounts Service (Go) <br> *JWT Minting & Session Mgt*"]
-        DriveSvc["Drive Service"]
-        ChatSvc["Chat Service"]
+        DriveSvc["Drive Service (Go)"]
+        ChatSvc["Chat Service (Go)"]
     end
 
-    %% Data & AuthZ Layer
     subgraph "Data & Authorization Layer"
-        DB[(PostgreSQL)]
+        AccountDB[(Accounts DB - PostgreSQL)]
+        DriveDB[(Drive DB - PostgreSQL)]
+        ChatDB[(Chat DB - PostgreSQL)]
         OpenFGA{"OpenFGA (AuthZ)"}
     end
 
-    %% External
     Google(("Google OIDC"))
 
-    %% Connections
     SPA_Drive -->|HTTPS| CF
     SPA_Chat -->|HTTPS| CF
     CF --> Caddy
@@ -67,31 +124,36 @@ graph TD
     BFF_Drive -->|gRPC| DriveSvc
     BFF_Chat -->|gRPC| ChatSvc
 
-    AccountSvc -->|Read/Write User & Session| DB
-    
+    AccountSvc -->|Read/Write User & Session| AccountDB
+
+    DriveSvc -->|Read/Write Domain Data| DriveDB
+    ChatSvc -->|Read/Write Domain Data| ChatDB
+
     DriveSvc -->|Check Permission| OpenFGA
     ChatSvc -->|Check Permission| OpenFGA
-
 ```
 
 ---
 
-## 3. コンポーネントの責務定義
+## 3. Component Responsibilities & Recommended Technologies
 
-| コンポーネント | 役割と責務 |
-| --- | --- |
-| **SPA (Client)** | UIの描画。トークンの存在（中身）は一切知らず、リクエスト時に自動付与されるCookieに依存する。 |
-| **Cloudflare / Caddy** | SSL終端、DDoS防御、内部ネットワーク（VPC等）への安全なトンネリング。 |
-| **BFF (Gateway)** | Google OIDCのコールバック処理。SPAへの `Set-Cookie`（`HttpOnly`, `SameSite=Strict`）。gRPC通信時の `x-user-id` メタデータ付与。CSRFヘッダーの検証。**※秘密鍵は持たない。** |
-| **Accounts Service** | システムの「IdP兼ユーザー管理」の心臓部。Google IDからの内部ID (`usr_xxx`) の生成（JITプロビジョニング）。デバイスごとのセッションID管理。**JWT（Access/Refresh）の署名と発行。** |
-| **Domain Services** | BFFから渡された内部ID (`x-user-id`) を絶対的に信頼し、ビジネスロジックを実行する。 |
-| **OpenFGA / DB** | DBは全ユーザーとセッションの唯一のソース（Single Source of Truth）。OpenFGAはドメインサービスからの認可（ファイルアクセス権など）を判定する。 |
+AI agents and developers must avoid heavyweight frameworks and ORMs.
+Leverage Go’s native simplicity and performance using lightweight libraries.
+
+| Component              | Role & Responsibility                                                                                                                                      | Recommended Stack                                                                                                        |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **SPA (Client)**       | Renders UI. Does not parse token contents. Relies on automatically attached Cookies.                                                                       | React, Zustand                                                                                                           |
+| **Cloudflare / Proxy** | SSL termination, DDoS protection, secure tunneling to internal network.                                                                                    | Cloudflare Tunnel, Caddy                                                                                                 |
+| **BFF (Gateway)**      | OIDC callback handling, `Set-Cookie` issuance (`HttpOnly`, `SameSite=Lax`), gRPC metadata translation, CSRF header validation. Must not hold private keys. | Routing & middleware via `go-chi/chi` on top of `net/http`. OIDC/PKCE via `golang.org/x/oauth2` and `coreos/go-oidc/v3`. |
+| **Accounts Service**   | Identity management. Mapping Google IDs to internal IDs. Session management. JWT signing and verification.                                                 | Go, `grpc-go`, `golang-jwt/jwt/v5`. **No ORM.** Use raw SQL with `database/sql` + `jmoiron/sqlx` (driver: `pgx`, etc.).  |
+| **Domain Services**    | Trust internal user ID (`x-user-id`) from BFF and execute domain business logic.                                                                           | Go, `grpc-go`, `jmoiron/sqlx` (if DB required)                                                                           |
+| **OpenFGA / DB**       | Persistence of users and sessions; authorization checks for domain resources.                                                                              | PostgreSQL, OpenFGA Go SDK                                                                                               |
 
 ---
 
-## 4. 認証・認可・セッション管理フロー (Sequence Diagram)
+## 4. Authentication, Authorization & Session Flow
 
-JWTの発行責務をAccount Serviceに移譲した、最も堅牢なシーケンスです。
+Token issuance is delegated to the Accounts Service to ensure security and flexibility.
 
 ```mermaid
 sequenceDiagram
@@ -105,81 +167,88 @@ sequenceDiagram
     participant Backend as Domain Service
     participant AuthZ as OpenFGA
 
-    Note over SPA,DB: 【Phase 1】 OIDC 認証 & JIT プロビジョニング
+    Note over SPA,DB: Phase 1 – OIDC Authentication & JIT Provisioning
 
     SPA->>BFF: GET /api/auth/login
     BFF-->>SPA: 302 Redirect (Google Auth URL + PKCE)
-    SPA->>Google: ユーザーがGoogleでログイン・同意
+    SPA->>Google: User login & consent
     Google-->>SPA: 302 Redirect (auth_code)
 
     SPA->>BFF: GET /api/auth/callback?code=xxx
-    BFF->>Google: auth_code を ID Token に交換 (PKCE検証)
+    BFF->>Google: Exchange auth_code for ID Token (PKCE validation)
     Google-->>BFF: ID Token (google_id, email, name)
 
-    Note over BFF,DB: 【Phase 2】 内部セッション作成 & トークン発行 (鍵管理はBackend)
+    Note over BFF,DB: Phase 2 – Internal Session Creation & Token Issuance
     
     BFF->>AccountSvc: [gRPC] LoginUser(google_id, profile, device_info)
     
-    AccountSvc->>DB: UPSERT users (JITプロビジョニング)
-    DB-->>AccountSvc: internal_user_id (例: usr_999)
+    AccountSvc->>DB: UPSERT users (JIT provisioning)
+    DB-->>AccountSvc: internal_user_id (e.g., usr_999)
     
-    AccountSvc->>DB: INSERT sessions (マルチデバイス対応)
-    DB-->>AccountSvc: session_id (例: sess_abc123)
+    AccountSvc->>DB: INSERT sessions (multi-device support)
+    DB-->>AccountSvc: session_id (e.g., sess_abc123)
     
-    Note over AccountSvc: 秘密鍵を用いてJWTをMint (署名)<br/>1. Access Token (sub: usr_999, 15m)<br/>2. Refresh Token (sub: usr_999, sid: sess_abc, 7d)
+    Note over AccountSvc:
+        Mint JWTs (signed)
+        1. Access Token (e.g., 15 minutes)
+        2. Refresh Token (e.g., 7 days)
     
     AccountSvc-->>BFF: [gRPC] {access_token, refresh_token}
 
-    BFF-->>SPA: 302 Redirect to Dashboard <br/> + Set-Cookie (HttpOnly, Secure, SameSite=Strict)
+    BFF-->>SPA:
+        302 Redirect to Dashboard
+        + Set-Cookie (HttpOnly, Secure, SameSite=Lax)
 
-    Note over SPA,AuthZ: 【Phase 3】 セキュアなAPIリクエスト (完全ステートレス)
+    Note over SPA,AuthZ: Phase 3 – Secure API Request (Stateless Validation)
 
-    SPA->>BFF: GET /api/files (Cookie自動付与 + X-Requested-With)
-    Note over BFF: Access Token の署名・期限を検証 (DBアクセスなし)
+    SPA->>BFF: GET /api/files (Cookie auto-attached + X-Requested-With)
+    Note over BFF:
+        Validate Access Token
+        (either via Accounts Service or public key verification)
     
     BFF->>Backend: [gRPC] (metadata: x-user-id=usr_999)
-    Backend->>AuthZ: Check user "usr_999" read resource "files"
+    Backend->>AuthZ: Check permission: user "usr_999" read "files"
     AuthZ-->>Backend: Allowed: true
     Backend-->>BFF: [gRPC] File Data
-    BFF-->>SPA: HTTP 200 JSON Response
+    BFF-->>SPA: HTTP 200 JSON
 
-    Note over SPA,AccountSvc: 【Phase 4】 ステートフルなトークン・リフレッシュ
+    Note over SPA,AccountSvc: Phase 4 – Stateful Token Refresh
 
-    SPA->>BFF: GET /api/files (Access Token 期限切れ)
+    SPA->>BFF: GET /api/files (Access Token expired)
     BFF-->>SPA: HTTP 401 Unauthorized
 
-    SPA->>BFF: POST /api/auth/refresh (Refresh Cookie自動付与)
-    Note over BFF: Refresh Tokenから session_id をデコード
+    SPA->>BFF: POST /api/auth/refresh (Refresh Cookie auto-attached)
+    Note over BFF:
+        Decode session_id from Refresh Token
     
     BFF->>AccountSvc: [gRPC] ValidateAndRefresh(session_id)
-    AccountSvc->>DB: session_id が有効か確認 (強制ログアウト確認)
+    AccountSvc->>DB: Verify session validity (forced logout check)
     
-    alt セッションが無効（スマホ紛失等でRevoke済）
+    alt Session invalid (revoked)
         DB-->>AccountSvc: Not Found / Revoked
-        AccountSvc-->>BFF: [gRPC] Error: Invalid Session
-        BFF-->>SPA: HTTP 403 (強制ログアウト処理へ)
-    else セッションが有効
+        AccountSvc-->>BFF: Error: Invalid Session
+        BFF-->>SPA: HTTP 403 (trigger logout)
+    else Session valid
         DB-->>AccountSvc: Valid
-        Note over AccountSvc: 新しい Access Token をMint
-        AccountSvc-->>BFF: [gRPC] {new_access_token}
+        Note over AccountSvc: Mint new Access Token
+        AccountSvc-->>BFF: {new_access_token}
         BFF-->>SPA: HTTP 200 + Set-Cookie (New Access Token)
-        SPA->>BFF: 失敗した GET /api/files を再実行
+        SPA->>BFF: Retry failed GET /api/files
     end
-
 ```
 
 ---
 
-## 5. 脅威モデリングとセキュリティ対策 (Security Mitigations)
+## 5. Threat Modeling & Security Countermeasures
 
-本アーキテクチャは、Webアプリケーションにおける主要な攻撃ベクタに対して設計レベルで対策を講じています。
+The following threats must be considered and mitigated during implementation:
 
-| 攻撃手法 | 本システムでの防御策 |
-| --- | --- |
-| **XSS (クロスサイトスクリプティング)** | すべてのトークンを `HttpOnly` 属性のCookieに格納。JavaScript（`document.cookie` 等）からの読み取りをブラウザレベルで完全にブロック。 |
-| **CSRF (クロスサイトリクエストフォージェリ)** | Cookieに `SameSite=Strict` を付与し、別ドメインからのリクエスト送信を遮断。さらにBFFでカスタムヘッダー（`X-Requested-With` 等）を要求し、通常のForm送信等による攻撃を無効化。 |
-| **OAuth 認可コードの横取り** | Google OIDCとの通信時に **PKCE (Proof Key for Code Exchange)** を必須化。 |
-| **トークン漏洩時の被害拡大** | Access Tokenの寿命を15分と短く設定。 |
-| **デバイス紛失時の不正アクセス** | Account ServiceとDBによるステートフルなRefresh Token管理。別の端末から対象セッション（`session_id`）をDB上でRevoke（無効化）することで、最長15分以内に強制ログアウトを完了させる。 |
-| **内部ネットワークでのなりすまし** | gRPCポートは内部VPCのみに解放し、インターネットから直接 `AccountSvc` や `DomainSvc` を叩けないよう Cloudflare Tunnel と Docker Network で厳格に隔離。 |
-| **SPAのトークンリフレッシュ競合** | クライアント側（Axios Interceptor等）で「Refresh Lock（排他制御キュー）」を実装し、複数API同時発火による無駄な401エラー連鎖を防止。 |
+| Attack Vector                             | Recommended Defense                                                                                                               |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **XSS (Cross-Site Scripting)**            | Store tokens in `HttpOnly` Cookies to prevent unintended JavaScript access.                                                       |
+| **CSRF (Cross-Site Request Forgery)**     | Use `SameSite=Lax` Cookies and require custom headers (`X-Requested-With`) validated by the BFF.                                  |
+| **OAuth Authorization Code Interception** | Enforce PKCE (Proof Key for Code Exchange) in all OIDC flows.                                                                     |
+| **Token Leakage Impact**                  | Use short Access Token lifetimes (e.g., 15–60 minutes) to minimize risk window.                                                   |
+| **Unauthorized Access After Device Loss** | Store Refresh Tokens in DB via Accounts Service and support revocation by `session_id`.                                           |
+| **SPA Token Refresh Race Conditions**     | Implement client-side request queueing (e.g., Axios interceptor lock) to prevent cascading 401 loops and redundant refresh calls. |
+

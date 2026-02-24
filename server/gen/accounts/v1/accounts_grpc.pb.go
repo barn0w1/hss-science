@@ -19,40 +19,17 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AccountsService_GetAuthURL_FullMethodName             = "/hss_science.accounts.v1.AccountsService/GetAuthURL"
-	AccountsService_HandleProviderCallback_FullMethodName = "/hss_science.accounts.v1.AccountsService/HandleProviderCallback"
-	AccountsService_IssueAuthCode_FullMethodName          = "/hss_science.accounts.v1.AccountsService/IssueAuthCode"
-	AccountsService_ExchangeToken_FullMethodName          = "/hss_science.accounts.v1.AccountsService/ExchangeToken"
-	AccountsService_GetUser_FullMethodName                = "/hss_science.accounts.v1.AccountsService/GetUser"
+	AccountsService_LoginUser_FullMethodName = "/hss_science.accounts.v1.AccountsService/LoginUser"
 )
 
 // AccountsServiceClient is the client API for AccountsService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// AccountsService is the internal gRPC API for the centralized authentication
-// and identity service. It knows nothing about HTTP, cookies, or redirects.
-// All protocol-level concerns are handled by the BFF (gateway) layer.
 type AccountsServiceClient interface {
-	// GetAuthURL generates an OAuth authorization URL and a cryptographic state
-	// value for the given provider. The BFF uses the returned URL to redirect
-	// the user's browser to the external IdP.
-	GetAuthURL(ctx context.Context, in *GetAuthURLRequest, opts ...grpc.CallOption) (*GetAuthURLResponse, error)
-	// HandleProviderCallback processes the authorization code returned by the
-	// external IdP. It exchanges the code for tokens, fetches user info,
-	// upserts the user in the database, and returns a short-lived internal
-	// authorization code that the BFF can pass back to the requesting service.
-	HandleProviderCallback(ctx context.Context, in *HandleProviderCallbackRequest, opts ...grpc.CallOption) (*HandleProviderCallbackResponse, error)
-	// IssueAuthCode issues an internal authorization code for an already
-	// authenticated user. Used by the BFF when an active Accounts session
-	// exists, skipping the external IdP round trip entirely.
-	IssueAuthCode(ctx context.Context, in *IssueAuthCodeRequest, opts ...grpc.CallOption) (*IssueAuthCodeResponse, error)
-	// ExchangeToken validates an internal authorization code and returns the
-	// authenticated user's information. Called by downstream service BFFs to
-	// establish their own sessions.
-	ExchangeToken(ctx context.Context, in *ExchangeTokenRequest, opts ...grpc.CallOption) (*ExchangeTokenResponse, error)
-	// GetUser retrieves a user by their internal ID.
-	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
+	// LoginUser performs JIT user provisioning and creates a new session.
+	// Called by domain BFFs after successful OIDC authentication.
+	// Returns minted JWTs (access + refresh tokens).
+	LoginUser(ctx context.Context, in *LoginUserRequest, opts ...grpc.CallOption) (*LoginUserResponse, error)
 }
 
 type accountsServiceClient struct {
@@ -63,50 +40,10 @@ func NewAccountsServiceClient(cc grpc.ClientConnInterface) AccountsServiceClient
 	return &accountsServiceClient{cc}
 }
 
-func (c *accountsServiceClient) GetAuthURL(ctx context.Context, in *GetAuthURLRequest, opts ...grpc.CallOption) (*GetAuthURLResponse, error) {
+func (c *accountsServiceClient) LoginUser(ctx context.Context, in *LoginUserRequest, opts ...grpc.CallOption) (*LoginUserResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetAuthURLResponse)
-	err := c.cc.Invoke(ctx, AccountsService_GetAuthURL_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *accountsServiceClient) HandleProviderCallback(ctx context.Context, in *HandleProviderCallbackRequest, opts ...grpc.CallOption) (*HandleProviderCallbackResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(HandleProviderCallbackResponse)
-	err := c.cc.Invoke(ctx, AccountsService_HandleProviderCallback_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *accountsServiceClient) IssueAuthCode(ctx context.Context, in *IssueAuthCodeRequest, opts ...grpc.CallOption) (*IssueAuthCodeResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(IssueAuthCodeResponse)
-	err := c.cc.Invoke(ctx, AccountsService_IssueAuthCode_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *accountsServiceClient) ExchangeToken(ctx context.Context, in *ExchangeTokenRequest, opts ...grpc.CallOption) (*ExchangeTokenResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ExchangeTokenResponse)
-	err := c.cc.Invoke(ctx, AccountsService_ExchangeToken_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *accountsServiceClient) GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetUserResponse)
-	err := c.cc.Invoke(ctx, AccountsService_GetUser_FullMethodName, in, out, cOpts...)
+	out := new(LoginUserResponse)
+	err := c.cc.Invoke(ctx, AccountsService_LoginUser_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -116,30 +53,11 @@ func (c *accountsServiceClient) GetUser(ctx context.Context, in *GetUserRequest,
 // AccountsServiceServer is the server API for AccountsService service.
 // All implementations must embed UnimplementedAccountsServiceServer
 // for forward compatibility.
-//
-// AccountsService is the internal gRPC API for the centralized authentication
-// and identity service. It knows nothing about HTTP, cookies, or redirects.
-// All protocol-level concerns are handled by the BFF (gateway) layer.
 type AccountsServiceServer interface {
-	// GetAuthURL generates an OAuth authorization URL and a cryptographic state
-	// value for the given provider. The BFF uses the returned URL to redirect
-	// the user's browser to the external IdP.
-	GetAuthURL(context.Context, *GetAuthURLRequest) (*GetAuthURLResponse, error)
-	// HandleProviderCallback processes the authorization code returned by the
-	// external IdP. It exchanges the code for tokens, fetches user info,
-	// upserts the user in the database, and returns a short-lived internal
-	// authorization code that the BFF can pass back to the requesting service.
-	HandleProviderCallback(context.Context, *HandleProviderCallbackRequest) (*HandleProviderCallbackResponse, error)
-	// IssueAuthCode issues an internal authorization code for an already
-	// authenticated user. Used by the BFF when an active Accounts session
-	// exists, skipping the external IdP round trip entirely.
-	IssueAuthCode(context.Context, *IssueAuthCodeRequest) (*IssueAuthCodeResponse, error)
-	// ExchangeToken validates an internal authorization code and returns the
-	// authenticated user's information. Called by downstream service BFFs to
-	// establish their own sessions.
-	ExchangeToken(context.Context, *ExchangeTokenRequest) (*ExchangeTokenResponse, error)
-	// GetUser retrieves a user by their internal ID.
-	GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error)
+	// LoginUser performs JIT user provisioning and creates a new session.
+	// Called by domain BFFs after successful OIDC authentication.
+	// Returns minted JWTs (access + refresh tokens).
+	LoginUser(context.Context, *LoginUserRequest) (*LoginUserResponse, error)
 	mustEmbedUnimplementedAccountsServiceServer()
 }
 
@@ -150,20 +68,8 @@ type AccountsServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedAccountsServiceServer struct{}
 
-func (UnimplementedAccountsServiceServer) GetAuthURL(context.Context, *GetAuthURLRequest) (*GetAuthURLResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetAuthURL not implemented")
-}
-func (UnimplementedAccountsServiceServer) HandleProviderCallback(context.Context, *HandleProviderCallbackRequest) (*HandleProviderCallbackResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method HandleProviderCallback not implemented")
-}
-func (UnimplementedAccountsServiceServer) IssueAuthCode(context.Context, *IssueAuthCodeRequest) (*IssueAuthCodeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method IssueAuthCode not implemented")
-}
-func (UnimplementedAccountsServiceServer) ExchangeToken(context.Context, *ExchangeTokenRequest) (*ExchangeTokenResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method ExchangeToken not implemented")
-}
-func (UnimplementedAccountsServiceServer) GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetUser not implemented")
+func (UnimplementedAccountsServiceServer) LoginUser(context.Context, *LoginUserRequest) (*LoginUserResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method LoginUser not implemented")
 }
 func (UnimplementedAccountsServiceServer) mustEmbedUnimplementedAccountsServiceServer() {}
 func (UnimplementedAccountsServiceServer) testEmbeddedByValue()                         {}
@@ -186,92 +92,20 @@ func RegisterAccountsServiceServer(s grpc.ServiceRegistrar, srv AccountsServiceS
 	s.RegisterService(&AccountsService_ServiceDesc, srv)
 }
 
-func _AccountsService_GetAuthURL_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAuthURLRequest)
+func _AccountsService_LoginUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LoginUserRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccountsServiceServer).GetAuthURL(ctx, in)
+		return srv.(AccountsServiceServer).LoginUser(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AccountsService_GetAuthURL_FullMethodName,
+		FullMethod: AccountsService_LoginUser_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountsServiceServer).GetAuthURL(ctx, req.(*GetAuthURLRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AccountsService_HandleProviderCallback_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(HandleProviderCallbackRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AccountsServiceServer).HandleProviderCallback(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AccountsService_HandleProviderCallback_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountsServiceServer).HandleProviderCallback(ctx, req.(*HandleProviderCallbackRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AccountsService_IssueAuthCode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(IssueAuthCodeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AccountsServiceServer).IssueAuthCode(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AccountsService_IssueAuthCode_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountsServiceServer).IssueAuthCode(ctx, req.(*IssueAuthCodeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AccountsService_ExchangeToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ExchangeTokenRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AccountsServiceServer).ExchangeToken(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AccountsService_ExchangeToken_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountsServiceServer).ExchangeToken(ctx, req.(*ExchangeTokenRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AccountsService_GetUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetUserRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AccountsServiceServer).GetUser(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AccountsService_GetUser_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountsServiceServer).GetUser(ctx, req.(*GetUserRequest))
+		return srv.(AccountsServiceServer).LoginUser(ctx, req.(*LoginUserRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -284,24 +118,8 @@ var AccountsService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*AccountsServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetAuthURL",
-			Handler:    _AccountsService_GetAuthURL_Handler,
-		},
-		{
-			MethodName: "HandleProviderCallback",
-			Handler:    _AccountsService_HandleProviderCallback_Handler,
-		},
-		{
-			MethodName: "IssueAuthCode",
-			Handler:    _AccountsService_IssueAuthCode_Handler,
-		},
-		{
-			MethodName: "ExchangeToken",
-			Handler:    _AccountsService_ExchangeToken_Handler,
-		},
-		{
-			MethodName: "GetUser",
-			Handler:    _AccountsService_GetUser_Handler,
+			MethodName: "LoginUser",
+			Handler:    _AccountsService_LoginUser_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -7,7 +7,6 @@
 package drivev1
 
 import (
-	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -25,7 +24,7 @@ var File_drive_v1_drive_proto protoreflect.FileDescriptor
 
 const file_drive_v1_drive_proto_rawDesc = "" +
 	"\n" +
-	"\x14drive/v1/drive.proto\x12\x14hss_science.drive.v1\x1a\x1cgoogle/api/annotations.proto2\x0e\n" +
+	"\x14drive/v1/drive.proto\x12\x14hss_science.drive.v12\x0e\n" +
 	"\fDriveServiceB<Z:github.com/barn0w1/hss-science/server/gen/drive/v1;drivev1b\x06proto3"
 
 var file_drive_v1_drive_proto_goTypes = []any{}

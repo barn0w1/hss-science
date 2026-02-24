@@ -1,0 +1,86 @@
+openapi: '3.0.3'
+info:
+  title: Drive BFF API
+  description: HTTP API for the HSS Science Drive BFF. Handles OIDC auth flows and proxies domain requests to gRPC services.
+  version: 0.1.0
+
+paths:
+  /api/v1/auth/login:
+    get:
+      operationId: AuthLogin
+      summary: Initiate Google OIDC login flow
+      description: |
+        Generates PKCE code_verifier and state, stores them in an encrypted
+        cookie via gorilla/securecookie, and issues a 302 redirect to Google's
+        authorization endpoint.
+      responses:
+        '302':
+          description: Redirect to Google OIDC authorization endpoint
+          headers:
+            Location:
+              schema:
+                type: string
+              description: Google authorization URL with PKCE code_challenge and state
+            Set-Cookie:
+              schema:
+                type: string
+              description: Encrypted cookie containing PKCE state and code_verifier
+
+  /api/v1/auth/callback:
+    get:
+      operationId: AuthCallback
+      summary: Handle Google OIDC callback
+      description: |
+        Receives the authorization code from Google. Validates state against the
+        encrypted cookie. Exchanges the code for an ID token using the stored
+        code_verifier (PKCE). Calls AccountsService.LoginUser via gRPC to
+        provision/update the user and create a session. Sets HttpOnly JWT cookies
+        and redirects to the SPA.
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Authorization code from Google
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+          description: CSRF state parameter, validated against the encrypted cookie
+      responses:
+        '302':
+          description: Redirect to SPA with auth cookies set
+          headers:
+            Location:
+              schema:
+                type: string
+              description: SPA URL (POST_LOGIN_REDIRECT)
+            Set-Cookie:
+              schema:
+                type: string
+              description: HttpOnly cookies containing access_token and refresh_token
+        '400':
+          description: Invalid or missing state/code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
