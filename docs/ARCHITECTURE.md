@@ -1,103 +1,212 @@
 # hss-science System Architecture & AI Guidelines
 
-本ドキュメントは、hss-scienceシステムの全体アーキテクチャ、インフラストラクチャ、および実装上の原則を定義したものです。
-AIエージェントによるコード生成およびリファクタリングは、この基本思想に準拠しつつも、**形式に縛られず、常に「最も合理的で美しい設計」を自律的に追求してください。**
+This document defines the overall architecture, infrastructure, and implementation principles of the hss-science system.
 
-## 1. 基本思想と The Twelve-Factor App (Core Philosophy)
+When generating or refactoring code, AI agents must adhere to these foundational principles while **avoiding rigid formalism and continuously pursuing the most rational and elegant design possible.**
 
-本システムは、大規模化とチーム開発を見据え、**「関心の分離（Separation of Concerns）」**と**「The Twelve-Factor App」**を設計の根底に置きます。AIエージェントはこれらを遵守し、過剰な抽象化（重厚なORMや無意味なレイヤー分け）を避けて実装してください。
+---
 
-* **Stateless Processes (12-Factor: VI):** すべてのアプリケーションプロセス（特にBFF）はステートレスとし、共有・永続化すべきデータはすべてDB（Accounts / 各Domain）に保存します。
-* **Config in Environment (12-Factor: III):** 認証情報、DB接続情報、環境差異はすべて環境変数で吸収し、コードへのハードコードは厳禁です。
-* `ENV` (`development`, `staging`, `production`), `PORT`, `LOG_LEVEL` などを `.env.example` に一覧化すること。
-* 起動時に環境変数をパースし、不足時は Fail-Fast (`fmt.Fprintf(os.Stderr, ...)` + `os.Exit(1)`) で即時終了させてください。
+## 1. Core Philosophy & The Twelve-Factor App
 
+This system is designed with scalability and team development in mind. At its foundation are:
 
-* **Disposability (12-Factor: IX):** コンテナの高速な起動と、SIGTERM受信時のグレースフルシャットダウンを徹底してください。
-* **Logs as Event Streams (12-Factor: XI):** 構造化ロギングを徹底します。
-* Go標準の `log/slog` を使用し、出力先は常に標準出力 (`os.Stdout`) とすること。
-* フォーマットは JSON を基本とします（`ENV=development` 時のみ Text 形式へのフォールバック可）。
-* ログには必ずコンテキスト（`service`名、`trace_id` または `request_id`）を含め、リクエストの追跡を可能にしてください。
+* **Separation of Concerns**
+* **The Twelve-Factor App methodology**
 
+AI agents must strictly follow these principles and avoid excessive abstraction (e.g., heavy ORMs or meaningless layering).
 
+### Stateless Processes (12-Factor: VI)
 
-## 2. 疎結合とルーティングの境界 【絶対制約】
+All application processes — especially BFFs — must be stateless.
+Any data that must be shared or persisted must be stored in a database (Accounts service or respective domain services).
 
-システムが大規模化しても独立して開発できるよう、コンポーネント間の境界線を厳格に守ります。
+### Config in Environment (12-Factor: III)
 
-* **Reverse Proxy (Caddy):** 最前面のTLS終端とルーティングを担います。
-* `/*` (ルート配下): フロントエンドのSPA（Viteビルドの静的ファイル）を配信。
-* `/api/*`: 各サブドメイン（`drive.hss-science.org`, `chat...`）に対応する BFF へリバースプロキシ。
+All configuration must be provided via environment variables. Hardcoding credentials or environment-dependent values is strictly prohibited.
 
+* Environment variables such as `ENV` (`development`, `staging`, `production`), `PORT`, `LOG_LEVEL`, etc., must be enumerated in `.env.example`.
+* At startup, environment variables must be parsed.
+* If required variables are missing, the application must **fail fast** (`fmt.Fprintf(os.Stderr, ...)` + `os.Exit(1)`).
 
-* **BFF (Custom HTTP Server):**
-* **責務:** HTTPリクエスト/レスポンス、CORS、リダイレクト、Cookieベースのセッション管理。
-* **制約:** `grpc-gateway` は不使用。DBへの直接アクセスは厳禁。
+### Disposability (12-Factor: IX)
 
+Containers must start quickly and handle graceful shutdown properly upon receiving `SIGTERM`.
 
-* **Microservices (gRPC - `accounts`, `drive`, `chat`等):**
-* **責務:** 純粋なドメインロジックの実行とデータ永続化。
-* **制約:** HTTPやCookieの概念を一切持たせない。認証情報（`internal_user_id`）はContext経由で受け取る。
+### Logs as Event Streams (12-Factor: XI)
 
+Structured logging is mandatory.
 
+* Use Go’s standard `log/slog`.
+* Logs must always be written to standard output (`os.Stdout`).
+* The default format is JSON (fallback to text format only when `ENV=development`).
+* Logs must include contextual metadata such as:
 
-## 3. インフラストラクチャとデプロイメント (Infrastructure & Deployment)
+  * `service` name
+  * `trace_id` or `request_id`
+    This ensures full request traceability.
 
-一般的な Kubernetes や Docker Compose は採用せず、**自作の Go 製コンテナオーケストレーター** を使用して Docker Engine API を直接操作し、シンプルかつ完全にコントロール可能な運用を実現します。
+---
 
-* **イメージ管理:** マルチステージビルドを活用し、イメージレジストリは GHCR (GitHub Packages) を使用します。
-* **タグ戦略:** イメージタグは Git の SHA ハッシュを基本とし、`latest` タグは明示的なデプロイ指示時にのみ更新します。
+## 2. Loose Coupling & Routing Boundaries (ABSOLUTE CONSTRAINT)
+
+To ensure independent scalability and development across components, boundaries must be strictly enforced.
+
+### Reverse Proxy (Caddy)
+
+Responsible for TLS termination and routing.
+
+* `/*` (root path): Serves frontend SPA static assets (built with Vite).
+* `/api/*`: Reverse proxies to BFFs corresponding to each subdomain (e.g., `drive.hss-science.org`, `chat...`).
+
+### BFF (Custom HTTP Server)
+
+**Responsibilities:**
+
+* HTTP request/response handling
+* CORS
+* Redirects
+* Cookie-based session management
+
+**Constraints:**
+
+* `grpc-gateway` must not be used.
+* Direct database access is strictly prohibited.
+
+### Microservices (gRPC — `accounts`, `drive`, `chat`, etc.)
+
+**Responsibilities:**
+
+* Pure domain logic execution
+* Data persistence
+
+**Constraints:**
+
+* Must not contain any HTTP or Cookie concepts.
+* Authentication information (`internal_user_id`) must be received via `context`.
+
+---
+
+## 3. Infrastructure & Deployment
+
+Conventional orchestration tools such as Kubernetes or Docker Compose are not used.
+Instead, a **custom Go-based container orchestrator** directly operates the Docker Engine API to achieve simple and fully controlled operations.
+
+### Image Management
+
+* Use multi-stage builds.
+* Image registry: GHCR (GitHub Packages).
+
+### Tag Strategy
+
+* Image tags must default to Git SHA hashes.
+* The `latest` tag must only be updated upon explicit deployment instruction.
 
 ```mermaid
 graph LR
     A[GitHub Actions <br/> Build & Push] -->|Push SHA tag| B[(GHCR <br/> ghcr.io)]
-    C[自作Go製 <br/> オーケストレーター] -->|Pull & Deploy| B
-    C -->|Docker Engine API| D[コンテナ群 <br/> BFF / gRPC]
-
+    C[Custom Go <br/> Orchestrator] -->|Pull & Deploy| B
+    C -->|Docker Engine API| D[Containers <br/> BFF / gRPC]
 ```
 
-## 4. スキーマ駆動開発と契約 (Schema-Driven Development) 【絶対制約】
+---
 
-各コンポーネントが互いの内部実装に依存せず、「契約（スキーマ）」のみに依存して開発・テストできる状態を作ります。
+## 4. Schema-Driven Development & Contracts (ABSOLUTE CONSTRAINT)
 
-* **外部向けAPI (Frontend ⇔ BFF):** `api/openapi/` に **OpenAPI (YAML)** を定義し、`oapi-codegen` 等で自律的にGoのコード生成を行うことを推奨します。
-* **内部向け通信 (BFF ⇔ Microservices):** `api/proto/` に **Protocol Buffers** を定義し、`buf generate` 等でgRPCコードを生成します。HTTPアノテーション（`google.api.http`）は記述しません。
+Each component must depend only on **contracts (schemas)**, never on internal implementations of other components.
 
-**※ AI Agentへの指示:**
-スキーマを定義・変更した際は、必ず最初にコード生成コマンドを自律的に実行し、生成されたインターフェースを満たすように実装を進めてください。
+### External API (Frontend ⇔ BFF)
 
-## 5. テスト戦略 (Testing Strategy for Decoupled Systems)
+* Define **OpenAPI (YAML)** specifications under `api/openapi/`.
+* Use tools such as `oapi-codegen` to autonomously generate Go code.
 
-システムのスケール時に依存地獄を避けるため、**ローカルでの全サービス連動型 E2E テスト（大規模な docker-compose up 等）は固く禁止します。** テストは各層で完結させることを原則とします。
+### Internal Communication (BFF ⇔ Microservices)
 
-```text
-        ┌───────────┐
-        │  手動検証  │  ← 本番/ステージング環境でのスモークテスト
-       ─┴───────────┴─
-      ┌─────────────────┐
-      │ Integration Test │  ← testcontainers等でDB/外部依存を含む限定テスト
-     ─┴─────────────────┴─
-    ┌───────────────────────┐
-    │       Unit Test       │  ← モック/スタブを活用した高速なテスト（主軸）
-    └───────────────────────┘
+* Define **Protocol Buffers** under `api/proto/`.
+* Generate gRPC code using tools such as `buf generate`.
+* Do not include HTTP annotations (`google.api.http`).
+
+### Instruction to AI Agents
+
+Whenever a schema is defined or modified:
+
+1. Execute code generation commands autonomously.
+2. Implement code that satisfies the generated interfaces.
+
+Schema generation must always precede implementation.
+
+---
+
+## 5. Testing Strategy (Decoupled Systems)
+
+To prevent dependency hell at scale, **local full-system E2E testing (e.g., large `docker-compose up`) is strictly prohibited.**
+
+Testing must be completed at each architectural layer independently.
 
 ```
+        ┌─────────────┐
+        │ Manual Test │  ← Smoke tests in staging/production
+       ─┴─────────────┴─
+      ┌──────────────────┐
+      │ Integration Test │  ← Limited tests using testcontainers (DB/external deps)
+     ─┴──────────────────┴─
+    ┌────────────────────────┐
+    │       Unit Test        │  ← Fast tests using mocks/stubs (primary focus)
+    └────────────────────────┘
+```
 
-* **禁止事項:** テスト用の共有データベースへの依存や、テスト間の実行順序依存を排除し、各テストが完全に独立して実行可能である状態を保ってください。BFF層はバックエンドのモックを用い、Microservices層はBFFの存在を気にせずテストします。
+### Prohibited Practices
 
-## 6. データマネジメント
+* Shared test databases
+* Inter-test execution order dependencies
 
-* **Database per Service:** 各gRPCサービスは完全に独立したPostgreSQLデータベース（またはスキーマ）を持ちます。他サービスのDBへの直接アクセスやJOINは厳禁です。
-* **柔軟な技術選定:** 重厚なORM（GORM等）は基本避けます。`database/sql` と `sqlx` をベースとしつつ、AIの判断でより型安全なツール（例: `sqlc` 等）が適していると判断した場合は積極的に提案してください。
+Each test must be completely independent.
 
-## 7. 認証・認可の責務分離
+* BFF layer tests must mock backend services.
+* Microservice tests must not assume the existence of BFF.
 
-詳細は、`docs/AUTH.md` を参照してください。
+---
 
-## 8. AI Agentの自律的開発サイクルと実装ガイドライン (Autonomous Workflow)
+## 6. Data Management
 
-既存の実装や後方互換性に忖度する必要はありません。基本思想に合致する限り、**AIが考える最も洗練された理想的な実装を最優先し、既存コードをスクラップ＆ビルドして構いません。**
+### Database per Service
 
-1. **Schema First & Generation:** 仕様を最初に定義・修正し、コード生成を自律的に実行した上で実装に入ること。
-2. **実用的で独立したテストの作成:** TDDに縛られすぎず、実用的な範囲でモックやDBコンテナを活用し、「他コンポーネントが無くても検証できる」テストを自律的に作成すること。
-3. **自律的なリファクタリング (Self-Correction):** 破壊的変更を恐れず、より美しいドメインモデリングや効率的な実装がある場合は、人に許可を求めず自律的に修正・リファクタリングを行うこと。
+Each gRPC service must have a completely independent PostgreSQL database (or schema).
+
+* Direct access to another service’s database is strictly prohibited.
+* Cross-service JOINs are strictly prohibited.
+
+### Technology Selection
+
+Heavy ORMs (e.g., GORM) should generally be avoided.
+
+* Base approach: `database/sql` + `sqlx`
+* If a more type-safe tool (e.g., `sqlc`) is more appropriate, AI agents should proactively propose and adopt it.
+
+---
+
+## 7. Authentication & Authorization Responsibilities
+
+See `docs/AUTH.md` for details.
+
+---
+
+## 8. Autonomous AI Development Cycle & Implementation Guidelines
+
+There is no obligation to preserve existing implementations or backward compatibility.
+
+As long as the core philosophy is respected, AI agents should prioritize the most refined and ideal implementation they can conceive. Scrap-and-build refactoring is fully permitted.
+
+### 1. Schema First & Generation
+
+Define or modify specifications first.
+Execute code generation autonomously before beginning implementation.
+
+### 2. Practical & Isolated Testing
+
+Do not be dogmatic about TDD.
+Use mocks and database containers pragmatically to create tests that can validate behavior independently of other components.
+
+### 3. Autonomous Refactoring (Self-Correction)
+
+Do not fear breaking changes.
+If a more elegant domain model or a more efficient implementation exists, refactor autonomously without seeking permission.
