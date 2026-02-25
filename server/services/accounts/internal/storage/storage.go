@@ -194,7 +194,7 @@ func (s *PostgresStorage) CreateAccessAndRefreshTokens(ctx context.Context, requ
 	if err != nil {
 		return "", "", time.Time{}, fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	accessTokenID := uuid.NewString()
 	accessExpiresAt := time.Now().Add(5 * time.Minute)
@@ -336,9 +336,9 @@ func (s *PostgresStorage) RevokeToken(ctx context.Context, tokenIDOrToken string
 		return nil
 	}
 
-	s.db.ExecContext(ctx, `DELETE FROM refresh_tokens WHERE id = $1`, rtID)
+	_, _ = s.db.ExecContext(ctx, `DELETE FROM refresh_tokens WHERE id = $1`, rtID)
 	if accessTokenID != nil {
-		s.db.ExecContext(ctx, `DELETE FROM access_tokens WHERE id = $1`, *accessTokenID)
+		_, _ = s.db.ExecContext(ctx, `DELETE FROM access_tokens WHERE id = $1`, *accessTokenID)
 	}
 	return nil
 }
@@ -564,7 +564,7 @@ func (s *PostgresStorage) FindOrCreateUser(ctx context.Context, provider, extern
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	var user User
 	err = tx.QueryRowContext(ctx,

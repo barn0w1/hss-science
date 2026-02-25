@@ -140,7 +140,7 @@ func authRequestToInternal(authReq *oidc.AuthRequest, userID string) *AuthReques
 
 	// Convert max_age
 	if authReq.MaxAge != nil {
-		maxAge := int(*authReq.MaxAge)
+		maxAge := int(*authReq.MaxAge) //nolint:gosec // MaxAge is seconds; overflow not possible in practice
 		req.MaxAgeSeconds = &maxAge
 	}
 

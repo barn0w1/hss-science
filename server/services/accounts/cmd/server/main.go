@@ -83,7 +83,7 @@ func main() {
 
 	// Post-logout landing page
 	router.HandleFunc("/logged-out", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("signed out successfully"))
+		_, _ = w.Write([]byte("signed out successfully"))
 	})
 
 	// Mount login UI
@@ -94,8 +94,9 @@ func main() {
 
 	// Start server with graceful shutdown
 	srv := &http.Server{
-		Addr:    ":" + cfg.Port,
-		Handler: router,
+		Addr:              ":" + cfg.Port,
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	go func() {

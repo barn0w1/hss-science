@@ -11,19 +11,19 @@ import (
 // Client represents an OAuth2/OIDC client stored in PostgreSQL.
 // It implements the op.Client interface.
 type Client struct {
-	ID                       string         `db:"id"`
-	SecretHash               *string        `db:"secret_hash"`
-	ApplicationTypeStr       string         `db:"application_type"`
-	AuthMethodStr            string         `db:"auth_method"`
-	RedirectURIList          pq.StringArray `db:"redirect_uris"`
+	ID                        string         `db:"id"`
+	SecretHash                *string        `db:"secret_hash"`
+	ApplicationTypeStr        string         `db:"application_type"`
+	AuthMethodStr             string         `db:"auth_method"`
+	RedirectURIList           pq.StringArray `db:"redirect_uris"`
 	PostLogoutRedirectURIList pq.StringArray `db:"post_logout_redirect_uris"`
-	ResponseTypeList         pq.StringArray `db:"response_types"`
-	GrantTypeList            pq.StringArray `db:"grant_types"`
-	AccessTokenTypeStr       string         `db:"access_token_type"`
-	IDTokenUserinfoAssertion bool           `db:"id_token_userinfo_assertion"`
-	ClockSkewSeconds         int            `db:"clock_skew_seconds"`
-	IsServiceAccount         bool           `db:"is_service_account"`
-	CreatedAt                time.Time      `db:"created_at"`
+	ResponseTypeList          pq.StringArray `db:"response_types"`
+	GrantTypeList             pq.StringArray `db:"grant_types"`
+	AccessTokenTypeStr        string         `db:"access_token_type"`
+	IDTokenUserinfoAssertion  bool           `db:"id_token_userinfo_assertion"`
+	ClockSkewSeconds          int            `db:"clock_skew_seconds"`
+	IsServiceAccount          bool           `db:"is_service_account"`
+	CreatedAt                 time.Time      `db:"created_at"`
 }
 
 func (c *Client) GetID() string {
