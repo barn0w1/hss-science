@@ -87,14 +87,27 @@ func Load() (*Config, error) {
 	}
 
 	// Database pool configuration (optional, with defaults).
-	cfg.DBMaxOpenConns = envOrDefaultInt("DB_MAX_OPEN_CONNS", 25)
-	cfg.DBMaxIdleConns = envOrDefaultInt("DB_MAX_IDLE_CONNS", 5)
-	cfg.DBConnMaxLifetime = envOrDefaultDuration("DB_CONN_MAX_LIFETIME", 5*time.Minute)
+	var err error
+	if cfg.DBMaxOpenConns, err = envOrDefaultInt("DB_MAX_OPEN_CONNS", 25); err != nil {
+		return nil, err
+	}
+	if cfg.DBMaxIdleConns, err = envOrDefaultInt("DB_MAX_IDLE_CONNS", 5); err != nil {
+		return nil, err
+	}
+	if cfg.DBConnMaxLifetime, err = envOrDefaultDuration("DB_CONN_MAX_LIFETIME", 5*time.Minute); err != nil {
+		return nil, err
+	}
 
 	// Token lifetime configuration (optional, with defaults).
-	cfg.AccessTokenLifetime = envOrDefaultDuration("ACCESS_TOKEN_LIFETIME", 5*time.Minute)
-	cfg.RefreshTokenLifetime = envOrDefaultDuration("REFRESH_TOKEN_LIFETIME", 5*time.Hour)
-	cfg.IDTokenLifetime = envOrDefaultDuration("ID_TOKEN_LIFETIME", 1*time.Hour)
+	if cfg.AccessTokenLifetime, err = envOrDefaultDuration("ACCESS_TOKEN_LIFETIME", 5*time.Minute); err != nil {
+		return nil, err
+	}
+	if cfg.RefreshTokenLifetime, err = envOrDefaultDuration("REFRESH_TOKEN_LIFETIME", 5*time.Hour); err != nil {
+		return nil, err
+	}
+	if cfg.IDTokenLifetime, err = envOrDefaultDuration("ID_TOKEN_LIFETIME", 1*time.Hour); err != nil {
+		return nil, err
+	}
 
 	return cfg, nil
 }
@@ -106,20 +119,24 @@ func envOrDefault(key, defaultVal string) string {
 	return defaultVal
 }
 
-func envOrDefaultInt(key string, defaultVal int) int {
+func envOrDefaultInt(key string, defaultVal int) (int, error) {
 	if v := os.Getenv(key); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			return n
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return 0, fmt.Errorf("%s: invalid integer value %q: %w", key, v, err)
 		}
+		return n, nil
 	}
-	return defaultVal
+	return defaultVal, nil
 }
 
-func envOrDefaultDuration(key string, defaultVal time.Duration) time.Duration {
+func envOrDefaultDuration(key string, defaultVal time.Duration) (time.Duration, error) {
 	if v := os.Getenv(key); v != "" {
-		if d, err := time.ParseDuration(v); err == nil {
-			return d
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return 0, fmt.Errorf("%s: invalid duration value %q: %w", key, v, err)
 		}
+		return d, nil
 	}
-	return defaultVal
+	return defaultVal, nil
 }
