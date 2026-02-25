@@ -162,7 +162,12 @@ func (l *Login) callbackHandler(w http.ResponseWriter, r *http.Request) {
 
 func (l *Login) renderError(w http.ResponseWriter, msg string, status int) {
 	w.WriteHeader(status)
-	templates.ExecuteTemplate(w, "error.html", struct{ Error string }{Error: msg})
+	if err := templates.ExecuteTemplate(w, "error.html", struct{ Error string }{Error: msg}); err != nil {
+		l.logger.Error("failed to render error template", "status", status, "error", err)
+		if _, writeErr := w.Write([]byte(http.StatusText(status))); writeErr != nil {
+			l.logger.Error("failed to write fallback error response", "status", status, "error", writeErr)
+		}
+	}
 }
 
 // encodeState combines authRequestID and csrfToken into a single base64 string.

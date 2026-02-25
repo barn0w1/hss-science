@@ -240,9 +240,13 @@ func (s *PostgresStorage) CreateAccessAndRefreshTokens(ctx context.Context, requ
 		}
 
 		// Delete old refresh token and its access token
-		tx.ExecContext(ctx, `DELETE FROM refresh_tokens WHERE id = $1`, oldRT.ID)
+		if _, err = tx.ExecContext(ctx, `DELETE FROM refresh_tokens WHERE id = $1`, oldRT.ID); err != nil {
+			return "", "", time.Time{}, fmt.Errorf("delete old refresh token: %w", err)
+		}
 		if oldRT.AccessTokenID != nil {
-			tx.ExecContext(ctx, `DELETE FROM access_tokens WHERE id = $1`, *oldRT.AccessTokenID)
+			if _, err = tx.ExecContext(ctx, `DELETE FROM access_tokens WHERE id = $1`, *oldRT.AccessTokenID); err != nil {
+				return "", "", time.Time{}, fmt.Errorf("delete old access token: %w", err)
+			}
 		}
 
 		// Create replacement refresh token

@@ -140,7 +140,10 @@ func encodePrivateKey(key *rsa.PrivateKey) []byte {
 }
 
 func encodePublicKey(key *rsa.PublicKey) []byte {
-	pubBytes, _ := x509.MarshalPKIXPublicKey(key)
+	pubBytes, err := x509.MarshalPKIXPublicKey(key)
+	if err != nil {
+		return nil
+	}
 	return pem.EncodeToMemory(&pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: pubBytes,
