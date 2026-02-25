@@ -230,3 +230,4 @@ docker build \
 ```
 
 The image runs as a non-root user and exposes port `8080`.
+
