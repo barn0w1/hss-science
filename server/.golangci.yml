@@ -1,0 +1,9 @@
+# .golangci.yml の例（ゆるふわ設定）
+linters:
+  disable-all: true
+  enable:
+    - govet      # 基本的なバグ検知（必須）
+    - errcheck   # エラーのハンドリング漏れ（超重要）
+    - staticcheck # go vetより高度なバグ検知（重要）
+    - unused     # 使っていない変数や関数を検知
+    - goimports  # importの自動整理
