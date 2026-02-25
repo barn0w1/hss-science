@@ -17,10 +17,15 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate', // 自動で最新版に更新する
       injectRegister: 'auto', // サービスワーカーを自動登録
+      
+      workbox: {
+        navigateFallbackDenylist: [/^\/api/],
+      },
+      
       manifest: {
-        name: 'Chat',
-        short_name: 'Chat',
-        description: 'Chat application for HSS Science',
+        name: 'Drive',
+        short_name: 'Drive',
+        description: 'Drive application for HSS Science',
         theme_color: '#ffffff', // アプリのヘッダーなどのテーマカラー
         background_color: '#ffffff', // 起動時の背景色
         display: 'standalone', // ブラウザのUIを消してネイティブアプリのように見せる

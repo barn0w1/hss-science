@@ -17,6 +17,11 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate', // 自動で最新版に更新する
       injectRegister: 'auto', // サービスワーカーを自動登録
+
+      workbox: {
+        navigateFallbackDenylist: [/^\/api\//],
+      },
+
       manifest: {
         name: 'Chat',
         short_name: 'Chat',
