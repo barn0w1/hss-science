@@ -103,7 +103,9 @@ func main() {
 
 	// Health check endpoint for container orchestration probes
 	router.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		if err := store.Health(r.Context()); err != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		if err := store.Health(ctx); err != nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_, _ = w.Write([]byte("unhealthy"))
 			return
