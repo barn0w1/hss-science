@@ -48,7 +48,9 @@
 <body>
     <div class="container">
         <h1>Sign in to continue</h1>
-        <a href="/login/google?authRequestID={{.AuthRequestID}}" class="btn">Sign in with Google</a>
+        {{range .Providers}}
+        <a href="{{.URL}}" class="btn">{{.Label}}</a>
+        {{end}}
     </div>
 </body>
 </html>
