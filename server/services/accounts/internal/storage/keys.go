@@ -79,7 +79,10 @@ func LoadOrGenerateSigningKey(db *sqlx.DB) (*signingKey, error) {
 	}
 
 	privPEM := encodePrivateKey(privateKey)
-	pubPEM := encodePublicKey(&privateKey.PublicKey)
+	pubPEM, err := encodePublicKey(&privateKey.PublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("encode public key: %w", err)
+	}
 	keyID := uuid.NewString()
 
 	_, err = db.Exec(`INSERT INTO signing_keys (id, algorithm, private_key_pem, public_key_pem, active)
@@ -139,15 +142,15 @@ func encodePrivateKey(key *rsa.PrivateKey) []byte {
 	})
 }
 
-func encodePublicKey(key *rsa.PublicKey) []byte {
+func encodePublicKey(key *rsa.PublicKey) ([]byte, error) {
 	pubBytes, err := x509.MarshalPKIXPublicKey(key)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("marshal public key: %w", err)
 	}
 	return pem.EncodeToMemory(&pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: pubBytes,
-	})
+	}), nil
 }
 
 func decodePrivateKey(data []byte) (*rsa.PrivateKey, error) {

@@ -2,17 +2,24 @@ package database
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 )
 
-// MustConnect creates a new PostgreSQL connection pool and verifies connectivity.
-// It panics if the connection cannot be established.
-func MustConnect(dsn string) *sqlx.DB {
+// Connect creates a new PostgreSQL connection pool and verifies connectivity.
+func Connect(dsn string) (*sqlx.DB, error) {
 	db, err := sqlx.Connect("postgres", dsn)
 	if err != nil {
-		panic(fmt.Sprintf("failed to connect to database: %v", err))
+		return nil, fmt.Errorf("connect to database: %w", err)
 	}
-	return db
+	return db, nil
+}
+
+// Configure sets connection pool parameters on the database handle.
+func Configure(db *sqlx.DB, maxOpen, maxIdle int, maxLifetime time.Duration) {
+	db.SetMaxOpenConns(maxOpen)
+	db.SetMaxIdleConns(maxIdle)
+	db.SetConnMaxLifetime(maxLifetime)
 }

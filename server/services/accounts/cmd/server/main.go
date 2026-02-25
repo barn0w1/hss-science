@@ -39,41 +39,56 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 
 	// Connect to PostgreSQL
-	db := database.MustConnect(cfg.DatabaseURL)
+	db, err := database.Connect(cfg.DatabaseURL)
+	if err != nil {
+		logger.Error("database connection failed", "error", err)
+		os.Exit(1)
+	}
 	defer db.Close()
+	database.Configure(db, cfg.DBMaxOpenConns, cfg.DBMaxIdleConns, cfg.DBConnMaxLifetime)
 	logger.Info("connected to database")
 
 	// Load or generate RSA signing key
 	sk, err := storage.LoadOrGenerateSigningKey(db)
 	if err != nil {
-		log.Fatalf("signing key: %v", err)
+		logger.Error("signing key initialization failed", "error", err)
+		os.Exit(1)
 	}
 	logger.Info("signing key ready")
 
 	// Create storage layer
-	store := storage.NewPostgresStorage(db, sk, logger)
+	store := storage.NewPostgresStorage(db, sk, logger,
+		cfg.AccessTokenLifetime, cfg.RefreshTokenLifetime, cfg.IDTokenLifetime)
 
 	// Create Google authentication provider
 	googleProvider, err := authn.NewGoogleProvider(ctx, cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURI)
 	if err != nil {
-		log.Fatalf("google provider: %v", err)
+		logger.Error("google provider initialization failed", "error", err)
+		os.Exit(1)
 	}
 	logger.Info("google authn provider initialized")
 
 	// Create OpenID Provider
 	provider, err := newOP(cfg, store, logger)
 	if err != nil {
-		log.Fatalf("openid provider: %v", err)
+		logger.Error("openid provider initialization failed", "error", err)
+		os.Exit(1)
 	}
 
 	// Create login handler
-	loginHandler := web.NewLogin(
+	loginHandler, err := web.NewLogin(
 		store,
 		googleProvider,
 		op.AuthCallbackURL(provider),
 		op.NewIssuerInterceptor(provider.IssuerFromRequest),
+		cfg.EncryptionKey,
+		cfg.DevMode,
 		logger.With("component", "login"),
 	)
+	if err != nil {
+		logger.Error("login handler initialization failed", "error", err)
+		os.Exit(1)
+	}
 
 	// Build router
 	router := chi.NewRouter()
@@ -84,6 +99,16 @@ func main() {
 	// Post-logout landing page
 	router.HandleFunc("/logged-out", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("signed out successfully"))
+	})
+
+	// Health check endpoint for container orchestration probes
+	router.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		if err := store.Health(r.Context()); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("unhealthy"))
+			return
+		}
+		_, _ = w.Write([]byte("ok"))
 	})
 
 	// Mount login UI
@@ -97,12 +122,16 @@ func main() {
 		Addr:              ":" + cfg.Port,
 		Handler:           router,
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	go func() {
 		logger.Info("server starting", "port", cfg.Port, "issuer", cfg.Issuer)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server: %v", err)
+			logger.Error("server failed", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -112,7 +141,8 @@ func main() {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Fatalf("shutdown: %v", err)
+		logger.Error("shutdown failed", "error", err)
+		os.Exit(1)
 	}
 	logger.Info("server stopped")
 }

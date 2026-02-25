@@ -91,6 +91,10 @@ func (g *GoogleProvider) HandleCallback(ctx context.Context, r *http.Request) (*
 		return nil, fmt.Errorf("parse id_token claims: %w", err)
 	}
 
+	if !claims.EmailVerified {
+		return nil, fmt.Errorf("google: email address not verified")
+	}
+
 	return &Identity{
 		Provider:      "google",
 		ExternalSub:   claims.Sub,
