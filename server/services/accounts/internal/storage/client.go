@@ -79,9 +79,9 @@ func (c *Client) GrantTypes() []oidc.GrantType {
 }
 
 // LoginURL returns the URL the OP will redirect to for user login.
-// This directs users to the Google login flow with the auth request ID as a query parameter.
+// Routing through /login/select lets users choose among available providers.
 func (c *Client) LoginURL(id string) string {
-	return "/login/google?authRequestID=" + id
+	return "/login/select?authRequestID=" + id
 }
 
 func (c *Client) AccessTokenType() op.AccessTokenType {

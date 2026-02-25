@@ -21,6 +21,13 @@ const (
 	queryAuthReqID = "authRequestID"
 )
 
+// providerLink holds the display label and destination URL for one identity provider
+// on the login selection page.
+type providerLink struct {
+	Label string
+	URL   string
+}
+
 // Login handles the authentication UI and upstream provider callbacks.
 type Login struct {
 	storage     *storage.PostgresStorage
@@ -48,6 +55,7 @@ func NewLogin(
 	}
 
 	l.router = chi.NewRouter()
+	l.router.Get("/select", l.selectHandler)
 	l.router.Get("/google", l.googleLoginHandler)
 	l.router.Get("/callback", interceptor.HandlerFunc(l.callbackHandler))
 	return l
@@ -56,6 +64,33 @@ func NewLogin(
 // Router returns the chi router for mounting.
 func (l *Login) Router() chi.Router {
 	return l.router
+}
+
+// selectHandler renders the login provider selection page.
+// It builds a list of available providers and passes them to the template so
+// each provider can be added without touching HTML.
+func (l *Login) selectHandler(w http.ResponseWriter, r *http.Request) {
+	authRequestID := r.URL.Query().Get(queryAuthReqID)
+	if authRequestID == "" {
+		l.renderError(w, "missing auth request ID", http.StatusBadRequest)
+		return
+	}
+
+	data := struct {
+		Providers []providerLink
+	}{
+		Providers: []providerLink{
+			{
+				Label: "Sign in with " + l.provider.Name(),
+				URL:   "/login/google?authRequestID=" + authRequestID,
+			},
+		},
+	}
+
+	if err := templates.ExecuteTemplate(w, "login.html", data); err != nil {
+		l.logger.Error("failed to render login template", "error", err)
+		l.renderError(w, "internal error", http.StatusInternalServerError)
+	}
 }
 
 // googleLoginHandler initiates the upstream Google OIDC flow.
