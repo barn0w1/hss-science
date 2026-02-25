@@ -5,28 +5,5 @@ package hss_science.accounts.v1;
 option go_package = "github.com/barn0w1/hss-science/server/gen/accounts/v1;accountsv1";
 
 service AccountsService {
-  // LoginUser performs JIT user provisioning and creates a new session.
-  // Called by domain BFFs after successful OIDC authentication.
-  // Returns minted JWTs (access + refresh tokens).
-  rpc LoginUser(LoginUserRequest) returns (LoginUserResponse);
-}
-
-// DeviceInfo captures client metadata for multi-device session tracking.
-message DeviceInfo {
-  string ip_address = 1;
-  string user_agent = 2;
-}
-
-message LoginUserRequest {
-  string google_id = 1;
-  string email = 2;
-  string name = 3;
-  string picture = 4;
-  DeviceInfo device_info = 5;
-}
-
-message LoginUserResponse {
-  string user_id = 1;
-  string access_token = 2;
-  string refresh_token = 3;
+  
 }

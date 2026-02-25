@@ -14,13 +14,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: accounts-grpc
+          - name: accounts-idp
             path: server/services/accounts
             build: ./services/accounts/...
-
-          - name: drive-bff
-            path: server/bff/drive
-            build: ./bff/drive/...
 
     steps:
       - uses: actions/checkout@v4
@@ -43,7 +39,8 @@ jobs:
         if: steps.filter.outputs.changed == 'true'
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.5'
+          # バージョンをハードコードせず、go.mod を参照するように変更
+          go-version-file: 'server/go.mod'
           cache: true
           cache-dependency-path: server/go.sum
 
@@ -91,19 +88,22 @@ jobs:
               - 'web/package.json'
               - 'web/pnpm-lock.yaml'
 
-      # Set up Node.js (Node 24)
-      - name: Set up Node.js
-        if: steps.filter.outputs.changed == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-
-      # Install pnpm
+      # Install pnpm (Node.jsのキャッシュを効かせるため、先に実行するように順序を変更)
       - name: Install pnpm
         if: steps.filter.outputs.changed == 'true'
         uses: pnpm/action-setup@v3
         with:
           version: 9
+
+      # Set up Node.js
+      - name: Set up Node.js
+        if: steps.filter.outputs.changed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          # pnpm の依存関係キャッシュを有効化
+          cache: 'pnpm'
+          cache-dependency-path: 'web/pnpm-lock.yaml'
 
       # Install Dependencies
       - name: Install Dependencies
