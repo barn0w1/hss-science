@@ -1,10 +1,10 @@
 # OpenAPI Codegen
 OAPI_CODEGEN := go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
 
-.PHONY: gen-all gen-drive gen-proto gen-keys
+.PHONY: gen-all gen-proto gen-drive gen-chat
 
 # gen all
-gen-all: gen-proto gen-drive
+gen-all: gen-proto gen-drive gen-chat
 
 # Drive API
 gen-drive:
@@ -15,13 +15,14 @@ gen-drive:
 		-o server/bff/gen/drive/v1/drive.gen.go \
 		api/openapi/drive/v1/drive.yaml
 
+gen-chat:
+	@echo "Generating Chat API..."
+	@mkdir -p server/bff/gen/chat/v1
+	$(OAPI_CODEGEN) \
+		-config api/openapi/chat/v1/oapi-codegen.yaml \
+		-o server/bff/gen/chat/v1/chat.gen.go \
+		api/openapi/chat/v1/chat.yaml
+
 # protobuf code generation
 gen-proto:
 	buf generate
-
-# Generate Ed25519 key pair for local development
-gen-keys:
-	@echo "Generating Ed25519 key pair for development..."
-	openssl genpkey -algorithm Ed25519 -out dev_ed25519_private.pem
-	openssl pkey -in dev_ed25519_private.pem -pubout -out dev_ed25519_public.pem
-	@echo "Keys generated: dev_ed25519_private.pem, dev_ed25519_public.pem"
