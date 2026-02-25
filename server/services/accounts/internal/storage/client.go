@@ -4,9 +4,29 @@ import (
 	"time"
 
 	"github.com/lib/pq"
+
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"github.com/zitadel/oidc/v3/pkg/op"
 )
+
+// allowedAdditionalScopes defines which non-standard OIDC scopes are permitted
+// in access tokens and ID tokens. The zitadel framework handles openid, phone,
+// and address internally; this filter applies to everything else.
+var allowedAdditionalScopes = map[string]bool{
+	oidc.ScopeEmail:         true,
+	oidc.ScopeProfile:       true,
+	oidc.ScopeOfflineAccess: true,
+}
+
+func filterAllowedScopes(scopes []string) []string {
+	filtered := make([]string, 0, len(scopes))
+	for _, s := range scopes {
+		if allowedAdditionalScopes[s] {
+			filtered = append(filtered, s)
+		}
+	}
+	return filtered
+}
 
 // Client represents an OAuth2/OIDC client stored in PostgreSQL.
 // It implements the op.Client interface.
@@ -24,6 +44,10 @@ type Client struct {
 	ClockSkewSeconds          int            `db:"clock_skew_seconds"`
 	IsServiceAccount          bool           `db:"is_service_account"`
 	CreatedAt                 time.Time      `db:"created_at"`
+
+	// idTokenTTL is set by the storage layer from global configuration.
+	// It is not stored in the database.
+	idTokenTTL time.Duration `db:"-"`
 }
 
 func (c *Client) GetID() string {
@@ -92,6 +116,9 @@ func (c *Client) AccessTokenType() op.AccessTokenType {
 }
 
 func (c *Client) IDTokenLifetime() time.Duration {
+	if c.idTokenTTL > 0 {
+		return c.idTokenTTL
+	}
 	return 1 * time.Hour
 }
 
@@ -100,19 +127,15 @@ func (c *Client) DevMode() bool {
 }
 
 func (c *Client) RestrictAdditionalIdTokenScopes() func(scopes []string) []string {
-	return func(scopes []string) []string {
-		return scopes
-	}
+	return filterAllowedScopes
 }
 
 func (c *Client) RestrictAdditionalAccessTokenScopes() func(scopes []string) []string {
-	return func(scopes []string) []string {
-		return scopes
-	}
+	return filterAllowedScopes
 }
 
 func (c *Client) IsScopeAllowed(scope string) bool {
-	return false
+	return scope == oidc.ScopeOfflineAccess
 }
 
 func (c *Client) IDTokenUserinfoClaimsAssertion() bool {

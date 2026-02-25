@@ -24,20 +24,35 @@ var (
 	_ op.ClientCredentialsStorage = &PostgresStorage{}
 )
 
+// Sentinel errors for common storage conditions.
+var (
+	ErrAuthRequestNotFound = errors.New("auth request not found")
+	ErrCodeInvalid         = errors.New("authorization code invalid or expired")
+	ErrTokenInvalid        = errors.New("token invalid or expired")
+	ErrClientNotFound      = errors.New("client not found")
+	ErrUserNotFound        = errors.New("user not found")
+)
+
 // PostgresStorage implements op.Storage and op.ClientCredentialsStorage
 // with all state persisted in PostgreSQL.
 type PostgresStorage struct {
-	db         *sqlx.DB
-	logger     *slog.Logger
-	signingKey *signingKey
+	db                   *sqlx.DB
+	logger               *slog.Logger
+	signingKey           *signingKey
+	accessTokenLifetime  time.Duration
+	refreshTokenLifetime time.Duration
+	idTokenLifetime      time.Duration
 }
 
 // NewPostgresStorage creates a new storage backed by PostgreSQL.
-func NewPostgresStorage(db *sqlx.DB, sk *signingKey, logger *slog.Logger) *PostgresStorage {
+func NewPostgresStorage(db *sqlx.DB, sk *signingKey, logger *slog.Logger, accessTTL, refreshTTL, idTokenTTL time.Duration) *PostgresStorage {
 	return &PostgresStorage{
-		db:         db,
-		logger:     logger,
-		signingKey: sk,
+		db:                   db,
+		logger:               logger,
+		signingKey:           sk,
+		accessTokenLifetime:  accessTTL,
+		refreshTokenLifetime: refreshTTL,
+		idTokenLifetime:      idTokenTTL,
 	}
 }
 
@@ -94,7 +109,7 @@ func (s *PostgresStorage) AuthRequestByID(ctx context.Context, id string) (op.Au
 		 FROM auth_requests WHERE id = $1`, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("request not found")
+			return nil, ErrAuthRequestNotFound
 		}
 		return nil, fmt.Errorf("get auth request: %w", err)
 	}
@@ -114,7 +129,7 @@ func (s *PostgresStorage) AuthRequestByCode(ctx context.Context, code string) (o
 		 WHERE ac.code = $1`, code)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("code invalid or expired")
+			return nil, ErrCodeInvalid
 		}
 		return nil, fmt.Errorf("get auth request by code: %w", err)
 	}
@@ -150,7 +165,7 @@ func (s *PostgresStorage) CompleteAuthRequest(ctx context.Context, authRequestID
 	}
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
-		return fmt.Errorf("auth request not found: %s", authRequestID)
+		return fmt.Errorf("%w: %s", ErrAuthRequestNotFound, authRequestID)
 	}
 	return nil
 }
@@ -170,7 +185,7 @@ func (s *PostgresStorage) CreateAccessToken(ctx context.Context, request op.Toke
 	}
 
 	tokenID := uuid.NewString()
-	expiresAt := time.Now().Add(5 * time.Minute)
+	expiresAt := time.Now().Add(s.accessTokenLifetime)
 
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO access_tokens (id, client_id, subject, audience, scopes, expires_at)
@@ -197,9 +212,9 @@ func (s *PostgresStorage) CreateAccessAndRefreshTokens(ctx context.Context, requ
 	defer func() { _ = tx.Rollback() }()
 
 	accessTokenID := uuid.NewString()
-	accessExpiresAt := time.Now().Add(5 * time.Minute)
+	accessExpiresAt := time.Now().Add(s.accessTokenLifetime)
 	newRefreshTokenValue := uuid.NewString()
-	refreshExpiresAt := time.Now().Add(5 * time.Hour)
+	refreshExpiresAt := time.Now().Add(s.refreshTokenLifetime)
 
 	// Create access token
 	_, err = tx.ExecContext(ctx,
@@ -286,15 +301,22 @@ func (s *PostgresStorage) TokenRequestByRefreshToken(ctx context.Context, refres
 
 // TerminateSession removes all tokens for a user/client pair (logout).
 func (s *PostgresStorage) TerminateSession(ctx context.Context, userID string, clientID string) error {
-	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM access_tokens WHERE subject = $1 AND client_id = $2`, userID, clientID)
+	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM access_tokens WHERE subject = $1 AND client_id = $2`, userID, clientID); err != nil {
 		return fmt.Errorf("delete access tokens: %w", err)
 	}
-	_, err = s.db.ExecContext(ctx,
-		`DELETE FROM refresh_tokens WHERE user_id = $1 AND client_id = $2`, userID, clientID)
-	if err != nil {
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM refresh_tokens WHERE user_id = $1 AND client_id = $2`, userID, clientID); err != nil {
 		return fmt.Errorf("delete refresh tokens: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
 	}
 	return nil
 }
@@ -373,10 +395,11 @@ func (s *PostgresStorage) GetClientByClientID(ctx context.Context, clientID stri
 		 FROM clients WHERE id = $1`, clientID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("client not found")
+			return nil, ErrClientNotFound
 		}
 		return nil, fmt.Errorf("get client: %w", err)
 	}
+	client.idTokenTTL = s.idTokenLifetime
 	return &client, nil
 }
 
@@ -384,14 +407,11 @@ func (s *PostgresStorage) AuthorizeClientIDSecret(ctx context.Context, clientID,
 	var secretHash *string
 	err := s.db.QueryRowContext(ctx,
 		`SELECT secret_hash FROM clients WHERE id = $1`, clientID).Scan(&secretHash)
-	if err != nil {
-		return fmt.Errorf("client not found")
-	}
-	if secretHash == nil {
-		return fmt.Errorf("client has no secret configured")
+	if err != nil || secretHash == nil {
+		return fmt.Errorf("invalid client credentials")
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(*secretHash), []byte(clientSecret)); err != nil {
-		return fmt.Errorf("invalid client secret")
+		return fmt.Errorf("invalid client credentials")
 	}
 	return nil
 }
@@ -400,7 +420,10 @@ func (s *PostgresStorage) AuthorizeClientIDSecret(ctx context.Context, clientID,
 // UserInfo
 // ---------------------------------------------------------------------------
 
-// SetUserinfoFromScopes implements op.Storage. Use SetUserinfoFromRequest instead.
+// SetUserinfoFromScopes implements op.Storage but is intentionally a no-op.
+// This service implements op.CanSetUserinfoFromRequest, so the OP framework
+// calls SetUserinfoFromRequest instead, which receives the full IDTokenRequest
+// including client context.
 func (s *PostgresStorage) SetUserinfoFromScopes(ctx context.Context, userinfo *oidc.UserInfo, userID, clientID string, scopes []string) error {
 	return nil
 }
@@ -417,10 +440,10 @@ func (s *PostgresStorage) SetUserinfoFromToken(ctx context.Context, userinfo *oi
 		`SELECT id, client_id, subject, audience, scopes, expires_at
 		 FROM access_tokens WHERE id = $1`, tokenID)
 	if err != nil {
-		return fmt.Errorf("token is invalid or has expired")
+		return ErrTokenInvalid
 	}
 	if t.ExpiresAt.Before(time.Now()) {
-		return fmt.Errorf("token is expired")
+		return ErrTokenInvalid
 	}
 	return s.populateUserinfo(ctx, userinfo, t.Subject, []string(t.Scopes))
 }
@@ -432,12 +455,12 @@ func (s *PostgresStorage) SetIntrospectionFromToken(ctx context.Context, introsp
 		`SELECT id, client_id, subject, audience, scopes, expires_at
 		 FROM access_tokens WHERE id = $1`, tokenID)
 	if err != nil {
-		return fmt.Errorf("token is invalid")
+		return ErrTokenInvalid
 	}
 
 	introspection.Expiration = oidc.FromTime(t.ExpiresAt)
 	if t.ExpiresAt.Before(time.Now()) {
-		return fmt.Errorf("token is expired")
+		return ErrTokenInvalid
 	}
 
 	for _, aud := range t.Audience {
@@ -457,9 +480,11 @@ func (s *PostgresStorage) SetIntrospectionFromToken(ctx context.Context, introsp
 
 func (s *PostgresStorage) populateUserinfo(ctx context.Context, userinfo *oidc.UserInfo, userID string, scopes []string) error {
 	var user User
-	err := s.db.GetContext(ctx, &user, `SELECT * FROM users WHERE id = $1`, userID)
+	err := s.db.GetContext(ctx, &user,
+		`SELECT id, email, email_verified, given_name, family_name, picture, locale, created_at, updated_at
+		 FROM users WHERE id = $1`, userID)
 	if err != nil {
-		return fmt.Errorf("user not found")
+		return ErrUserNotFound
 	}
 	setUserinfo(&user, userinfo, scopes)
 	return nil
@@ -511,11 +536,12 @@ func (s *PostgresStorage) ClientCredentials(ctx context.Context, clientID, clien
 		return nil, fmt.Errorf("invalid client credentials")
 	}
 	if client.SecretHash == nil {
-		return nil, fmt.Errorf("client has no secret configured")
+		return nil, fmt.Errorf("invalid client credentials")
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(*client.SecretHash), []byte(clientSecret)); err != nil {
 		return nil, fmt.Errorf("invalid client credentials")
 	}
+	client.idTokenTTL = s.idTokenLifetime
 	return &client, nil
 }
 
@@ -547,7 +573,7 @@ func (s *PostgresStorage) FindOrCreateUser(ctx context.Context, provider, extern
 			`UPDATE users SET email = $1, email_verified = $2, given_name = $3, family_name = $4,
 			        picture = $5, locale = $6, updated_at = now()
 			 WHERE id = $7
-			 RETURNING *`,
+			 RETURNING id, email, email_verified, given_name, family_name, picture, locale, created_at, updated_at`,
 			profile.Email, profile.EmailVerified, profile.GivenName, profile.FamilyName,
 			profile.Picture, profile.Locale, userID)
 		if err != nil {

@@ -2,15 +2,21 @@ package web
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/zitadel/oidc/v3/pkg/op"
+	"golang.org/x/crypto/hkdf"
 
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/authn"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/storage"
@@ -36,6 +42,18 @@ type Login struct {
 	interceptor *op.IssuerInterceptor
 	logger      *slog.Logger
 	router      chi.Router
+	stateKey    []byte
+	devMode     bool
+}
+
+// deriveStateKey derives a dedicated HMAC key from the encryption key using HKDF-SHA256.
+func deriveStateKey(encryptionKey [32]byte) ([]byte, error) {
+	hkdfReader := hkdf.New(sha256.New, encryptionKey[:], nil, []byte("oidc-state-v1"))
+	key := make([]byte, 32)
+	if _, err := io.ReadFull(hkdfReader, key); err != nil {
+		return nil, fmt.Errorf("derive state key: %w", err)
+	}
+	return key, nil
 }
 
 // NewLogin creates the login handler and configures routes.
@@ -44,21 +62,30 @@ func NewLogin(
 	provider authn.AuthnProvider,
 	opCallback func(context.Context, string) string,
 	interceptor *op.IssuerInterceptor,
+	encryptionKey [32]byte,
+	devMode bool,
 	logger *slog.Logger,
-) *Login {
+) (*Login, error) {
+	stateKey, err := deriveStateKey(encryptionKey)
+	if err != nil {
+		return nil, err
+	}
+
 	l := &Login{
 		storage:     store,
 		provider:    provider,
 		opCallback:  opCallback,
 		interceptor: interceptor,
 		logger:      logger,
+		stateKey:    stateKey,
+		devMode:     devMode,
 	}
 
 	l.router = chi.NewRouter()
 	l.router.Get("/select", l.selectHandler)
 	l.router.Get("/google", l.googleLoginHandler)
 	l.router.Get("/callback", interceptor.HandlerFunc(l.callbackHandler))
-	return l
+	return l, nil
 }
 
 // Router returns the chi router for mounting.
@@ -73,6 +100,10 @@ func (l *Login) selectHandler(w http.ResponseWriter, r *http.Request) {
 	authRequestID := r.URL.Query().Get(queryAuthReqID)
 	if authRequestID == "" {
 		l.renderError(w, "missing auth request ID", http.StatusBadRequest)
+		return
+	}
+	if _, err := uuid.Parse(authRequestID); err != nil {
+		l.renderError(w, "invalid auth request ID", http.StatusBadRequest)
 		return
 	}
 
@@ -102,6 +133,10 @@ func (l *Login) googleLoginHandler(w http.ResponseWriter, r *http.Request) {
 		l.renderError(w, "missing auth request ID", http.StatusBadRequest)
 		return
 	}
+	if _, err := uuid.Parse(authRequestID); err != nil {
+		l.renderError(w, "invalid auth request ID", http.StatusBadRequest)
+		return
+	}
 
 	// Generate CSRF token
 	csrfToken, err := generateRandomString(32)
@@ -110,8 +145,8 @@ func (l *Login) googleLoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Encode authRequestID and CSRF token into OAuth2 state
-	state := encodeState(authRequestID, csrfToken)
+	// Encode authRequestID and CSRF token into HMAC-authenticated OAuth2 state
+	state := encodeState(l.stateKey, authRequestID, csrfToken)
 
 	// Set CSRF cookie
 	http.SetCookie(w, &http.Cookie{
@@ -120,7 +155,7 @@ func (l *Login) googleLoginHandler(w http.ResponseWriter, r *http.Request) {
 		Path:     "/login/callback",
 		MaxAge:   600,
 		HttpOnly: true,
-		Secure:   r.TLS != nil,
+		Secure:   !l.devMode,
 		SameSite: http.SameSiteLaxMode,
 	})
 
@@ -130,9 +165,9 @@ func (l *Login) googleLoginHandler(w http.ResponseWriter, r *http.Request) {
 
 // callbackHandler processes the callback from Google after authentication.
 func (l *Login) callbackHandler(w http.ResponseWriter, r *http.Request) {
-	// Decode state
+	// Decode and verify HMAC-authenticated state
 	state := r.URL.Query().Get("state")
-	authRequestID, csrfToken, err := decodeState(state)
+	authRequestID, csrfToken, err := decodeState(l.stateKey, state)
 	if err != nil {
 		l.logger.Error("invalid state parameter", "error", err)
 		l.renderError(w, "invalid state parameter", http.StatusBadRequest)
@@ -205,23 +240,51 @@ func (l *Login) renderError(w http.ResponseWriter, msg string, status int) {
 	}
 }
 
-// encodeState combines authRequestID and csrfToken into a single base64 string.
-func encodeState(authRequestID, csrfToken string) string {
-	raw := authRequestID + ":" + csrfToken
-	return base64.RawURLEncoding.EncodeToString([]byte(raw))
+// encodeState combines authRequestID and csrfToken into an HMAC-SHA256
+// authenticated base64url string. The MAC prevents state forgery.
+func encodeState(key []byte, authRequestID, csrfToken string) string {
+	payload := authRequestID + ":" + csrfToken
+	mac := computeHMAC(key, []byte(payload))
+	signed := payload + ":" + hex.EncodeToString(mac)
+	return base64.RawURLEncoding.EncodeToString([]byte(signed))
 }
 
-// decodeState splits a base64 state string back into authRequestID and csrfToken.
-func decodeState(state string) (authRequestID, csrfToken string, err error) {
+// decodeState verifies the HMAC and splits the state back into authRequestID and csrfToken.
+func decodeState(key []byte, state string) (authRequestID, csrfToken string, err error) {
 	raw, err := base64.RawURLEncoding.DecodeString(state)
 	if err != nil {
 		return "", "", fmt.Errorf("decode state: %w", err)
 	}
-	parts := strings.SplitN(string(raw), ":", 2)
-	if len(parts) != 2 {
+
+	// Split into payload parts and MAC: "authRequestID:csrfToken:hexMAC"
+	lastColon := strings.LastIndex(string(raw), ":")
+	if lastColon < 0 {
 		return "", "", fmt.Errorf("malformed state")
 	}
+	payload := string(raw[:lastColon])
+	macHex := string(raw[lastColon+1:])
+
+	// Verify HMAC
+	expectedMAC, err := hex.DecodeString(macHex)
+	if err != nil {
+		return "", "", fmt.Errorf("malformed state MAC")
+	}
+	if !hmac.Equal(computeHMAC(key, []byte(payload)), expectedMAC) {
+		return "", "", fmt.Errorf("state HMAC verification failed")
+	}
+
+	// Split payload into authRequestID and csrfToken
+	parts := strings.SplitN(payload, ":", 2)
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("malformed state payload")
+	}
 	return parts[0], parts[1], nil
+}
+
+func computeHMAC(key, data []byte) []byte {
+	h := hmac.New(sha256.New, key)
+	h.Write(data)
+	return h.Sum(nil)
 }
 
 func generateRandomString(n int) (string, error) {
