@@ -13,6 +13,7 @@ While `accounts-idp` acts as a Relying Party (RP) to upstream providers (like Go
 - **Database**: PostgreSQL. Use `database/sql` + `jmoiron/sqlx` for queries. **NO heavy ORMs**.
 - **Architecture**: Strictly follow 12-Factor App principles. Must be stateless, use ENV for configurations, and use standard `log/slog` for structured JSON logging.
 - **Database Migrations**: Do NOT write migration logic or scripts in the Go application code. Assume the database schema is already applied. You only need to define the expected schema in a separate `.sql` file.
+- **No OpenAPI / No gRPC**: Unlike our other microservices, `accounts-idp` relies entirely on standard OIDC protocol endpoints and HTML web UI rendering. **Do NOT create OpenAPI specifications, gRPC protobufs, or use code generators like `oapi-codegen` for this service.**
 
 # Core Architectural Requirements
 
@@ -34,3 +35,44 @@ While `accounts-idp` acts as a Relying Party (RP) to upstream providers (like Go
   4. **Upstream Callback**: Upon a successful callback from the upstream OP, extract the external user identifier and profile data.
   5. **Identity Mapping**: Look up or conditionally provision the user in our local PostgreSQL database, mapping the external identity to our system's internal user identifier.
   6. **Completion**: Retrieve the original authorization request context, complete it within the `zitadel/oidc` library using the resolved internal user identifier, and let the library handle the final standard OIDC redirection back to the downstream RP.
+
+# Current directory structure, excluding the web directory
+```txt
+.
+├── .github
+│   └── workflows
+│       ├── ci2.yaml
+│       └── release.yaml
+├── .gitignore
+├── Makefile
+├── README.md
+├── api
+│   ├── openapi
+│   │   ├── chat
+│   │   │   └── v1
+│   │   └── drive
+│   │       └── v1
+│   └── proto
+│       ├── accounts
+│       │   └── v1
+│       │       └── accounts.proto
+│       ├── chat
+│       │   └── v1
+│       └── drive
+│           └── v1
+│               └── drive.proto
+├── buf.gen.yaml
+├── buf.lock
+├── buf.yaml
+├── prompts
+│   └── IDP_REQUIREMENTS.md
+└── server
+    ├── .dockerignore
+    ├── .golangci.yaml
+    ├── bff
+    ├── go.mod
+    └── services
+        └── accounts
+            ├── Dockerfile
+            └── README.md
+```
