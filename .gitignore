@@ -36,4 +36,4 @@ go.work.sum
 
 node_modules/
 
-memo/
+.context
