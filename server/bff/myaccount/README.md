@@ -40,6 +40,23 @@ The browser never touches a token. It only ever holds an opaque, HTTP-Only sessi
 
 ---
 
+## Code Generation
+
+The HTTP API is **schema-driven**: [`api/openapi/myaccount/v1/openapi.yaml`](../../../../api/openapi/myaccount/v1/openapi.yaml) is the single source of truth.
+
+`oapi-codegen` generates the types, chi server wrapper, and strict server interface from the spec:
+
+```bash
+# From repo root
+make gen-myaccount
+```
+
+Output: `server/bff/gen/myaccount/v1/myaccount.gen.go`
+
+This file is checked in and **must not be edited by hand**. Re-generate it whenever `openapi.yaml` changes.
+
+---
+
 ## Directory Structure
 
 ```
@@ -53,13 +70,14 @@ server/bff/myaccount/
     ├── grpcclient/
     │   └── client.go                   # gRPC client wrapper + WithToken(ctx, token) helper
     └── handler/
-        ├── auth.go                     # Login / Callback / Logout / Session handlers (OIDC RP flow)
-        ├── profile.go                  # GET + PATCH /api/v1/profile → gRPC proxy
-        ├── linked_accounts.go          # GET + DELETE /api/v1/linked-accounts → gRPC proxy
-        ├── sessions.go                 # GET + DELETE /api/v1/sessions → gRPC proxy
-        ├── account.go                  # DELETE /api/v1/account → gRPC proxy
-        ├── convert.go                  # Proto response → REST JSON type converters
-        └── response.go                 # writeJSON / writeError / gRPC status → HTTP status mapping
+        ├── auth.go                     # Login / Callback handlers (OIDC RP flow, manual chi routes)
+        ├── server.go                   # StrictServerInterface implementation (all JSON endpoints)
+        ├── httpctx.go                  # Strict middleware: injects http.ResponseWriter into context
+        ├── convert.go                  # Proto message → generated OpenAPI type converters
+        └── response.go                 # apiError / mapGRPCError / HandleStrictError helpers
+
+server/bff/gen/myaccount/v1/
+└── myaccount.gen.go                    # Generated: types, ServerInterface, StrictServerInterface
 ```
 
 ---
@@ -68,18 +86,20 @@ server/bff/myaccount/
 
 | Decision | Rationale |
 |----------|-----------|
+| **Schema-driven** | `openapi.yaml` → `oapi-codegen` → `StrictServerInterface`. Handlers are compile-time checked against the spec. Adding or changing an endpoint means editing the spec first. |
 | **No tokens in the browser** | The SPA only sends an opaque session cookie. Tokens live in Redis, keyed by random 64-byte hex IDs. XSS cannot exfiltrate tokens. |
-| **`__Host-` cookie prefix** | `__Host-myaccount_session` enforces `Secure`, `Path=/`, and no `Domain` attribute, preventing subdomain cookie injection. In dev mode (`DEV_MODE=true`) falls back to `myaccount_session` (HTTP-safe). |
-| **PKCE S256** | `oauth2.S256ChallengeMethod` is used for the Authorization Code flow, protecting against authorization code interception. |
-| **OIDC state cookie** | `state\|nonce\|return_to` is stored in a short-lived cookie during the auth flow. Validated on callback to prevent CSRF and replay attacks. |
-| **gRPC metadata forwarding** | Each API handler calls `grpcclient.WithToken(ctx, session.AccessToken)` to attach the JWT as a Bearer token in gRPC metadata. The accounts-idp interceptor verifies the JWT and derives the user ID. |
+| **`__Host-` cookie prefix** | `__Host-myaccount_session` enforces `Secure`, `Path=/`, and no `Domain` attribute, preventing subdomain cookie injection. Falls back to `myaccount_session` in dev mode (`DEV_MODE=true`). |
+| **Login/Callback are manual routes** | These endpoints perform HTTP redirects and set cookies — they don't fit the JSON request/response model of `StrictServerInterface`. They stay as direct chi handlers. All other endpoints use the generated wrapper. |
+| **UserInfo fallback in Callback** | Some OIDC providers include `email`/`given_name`/etc. only in the UserInfo endpoint, not the ID token. The Callback handler falls back to `provider.UserInfo()` when ID token claims are empty. |
+| **OIDC state cookie** | `state|nonce|return_to` is stored in a short-lived cookie during the auth flow. Validated on callback to prevent CSRF and replay attacks. |
+| **gRPC metadata forwarding** | Each handler calls `grpcclient.WithToken(ctx, session.AccessToken)` to attach the JWT as a Bearer token in gRPC metadata. |
 | **Session invalidation on logout** | Logout deletes the Redis key before clearing the cookie, ensuring the session cannot be replayed even if the cookie was intercepted. |
 
 ---
 
 ## Prerequisites
 
-- Go 1.25.5+
+- Go 1.25+
 - Redis 7+
 - A running `accounts-idp` instance (HTTP `:8080` for OIDC discovery, gRPC `:9090` for API calls)
 - A registered `myaccount-bff` client in accounts-idp's `clients` table (see below)
@@ -89,8 +109,6 @@ server/bff/myaccount/
 ## Local Development
 
 ### 1. Register the BFF client in accounts-idp
-
-This step must be done once, against the accounts-idp PostgreSQL database:
 
 ```sql
 INSERT INTO clients (
@@ -115,8 +133,6 @@ INSERT INTO clients (
 ### 2. Start Redis
 
 ```bash
-redis-server
-# or via Docker:
 docker run -d -p 6379:6379 redis:7-alpine
 ```
 
@@ -125,7 +141,6 @@ docker run -d -p 6379:6379 redis:7-alpine
 ```bash
 cp server/bff/myaccount/.env.example server/bff/myaccount/.env
 # Fill in: OIDC_CLIENT_SECRET, SESSION_SECRET
-# Ensure OIDC_ISSUER matches accounts-idp's ISSUER value
 ```
 
 ### 4. Run the service
@@ -136,108 +151,76 @@ set -a && source bff/myaccount/.env && set +a
 go run ./bff/myaccount/cmd/server
 ```
 
-**Verify the service is up:**
+**Verify:**
 
 ```bash
-# Health check
-curl http://localhost:8081/healthz
-
-# Session endpoint (expect 401 with no cookie)
-curl -i http://localhost:8081/auth/session
-
-# Full OIDC login flow: open in browser
-open http://localhost:8081/auth/login
-```
-
-### 5. Run the SPA (optional)
-
-```bash
-cd web
-pnpm --filter myaccount dev
-# Vite dev server at http://localhost:5174
-# /auth and /api requests are proxied to http://localhost:8081
+curl http://localhost:8081/healthz          # → ok
+curl -i http://localhost:8081/auth/session  # → 401 (no cookie)
+open http://localhost:8081/auth/login       # full OIDC flow in browser
 ```
 
 ---
 
 ## Environment Variables
 
-See [`.env.example`](.env.example) for full descriptions and example values.
+See [`.env.example`](.env.example) for full descriptions.
 
 | Variable | Required | Default | Description |
 |----------|:--------:|---------|-------------|
 | `PORT` | | `8081` | HTTP server listen port |
 | `LOG_LEVEL` | | `info` | `debug` \| `info` \| `warn` \| `error` |
-| `DEV_MODE` | | `false` | Use plain `myaccount_session` cookie name (HTTP-safe). **Local dev only.** |
-| `OIDC_ISSUER` | ✓ | | accounts-idp base URL for OIDC discovery (e.g. `http://localhost:8080`) |
-| `OIDC_CLIENT_ID` | ✓ | | Client ID registered in accounts-idp (e.g. `myaccount-bff`) |
-| `OIDC_CLIENT_SECRET` | ✓ | | Client secret (plaintext); must match the bcrypt hash stored in accounts-idp |
-| `OIDC_REDIRECT_URI` | ✓ | | Must match the `redirect_uris` registered in accounts-idp (e.g. `http://localhost:8081/auth/callback`) |
+| `DEV_MODE` | | `false` | Plain cookie name, no HTTPS requirement. **Local dev only.** |
+| `OIDC_ISSUER` | ✓ | | accounts-idp base URL (e.g. `http://localhost:8080`) |
+| `OIDC_CLIENT_ID` | ✓ | | Client ID registered in accounts-idp |
+| `OIDC_CLIENT_SECRET` | ✓ | | Client secret (plaintext) |
+| `OIDC_REDIRECT_URI` | ✓ | | Must match `redirect_uris` in accounts-idp (e.g. `http://localhost:8081/auth/callback`) |
 | `REDIS_URL` | ✓ | | Redis connection URL (e.g. `redis://localhost:6379/0`) |
-| `SESSION_SECRET` | ✓ | | Base64-encoded 32-byte key for session ID integrity. Generate: `openssl rand -base64 32` |
+| `SESSION_SECRET` | ✓ | | Base64-encoded 32-byte key. Generate: `openssl rand -base64 32` |
 | `ACCOUNTS_GRPC_ADDR` | ✓ | | Host:port of accounts-idp gRPC server (e.g. `localhost:9090`) |
-| `SPA_ORIGIN` | ✓ | | SPA origin for CORS `AllowedOrigins` (e.g. `http://localhost:5174`) |
-| `SESSION_MAX_AGE` | | `24h` | Redis session TTL and cookie `Max-Age` (Go duration string) |
+| `SPA_ORIGIN` | ✓ | | SPA origin for CORS (e.g. `http://localhost:5174`) |
+| `SESSION_MAX_AGE` | | `24h` | Redis session TTL and cookie `Max-Age` |
 
 ---
 
 ## HTTP Endpoints
 
-All endpoints are on port 8081 by default.
+All endpoints are on port `8081` by default.
 
 ### Auth Endpoints
 
-| Method | Path | Auth required | Description |
-|--------|------|:-------------:|-------------|
-| `GET` | `/auth/login` | — | Redirect to accounts-idp authorization endpoint. Accepts optional `?return_to=` query param. |
-| `GET` | `/auth/callback` | — | Handle OIDC callback: validate state, exchange code, store session in Redis, set cookie, redirect to SPA. |
-| `POST` | `/auth/logout` | ✓ cookie | Delete Redis session, clear cookie. Returns `{"message": "logged out"}`. |
-| `GET` | `/auth/session` | ✓ cookie | Return cached session info (email, name, picture) without a gRPC call. Used by the SPA header. |
+| Method | Path | Auth | Description |
+|--------|------|:----:|-------------|
+| `GET` | `/auth/login` | — | Redirect to accounts-idp authorization endpoint. Accepts optional `?return_to=`. |
+| `GET` | `/auth/callback` | — | Handle OIDC callback: validate state, exchange code, store session, set cookie, redirect to SPA. |
+| `POST` | `/auth/logout` | ✓ | Delete Redis session, clear cookie. Returns `{"message": "logged out"}`. |
+| `GET` | `/auth/session` | ✓ | Return cached session info (user_id, email, given_name, family_name, picture). No gRPC call. |
 | `GET` | `/healthz` | — | Health probe. Returns `200 ok`. |
 
 ### API Endpoints
 
-All API endpoints require a valid session cookie. Session-less requests return `401`.
+All require a valid session cookie. Session-less requests return `401`.
 
 | Method | Path | gRPC RPC | Description |
 |--------|------|----------|-------------|
 | `GET` | `/api/v1/profile` | `GetProfile` | Return the authenticated user's profile |
-| `PATCH` | `/api/v1/profile` | `UpdateProfile` | Update mutable profile fields (given_name, family_name, picture, locale) |
+| `PATCH` | `/api/v1/profile` | `UpdateProfile` | Update profile fields (given_name, family_name, picture, locale) |
 | `GET` | `/api/v1/linked-accounts` | `ListLinkedAccounts` | List federated identity providers linked to the account |
-| `DELETE` | `/api/v1/linked-accounts/{id}` | `UnlinkAccount` | Remove a linked identity provider. Returns `409` if it is the only one. |
-| `GET` | `/api/v1/sessions` | `ListActiveSessions` | List active refresh token sessions |
+| `DELETE` | `/api/v1/linked-accounts/{id}` | `UnlinkAccount` | Remove a linked provider. Returns `409` if it is the only one. |
+| `GET` | `/api/v1/sessions` | `ListActiveSessions` | List active sessions |
 | `DELETE` | `/api/v1/sessions/{id}` | `RevokeSession` | Revoke a specific session |
 | `DELETE` | `/api/v1/account` | `DeleteAccount` | Permanently delete the account and all data |
 
-### Error responses
+### Error Responses
 
-All error responses use `application/json` with schema `{"code": "...", "message": "..."}`.
+All errors use `application/json` with schema `{"code": "...", "message": "..."}`.
 
-| HTTP status | Cause |
-|-------------|-------|
-| `400` | Invalid request parameters |
-| `401` | No session cookie, or session not found in Redis |
+| HTTP | Cause |
+|------|-------|
+| `400` | Invalid request parameters or body |
+| `401` | Missing or expired session cookie |
 | `404` | Resource not found (gRPC `NOT_FOUND`) |
-| `409` | Conflict, e.g. unlinking the only remaining identity (gRPC `FAILED_PRECONDITION`) |
-| `500` | Unexpected gRPC or internal error |
-
----
-
-## Session Data Structure
-
-Session data is JSON-serialized and stored in Redis under key `session:<id>`. TTL is `SESSION_MAX_AGE`.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `access_token` | string | JWT access token forwarded to gRPC calls |
-| `refresh_token` | string | Used to obtain new access tokens (not yet implemented in rotation logic) |
-| `id_token` | string | Raw ID token from the OP |
-| `user_id` | string (UUID) | Internal user ID |
-| `email` | string | User's email address |
-| `given_name` | string | First name |
-| `family_name` | string | Last name |
-| `picture` | string | Profile picture URL |
-| `expires_at` | time.Time | Session expiry (redundant with Redis TTL; used for informational display) |
+| `409` | Conflict, e.g. unlinking the only remaining identity |
+| `500` | Unexpected internal or gRPC error |
 
 ---
 
@@ -258,6 +241,7 @@ SPA / Browser              myaccount-bff               accounts-idp
      │                           │  Validate state cookie    │
      │                           │  Exchange code → tokens   │
      │                           │  Verify ID token + nonce  │
+     │                           │  Fetch UserInfo if needed │
      │                           │  Store session in Redis   │
      │◄─ 302 / (SPA) ────────────│  Set __Host-myaccount_    │
      │  Set-Cookie: session      │  session cookie           │
