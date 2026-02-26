@@ -10,11 +10,4 @@ export default defineConfig({
     },
   },
   plugins: [react(), tailwindcss()],
-  server: {
-    port: 5174,
-    proxy: {
-      '/auth': 'http://localhost:8081',
-      '/api': 'http://localhost:8081',
-    },
-  },
 })
