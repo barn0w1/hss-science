@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
 import { User, Shield, Settings, LogOut } from 'lucide-react';
 import { useSession } from '@/features/auth/hooks/useSession';
@@ -8,6 +9,12 @@ export const AccountLayout = () => {
   const { data: session, isLoading, isError } = useSession();
   const logout = useLogout();
 
+  useEffect(() => {
+    if (!isLoading && (isError || !session?.authenticated)) {
+      window.location.href = '/auth/login?return_to=' + encodeURIComponent(window.location.pathname);
+    }
+  }, [isLoading, isError, session]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -17,7 +24,6 @@ export const AccountLayout = () => {
   }
 
   if (isError || !session?.authenticated) {
-    window.location.href = '/auth/login?return_to=' + encodeURIComponent(window.location.pathname);
     return null;
   }
 
