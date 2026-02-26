@@ -1,6 +1,6 @@
 # accounts-idp
 
-A fully compliant **OpenID Connect Provider (OP)** for the HSS Science platform. It acts as the central identity authority for all downstream services (Drive, Chat, etc.), issuing ID tokens and access tokens that those services can verify.
+A fully compliant **OpenID Connect Provider (OP)** and **gRPC Resource Server (RS)** for the HSS Science platform. It is the central identity authority: it issues ID tokens and access tokens to downstream services, and exposes a gRPC API for reading and managing user data.
 
 Rather than managing passwords directly, it delegates user authentication to upstream identity providers — starting with Google — and maps external identities to stable internal user accounts.
 
@@ -9,30 +9,39 @@ Rather than managing passwords directly, it delegates user authentication to ups
 ## Architecture
 
 ```
-Downstream RP (e.g. Drive)
+Downstream RP (e.g. myaccount-bff)
         │
-        │  1. OIDC Authorization Code Flow
+        │  1. OIDC Authorization Code Flow (HTTP :8080)
         ▼
- accounts-idp  ◄─── This service (OpenID Provider)
+ accounts-idp  ◄─────────────────────────────── This service
+        │  ▲
+        │  │  2. User data API (gRPC :9090, JWT-authenticated)
+        │  └─ Internal callers (myaccount-bff, future services)
         │
-        │  2. Delegates AuthN to Google
+        │  3. Delegates AuthN to upstream IdP
         ▼
  Google OIDC   ◄─── Upstream identity provider
+        │
+        ▼
+   PostgreSQL   ◄─── Single source of truth for all identity data
 ```
 
 **Role summary:**
 
-| Role | Counterpart | Responsibility |
-|------|-------------|----------------|
-| OpenID Provider (OP) | Downstream services | Issue ID tokens, access tokens, refresh tokens |
-| Relying Party (RP) | Google | Delegate user authentication |
+| Role | Counterpart | Protocol | Responsibility |
+|------|-------------|----------|----------------|
+| OpenID Provider (OP) | Downstream RPs | HTTP | Issue ID tokens, access tokens, refresh tokens via OIDC |
+| Relying Party (RP) | Google (upstream) | HTTP | Delegate user authentication to the upstream IdP |
+| gRPC Resource Server (RS) | Internal services (e.g. BFF) | gRPC | Serve user profile, linked accounts, and sessions; handle account deletion |
 
 ### Key design decisions
 
 - **Pluggable authentication** — The upstream AuthN layer uses the Strategy pattern (`internal/authn`). Google is the first implementation; additional providers can be added without changing storage or the OIDC protocol layer.
-- **Stateless** — All state (auth requests, tokens, signing keys) lives in PostgreSQL. Multiple instances can run behind a load balancer without sticky sessions.
+- **Stateless HTTP server** — All state (auth requests, tokens, signing keys) lives in PostgreSQL. Multiple instances can run behind a load balancer without sticky sessions.
 - **Auto-provisioning** — On first login via Google, a local `users` record is created automatically and linked to the Google identity via `federated_identities`. Subsequent logins update the cached profile.
 - **RSA signing keys in DB** — The OP's RSA key pair is generated on first startup and persisted in PostgreSQL, so token signatures remain verifiable across restarts and deployments.
+- **JWT access tokens for gRPC clients** — Clients registered with `access_token_type = 'jwt'` receive verifiable JWTs. The gRPC interceptor checks them locally using `storage.LoadAllPublicKeys(db)` — no network call to `/introspect` or the JWKS endpoint.
+- **Dual server: HTTP + gRPC** — The HTTP OP and the gRPC RS run in the same process, sharing the database connection pool. The gRPC server listens on a separate port (`GRPC_PORT`, default `9090`).
 
 ---
 
@@ -48,98 +57,126 @@ Downstream RP (e.g. Drive)
 
 ### 1. Apply the database schema
 
-```bash
-psql -U postgres -d accounts -f server/services/accounts/migrations/001_initial_schema.sql
-```
+Migrations are **not** run at startup. Apply them before the service starts:
 
-> The application does not run migrations at startup. The schema must be applied externally before the service starts.
+```bash
+psql "$DATABASE_URL" -f server/services/accounts/migrations/000001_init.up.sql
+psql "$DATABASE_URL" -f server/services/accounts/migrations/000002_add_sessions_index.up.sql
+```
 
 ### 2. Seed downstream clients
 
-Add at least one client row to the `clients` table for the service you want to test with. Example for a public SPA:
+Add at least one client row to the `clients` table. The `access_token_type` column controls whether the OP issues opaque or signed JWT access tokens.
+
+**Server-side confidential client that calls the gRPC RS (e.g. myaccount-bff):**
 
 ```sql
-INSERT INTO clients (id, application_type, auth_method, redirect_uris, response_types, grant_types, access_token_type)
+INSERT INTO clients (id, secret_hash, application_type, auth_method, redirect_uris, response_types, grant_types, access_token_type)
 VALUES (
-  'my-spa',
-  'native',
-  'none',
-  '{"http://localhost:3000/callback"}',
+  'myaccount-bff',
+  -- bcrypt hash of the secret; generate with: htpasswd -bnBC 12 "" <secret> | tr -d ':\n'
+  '$2y$12$...',
+  'web',
+  'client_secret_post',
+  '{"http://localhost:8081/auth/callback"}',
   '{code}',
   '{authorization_code,refresh_token}',
-  'bearer'
+  'jwt'  -- required: the gRPC interceptor verifies JWTs locally; it cannot verify opaque tokens
 );
 ```
 
-For a service account that uses client credentials:
+**Public SPA (no gRPC RS access):**
 
 ```sql
-INSERT INTO clients (id, secret_hash, application_type, auth_method, grant_types, access_token_type, is_service_account)
-VALUES (
-  'internal-svc',
-  -- bcrypt hash of the secret; generate with: htpasswd -bnBC 12 "" <secret> | tr -d ':\n' | sed 's/\$apr1/\$2y/'
-  '$2y$12$...',
-  'web',
-  'client_secret_basic',
-  '{client_credentials}',
-  'bearer',
-  true
-);
+INSERT INTO clients (id, application_type, auth_method, redirect_uris, response_types, grant_types, access_token_type)
+VALUES ('my-spa', 'native', 'none', '{"http://localhost:3000/callback"}', '{code}', '{authorization_code,refresh_token}', 'bearer');
 ```
 
 ### 3. Configure environment variables
 
 ```bash
 cp server/services/accounts/.env.example server/services/accounts/.env
-# Edit .env and fill in GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and DATABASE_URL
+# Fill in: DATABASE_URL, ENCRYPTION_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
 ```
 
 ### 4. Run the service
 
 ```bash
 cd server
-# Source environment variables, then:
+set -a && source services/accounts/.env && set +a
 go run ./services/accounts/cmd/server
 ```
 
-The service starts on `http://localhost:8080`. Verify it is running:
+**Verify both servers are up:**
 
 ```bash
-curl http://localhost:8080/.well-known/openid-configuration | jq .
+# HTTP OP: OIDC discovery
+curl http://localhost:8080/.well-known/openid-configuration | jq .issuer
+
+# gRPC RS: service listing (requires grpcurl)
+grpcurl -plaintext localhost:9090 list
+# Expected output includes: hss_science.accounts.v1.AccountsService
 ```
 
 ---
 
 ## Environment Variables
 
-See [`.env.example`](.env.example) for the full list with descriptions. Quick reference:
+See [`.env.example`](.env.example) for full descriptions and example values.
 
 | Variable | Required | Default | Description |
 |----------|:--------:|---------|-------------|
-| `PORT` | | `8080` | HTTP listen port |
-| `ISSUER` | ✓ | | Full OP URL (e.g. `https://accounts.example.com`) |
+| `PORT` | | `8080` | HTTP server listen port |
+| `GRPC_PORT` | | `9090` | gRPC Resource Server listen port |
+| `ISSUER` | ✓ | | Full OP base URL (e.g. `https://accounts.example.com`). Used as the JWT `iss` claim and discovery document base. |
 | `DATABASE_URL` | ✓ | | PostgreSQL connection string |
-| `ENCRYPTION_KEY` | ✓ | | Base64-encoded 32-byte AES key (`openssl rand -base64 32`) |
+| `ENCRYPTION_KEY` | ✓ | | Base64-encoded 32-byte AES key. Used by zitadel/oidc to encrypt auth codes and internal state. |
 | `GOOGLE_CLIENT_ID` | ✓ | | Google OAuth2 client ID |
 | `GOOGLE_CLIENT_SECRET` | ✓ | | Google OAuth2 client secret |
-| `GOOGLE_REDIRECT_URI` | ✓ | | Callback URL; must match `<ISSUER>/login/callback` and be registered in Google Console |
-| `LOG_LEVEL` | | `info` | `debug`, `info`, `warn`, or `error` |
-| `DEV_MODE` | | `false` | Allow HTTP issuer (local dev only) |
+| `GOOGLE_REDIRECT_URI` | ✓ | | Must match `<ISSUER>/login/callback` and be listed in the Google Cloud Console |
+| `DEV_MODE` | | `false` | `true` allows an HTTP (non-HTTPS) issuer URL. **Local dev only.** |
+| `LOG_LEVEL` | | `info` | `debug` \| `info` \| `warn` \| `error` |
+| `DB_MAX_OPEN_CONNS` | | `25` | PostgreSQL pool: max open connections |
+| `DB_MAX_IDLE_CONNS` | | `5` | PostgreSQL pool: max idle connections |
+| `DB_CONN_MAX_LIFETIME` | | `5m` | PostgreSQL pool: max connection reuse duration (Go duration string) |
+| `ACCESS_TOKEN_LIFETIME` | | `5m` | Issued access token TTL (Go duration string) |
+| `REFRESH_TOKEN_LIFETIME` | | `5h` | Issued refresh token TTL (Go duration string) |
+| `ID_TOKEN_LIFETIME` | | `1h` | Issued ID token TTL (Go duration string) |
 
 ---
 
-## OIDC Endpoints
+## HTTP Endpoints (OpenID Provider, port 8080)
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /.well-known/openid-configuration` | Discovery document |
-| `GET /.well-known/jwks.json` | Public signing keys (JWKS) |
-| `GET /authorize` | Authorization endpoint |
-| `POST /token` | Token endpoint (code exchange, refresh, client credentials) |
-| `GET /userinfo` | UserInfo endpoint |
-| `POST /introspect` | Token introspection |
-| `POST /revoke` | Token revocation |
-| `GET /end_session` | Logout |
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/.well-known/openid-configuration` | OIDC discovery document |
+| `GET` | `/.well-known/jwks.json` | Public signing keys (JWKS) |
+| `GET` | `/authorize` | Authorization endpoint |
+| `POST` | `/token` | Token endpoint (authorization_code, refresh_token, client_credentials) |
+| `GET` | `/userinfo` | UserInfo endpoint (Bearer token required) |
+| `POST` | `/introspect` | Token introspection |
+| `POST` | `/revoke` | Token revocation |
+| `GET` | `/end_session` | RP-initiated logout |
+| `GET` | `/healthz` | Health probe: `200 ok` or `503 unhealthy` |
+| `GET` | `/login/google` | Initiate Google authentication |
+| `GET` | `/login/callback` | Google OAuth2 callback |
+
+## gRPC Endpoints (Resource Server, port 9090)
+
+Service: `hss_science.accounts.v1.AccountsService`
+Proto: [`api/proto/accounts/v1/accounts.proto`](../../../../api/proto/accounts/v1/accounts.proto)
+
+All RPCs require a valid JWT access token in the `authorization: Bearer <token>` gRPC metadata header. The `sub` claim is extracted as the authenticated user ID. There are no `user_id` request fields — all operations are implicitly scoped to the token's subject.
+
+| RPC | Description |
+|-----|-------------|
+| `GetProfile` | Return the authenticated user's full profile |
+| `UpdateProfile` | Partially update mutable fields via `google.protobuf.FieldMask` (`given_name`, `family_name`, `picture`, `locale`) |
+| `ListLinkedAccounts` | List all federated identity providers linked to the account |
+| `UnlinkAccount` | Remove a federated identity. Returns `FAILED_PRECONDITION` if it is the only one remaining. |
+| `ListActiveSessions` | List active refresh token sessions (client ID, scopes, auth time, expiry) |
+| `RevokeSession` | Delete a specific session (removes both the refresh token and its access token) |
+| `DeleteAccount` | Permanently delete the user and all associated data (tokens, linked accounts, auth history) |
 
 ---
 
@@ -179,18 +216,18 @@ The original RP authorization request is preserved across the Google redirect vi
 
 ## Database Schema
 
-Defined in [`migrations/001_initial_schema.sql`](migrations/001_initial_schema.sql). Applied externally before the service starts.
+Defined in [`migrations/000001_init.up.sql`](migrations/000001_init.up.sql). Applied externally before the service starts.
 
 | Table | Purpose |
 |-------|---------|
-| `users` | Internal user identities |
-| `federated_identities` | Maps `provider` + `external_sub` to an internal user ID |
-| `clients` | Registered downstream OIDC clients |
-| `auth_requests` | Pending authorization sessions |
-| `auth_codes` | Short-lived authorization codes (deleted after token exchange) |
-| `access_tokens` | Issued access tokens |
-| `refresh_tokens` | Refresh tokens; rotated on every use |
-| `signing_keys` | RSA 2048 key pairs for JWT signing; generated on first startup |
+| `users` | Internal user identities (UUID primary key, email, profile fields) |
+| `federated_identities` | Maps `(provider, external_sub)` → internal `user_id` |
+| `clients` | Registered OIDC clients: grant types, redirect URIs, token type |
+| `auth_requests` | Pending authorization sessions (TTL-bound; deleted after code exchange) |
+| `auth_codes` | Short-lived authorization codes (deleted immediately after token exchange) |
+| `access_tokens` | Issued access tokens (opaque or JWT depending on client `access_token_type`) |
+| `refresh_tokens` | Long-lived refresh tokens; rotated on every use; indexed on `user_id` |
+| `signing_keys` | RSA 2048 key pairs used for JWT signing; generated once on first startup |
 
 ---
 
@@ -217,17 +254,15 @@ No changes to the storage layer, token issuance, or the OIDC protocol handling a
 
 ---
 
-## Building the Docker Image
-
-The Dockerfile is at the root of this directory and is built from the `server/` module context:
+## Docker
 
 ```bash
-# Run from the repository root
+# Run from the repository root (build context must be server/)
 docker build \
   -f server/services/accounts/Dockerfile \
   -t accounts-idp:local \
-  .
+  server/
 ```
 
-The image runs as a non-root user and exposes port `8080`.
+The image runs as a non-root user and exposes both port `8080` (HTTP) and port `9090` (gRPC).
 
