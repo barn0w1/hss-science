@@ -31,13 +31,13 @@ jobs:
           - name: drive-web
             dockerfile: ./web/apps/drive/Dockerfile
             context: .
-            image-name: drive-web
+            image-name: drive-spa
             type: frontend
 
           - name: chat-web
             dockerfile: ./web/apps/chat/Dockerfile
             context: .
-            image-name: chat-web
+            image-name: chat-spa
             type: frontend
 
     steps:
