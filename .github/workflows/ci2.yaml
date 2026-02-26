@@ -17,6 +17,10 @@ jobs:
           - name: accounts-idp
             path: server/services/accounts
             build: ./services/accounts/...
+        
+          - name: myaccount-bff
+            path: server/bff/myaccount
+            build: ./bff/myaccount/...
 
     steps:
       - uses: actions/checkout@v4
@@ -71,7 +75,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [drive, chat]
+        app: [drive, chat, myaccount]
 
     steps:
       - uses: actions/checkout@v4
