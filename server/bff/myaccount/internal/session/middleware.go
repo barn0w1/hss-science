@@ -11,12 +11,21 @@ const CookieName = "__Host-myaccount_session"
 
 type contextKey string
 
-const sessionDataKey contextKey = "session_data"
+const (
+	sessionDataKey contextKey = "session_data"
+	sessionIDKey   contextKey = "session_id"
+)
 
 // FromContext retrieves the session data from the request context.
 func FromContext(ctx context.Context) (*SessionData, bool) {
 	sd, ok := ctx.Value(sessionDataKey).(*SessionData)
 	return sd, ok
+}
+
+// IDFromContext retrieves the session ID from the request context.
+func IDFromContext(ctx context.Context) (string, bool) {
+	id, ok := ctx.Value(sessionIDKey).(string)
+	return id, ok
 }
 
 // Middleware returns a chi middleware that validates the session cookie
@@ -43,6 +52,7 @@ func Middleware(store *Store, devMode bool) func(http.Handler) http.Handler {
 			}
 
 			ctx := context.WithValue(r.Context(), sessionDataKey, sd)
+			ctx = context.WithValue(ctx, sessionIDKey, cookie.Value)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

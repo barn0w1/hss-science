@@ -32,7 +32,6 @@ gen-myaccount:
 	@echo "Generating MyAccount API..."
 	@mkdir -p server/bff/gen/myaccount/v1
 	$(OAPI_CODEGEN) \
-		-generate types \
-		-package myaccountv1 \
-		-o server/bff/gen/myaccount/v1/types.gen.go \
+		-config api/openapi/myaccount/v1/oapi-codegen.yaml \
+		-o server/bff/gen/myaccount/v1/myaccount.gen.go \
 		api/openapi/myaccount/v1/openapi.yaml
