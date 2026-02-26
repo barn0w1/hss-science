@@ -179,19 +179,25 @@ func (h *AuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If the ID token doesn't include user claims, fetch from UserInfo endpoint.
-	if claims.Email == "" {
+	// If the ID token is missing any required user claims, fetch from UserInfo endpoint.
+	// Some providers omit email/profile claims from the ID token (UserInfo-only),
+	// and some non-compliant providers may also omit sub.
+	if claims.Sub == "" || claims.Email == "" {
 		userInfo, err := h.oidcProvider.UserInfo(r.Context(), oauth2.StaticTokenSource(oauth2Token))
 		if err != nil {
 			h.logger.Warn("failed to fetch userinfo", "error", err)
 		} else {
 			var uiClaims struct {
+				Sub        string `json:"sub"`
 				Email      string `json:"email"`
 				GivenName  string `json:"given_name"`
 				FamilyName string `json:"family_name"`
 				Picture    string `json:"picture"`
 			}
 			if err := userInfo.Claims(&uiClaims); err == nil {
+				if claims.Sub == "" {
+					claims.Sub = uiClaims.Sub
+				}
 				if claims.Email == "" {
 					claims.Email = uiClaims.Email
 				}
@@ -206,6 +212,12 @@ func (h *AuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+	}
+
+	if claims.Sub == "" {
+		h.logger.Error("sub claim missing from both ID token and UserInfo")
+		writeError(w, http.StatusInternalServerError, "INTERNAL", "identity provider did not return a subject identifier")
+		return
 	}
 
 	// Create session in Redis.

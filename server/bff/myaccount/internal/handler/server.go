@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -108,8 +107,10 @@ func (s *Server) GetSession(ctx context.Context, _ myaccountv1.GetSessionRequest
 
 	userID, err := uuid.Parse(sd.UserID)
 	if err != nil {
-		s.logger.Error("invalid user_id in session data", "user_id", sd.UserID, "error", err)
-		return nil, fmt.Errorf("invalid user_id in session: %w", err)
+		s.logger.Warn("invalid user_id in session data, forcing re-authentication", "user_id", sd.UserID, "error", err)
+		return myaccountv1.GetSession401JSONResponse{UnauthorizedJSONResponse: myaccountv1.UnauthorizedJSONResponse{
+			Code: "UNAUTHENTICATED", Message: "session is invalid, please log in again",
+		}}, nil
 	}
 
 	var picture *string
