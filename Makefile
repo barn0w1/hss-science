@@ -1,10 +1,10 @@
 # OpenAPI Codegen
 OAPI_CODEGEN := go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
 
-.PHONY: gen-all gen-proto gen-drive gen-chat
+.PHONY: gen-all gen-proto gen-drive gen-chat gen-myaccount
 
 # gen all
-gen-all: gen-proto gen-drive gen-chat
+gen-all: gen-proto gen-drive gen-chat gen-myaccount
 
 # Drive API
 gen-drive:
@@ -26,3 +26,13 @@ gen-chat:
 # protobuf code generation
 gen-proto:
 	buf generate
+
+# MyAccount BFF API
+gen-myaccount:
+	@echo "Generating MyAccount API..."
+	@mkdir -p server/bff/gen/myaccount/v1
+	$(OAPI_CODEGEN) \
+		-generate types \
+		-package myaccountv1 \
+		-o server/bff/gen/myaccount/v1/types.gen.go \
+		api/openapi/myaccount/v1/openapi.yaml

@@ -31,6 +31,9 @@ type Config struct {
 	AccessTokenLifetime  time.Duration
 	RefreshTokenLifetime time.Duration
 	IDTokenLifetime      time.Duration
+
+	// gRPC server settings.
+	GRPCPort string
 }
 
 // Load reads configuration from environment variables and validates required fields.
@@ -95,6 +98,8 @@ func Load() (*Config, error) {
 	cfg.AccessTokenLifetime = envOrDefaultDuration("ACCESS_TOKEN_LIFETIME", 5*time.Minute)
 	cfg.RefreshTokenLifetime = envOrDefaultDuration("REFRESH_TOKEN_LIFETIME", 5*time.Hour)
 	cfg.IDTokenLifetime = envOrDefaultDuration("ID_TOKEN_LIFETIME", 1*time.Hour)
+
+	cfg.GRPCPort = envOrDefault("GRPC_PORT", "9090")
 
 	return cfg, nil
 }

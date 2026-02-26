@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Noto Sans JP", system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply font-sans antialiased text-gray-900 bg-gray-50;
+  }
+}
