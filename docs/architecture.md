@@ -59,14 +59,14 @@ gRPCのペイロードにファイルを含めない。
 本リポジトリ（`hss-science`）の責務は、**アプリケーションのソースコード管理およびコンテナイメージのビルドまで**である。AIエージェントおよび開発者は以下の境界を厳守すること。
 
 * **No Infrastructure Code:** Terraform、Kubernetes manifestsなどのインフラプロビジョニングに関するコードを含めないこと。
-* **No DB Migrations:** データベースのマイグレーションは別システムで完全に自動化されている。本リポジトリ内には、migrationsのみを記述する。別システムで、自動的に、golang-migrate等のツールを用いて実行されることを前提とする。
+* **DB Migrations:** データベースのマイグレーション実行は別システムで完全に自動化されている。本リポジトリ内にはマイグレーションファイル（SQL等）のみを記述し、`golang-migrate` 等のツールを用いて外部から自動適用される前提で設計すること。
 * **Containerization:** 各マイクロサービスやBFFは、最終的にステートレスなDockerコンテナとしてパッケージングされることを前提に実装すること（Dockerfileの提供までが責務）。
 
 ### 5.2. Core Libraries & Languages
-機能実装には以下の標準スタックを使用すること。
+機能実装には以下の標準スタックを使用すること。不要な外部依存の追加は避けること。
 
-* **Frontend / SPA:** [例: React, TypeScript, Vite, Tailwind CSS]
-* **BFF Layer:** [例: Go, net/http, chi]
-* **Microservices (gRPC):** [例: Go]
-* **Database Access (PostgreSQL):** [例: Go, database/sql, sqlx, pgx]
-* **Event Bus (NATS):** [例: nats]
+* **Frontend / SPA:** React, TypeScript, Vite, Tailwind CSS
+* **BFF Layer:** Go, `net/http`, `go-chi/chi`
+* **Microservices (gRPC):** Go, standard gRPC
+* **Database Access (PostgreSQL):** Go, `database/sql`, `sqlx`, `pgx` (driver)
+* **Event Bus:** NATS (`nats.go`)
