@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Unlink } from 'lucide-react';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { useLinkedAccounts } from '../hooks/useLinkedAccounts';
+import { useLinkedAccounts, type LinkedAccount } from '../hooks/useLinkedAccounts';
 import { useUnlinkAccount } from '../hooks/useUnlinkAccount';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 
@@ -27,7 +27,7 @@ export const LinkedAccountsList = () => {
         <p className="text-sm text-gray-500">No linked accounts found.</p>
       ) : (
         <ul className="divide-y divide-gray-100">
-          {accounts.map((account) => (
+          {accounts.map((account: LinkedAccount) => (
             <li key={account.id} className="flex items-center justify-between py-3">
               <div>
                 <p className="text-sm font-medium text-gray-900 capitalize">{account.provider}</p>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Monitor, Trash2 } from 'lucide-react';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { useSessions } from '../hooks/useSessions';
+import { useSessions, type Session } from '../hooks/useSessions';
 import { useRevokeSession } from '../hooks/useRevokeSession';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 
@@ -26,7 +26,7 @@ export const SessionsList = () => {
         <p className="text-sm text-gray-500">No active sessions.</p>
       ) : (
         <ul className="divide-y divide-gray-100">
-          {sessions.map((session) => (
+          {sessions.map((session: Session) => (
             <li key={session.session_id} className="flex items-center justify-between py-3">
               <div className="flex items-center gap-3">
                 <Monitor size={18} className="text-gray-400" />
