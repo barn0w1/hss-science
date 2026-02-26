@@ -27,17 +27,29 @@ jobs:
             context: .
             image-name: accounts-idp
             type: backend
+          
+          - name: myaccount-bff
+            dockerfile: ./server/bff/myaccount/Dockerfile
+            context: .
+            image-name: myaccount-bff
+            type: backend
 
           - name: drive-web
             dockerfile: ./web/apps/drive/Dockerfile
             context: .
-            image-name: drive-web
+            image-name: drive-spa
             type: frontend
 
           - name: chat-web
             dockerfile: ./web/apps/chat/Dockerfile
             context: .
-            image-name: chat-web
+            image-name: chat-spa
+            type: frontend
+
+          - name: myaccount-web
+            dockerfile: ./web/apps/myaccount/Dockerfile
+            context: .
+            image-name: myaccount-spa
             type: frontend
 
     steps:

@@ -36,4 +36,4 @@ go.work.sum
 
 node_modules/
 
-.context
+.context-for-llm/

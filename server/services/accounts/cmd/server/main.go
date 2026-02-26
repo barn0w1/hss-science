@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,12 +15,18 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"golang.org/x/text/language"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 
 	"github.com/zitadel/oidc/v3/pkg/op"
 
+	pb "github.com/barn0w1/hss-science/server/gen/accounts/v1"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/authn"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/config"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/database"
+	grpcserver "github.com/barn0w1/hss-science/server/services/accounts/internal/grpcserver"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/grpcserver/authz"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/repository"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/storage"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/web"
 )
@@ -90,7 +97,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Build router
+	// Build HTTP router
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
@@ -117,7 +124,37 @@ func main() {
 	// Mount OpenID Provider (handles /.well-known/openid-configuration, /authorize, /token, /userinfo, /keys, etc.)
 	router.Mount("/", provider)
 
-	// Start server with graceful shutdown
+	// ---------------------------------------------------------------------------
+	// gRPC Resource Server
+	// ---------------------------------------------------------------------------
+
+	accountRepo := repository.NewPostgresAccountRepository(db)
+	jwtVerifier := authz.NewLocalJWTVerifier(db, cfg.Issuer)
+
+	grpcSrv := grpc.NewServer(
+		grpc.UnaryInterceptor(authz.UnaryJWTInterceptor(jwtVerifier)),
+	)
+	pb.RegisterAccountsServiceServer(grpcSrv, grpcserver.NewServer(accountRepo, logger.With("component", "grpc")))
+	reflection.Register(grpcSrv)
+
+	grpcLis, err := net.Listen("tcp", ":"+cfg.GRPCPort)
+	if err != nil {
+		logger.Error("grpc listen failed", "error", err)
+		os.Exit(1)
+	}
+
+	go func() {
+		logger.Info("grpc server starting", "port", cfg.GRPCPort)
+		if err := grpcSrv.Serve(grpcLis); err != nil {
+			logger.Error("grpc server failed", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// ---------------------------------------------------------------------------
+	// HTTP Server
+	// ---------------------------------------------------------------------------
+
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           router,
@@ -137,6 +174,9 @@ func main() {
 
 	<-ctx.Done()
 	logger.Info("shutting down")
+
+	// Graceful shutdown: stop gRPC first, then HTTP.
+	grpcSrv.GracefulStop()
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
