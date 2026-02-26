@@ -18,6 +18,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/oauth2"
 
+	myaccountv1 "github.com/barn0w1/hss-science/server/bff/gen/myaccount/v1"
 	"github.com/barn0w1/hss-science/server/bff/myaccount/internal/config"
 	"github.com/barn0w1/hss-science/server/bff/myaccount/internal/grpcclient"
 	"github.com/barn0w1/hss-science/server/bff/myaccount/internal/handler"
@@ -81,16 +82,33 @@ func main() {
 	defer grpcClient.Close()
 	logger.Info("grpc client ready", "addr", cfg.AccountsGRPCAddr)
 
-	// Create handlers.
+	// Create auth handler for manual Login/Callback routes.
 	authHandler := handler.NewAuthHandler(
-		oauth2Config, verifier, sessionStore,
-		cfg.DevMode, cfg.SPAOrigin,
+		oauth2Config, verifier, oidcProvider,
+		sessionStore, cfg.DevMode, cfg.SPAOrigin,
 		logger.With("component", "auth"),
 	)
-	profileHandler := handler.NewProfileHandler(grpcClient)
-	linkedAccountsHandler := handler.NewLinkedAccountsHandler(grpcClient)
-	sessionsHandler := handler.NewSessionsHandler(grpcClient)
-	accountHandler := handler.NewAccountHandler(grpcClient)
+
+	// Create the unified strict server implementation.
+	strictImpl := handler.NewServer(
+		grpcClient, sessionStore, cfg.DevMode,
+		logger.With("component", "api"),
+	)
+
+	// Adapt the strict implementation to the generated ServerInterface.
+	strictSI := myaccountv1.NewStrictHandlerWithOptions(strictImpl,
+		[]myaccountv1.StrictMiddlewareFunc{handler.InjectHTTPMiddleware},
+		myaccountv1.StrictHTTPServerOptions{
+			RequestErrorHandlerFunc:  handler.HandleStrictError,
+			ResponseErrorHandlerFunc: handler.HandleStrictError,
+		},
+	)
+
+	// Create the generated wrapper for route-level HTTP handlers.
+	wrapper := myaccountv1.ServerInterfaceWrapper{
+		Handler:          strictSI,
+		ErrorHandlerFunc: handler.HandleStrictError,
+	}
 
 	// Build router.
 	r := chi.NewRouter()
@@ -113,26 +131,23 @@ func main() {
 		_, _ = w.Write([]byte("ok"))
 	})
 
-	// Auth routes (no session middleware required).
+	// Auth routes handled manually (no session middleware, they do redirects/cookies).
 	r.Get("/auth/login", authHandler.Login)
 	r.Get("/auth/callback", authHandler.Callback)
 
-	// Session-required routes.
+	// All JSON endpoints go through the strict server with session middleware.
 	r.Group(func(r chi.Router) {
 		r.Use(session.Middleware(sessionStore, cfg.DevMode))
 
-		// Auth routes requiring session.
-		r.Post("/auth/logout", authHandler.Logout)
-		r.Get("/auth/session", authHandler.Session)
-
-		// API v1 routes.
-		r.Get("/api/v1/profile", profileHandler.Get)
-		r.Patch("/api/v1/profile", profileHandler.Update)
-		r.Get("/api/v1/linked-accounts", linkedAccountsHandler.List)
-		r.Delete("/api/v1/linked-accounts/{id}", linkedAccountsHandler.Unlink)
-		r.Get("/api/v1/sessions", sessionsHandler.List)
-		r.Delete("/api/v1/sessions/{id}", sessionsHandler.Revoke)
-		r.Delete("/api/v1/account", accountHandler.Delete)
+		r.Post("/auth/logout", wrapper.AuthLogout)
+		r.Get("/auth/session", wrapper.GetSession)
+		r.Get("/api/v1/profile", wrapper.GetProfile)
+		r.Patch("/api/v1/profile", wrapper.UpdateProfile)
+		r.Get("/api/v1/linked-accounts", wrapper.ListLinkedAccounts)
+		r.Delete("/api/v1/linked-accounts/{id}", wrapper.UnlinkAccount)
+		r.Get("/api/v1/sessions", wrapper.ListSessions)
+		r.Delete("/api/v1/sessions/{id}", wrapper.RevokeSession)
+		r.Delete("/api/v1/account", wrapper.DeleteAccount)
 	})
 
 	// Start HTTP server with graceful shutdown.

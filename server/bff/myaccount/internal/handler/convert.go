@@ -1,72 +1,55 @@
 package handler
 
 import (
-	"time"
+	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 
+	myaccountv1 "github.com/barn0w1/hss-science/server/bff/gen/myaccount/v1"
 	pb "github.com/barn0w1/hss-science/server/gen/accounts/v1"
 )
 
-// ProfileResponse is the REST representation of a user profile.
-type ProfileResponse struct {
-	UserID        string `json:"user_id"`
-	Email         string `json:"email"`
-	EmailVerified bool   `json:"email_verified"`
-	GivenName     string `json:"given_name"`
-	FamilyName    string `json:"family_name"`
-	Picture       string `json:"picture"`
-	Locale        string `json:"locale"`
-	CreatedAt     string `json:"created_at"`
-	UpdatedAt     string `json:"updated_at"`
-}
+// protoProfileToAPI converts a gRPC Profile to the generated OpenAPI Profile type.
+func protoProfileToAPI(p *pb.Profile) myaccountv1.Profile {
+	userID, _ := uuid.Parse(p.UserId)
 
-// LinkedAccountResponse is the REST representation of a linked account.
-type LinkedAccountResponse struct {
-	ID          string `json:"id"`
-	Provider    string `json:"provider"`
-	ExternalSub string `json:"external_sub"`
-	LinkedAt    string `json:"linked_at"`
-}
+	var picture *string
+	if p.Picture != "" {
+		picture = &p.Picture
+	}
 
-// SessionResponse is the REST representation of an active session.
-type SessionResponse struct {
-	SessionID string   `json:"session_id"`
-	ClientID  string   `json:"client_id"`
-	Scopes    []string `json:"scopes"`
-	AuthTime  string   `json:"auth_time"`
-	ExpiresAt string   `json:"expires_at"`
-	CreatedAt string   `json:"created_at"`
-}
-
-func profileToREST(p *pb.Profile) *ProfileResponse {
-	return &ProfileResponse{
-		UserID:        p.UserId,
-		Email:         p.Email,
+	return myaccountv1.Profile{
+		UserId:        userID,
+		Email:         openapi_types.Email(p.Email),
 		EmailVerified: p.EmailVerified,
 		GivenName:     p.GivenName,
 		FamilyName:    p.FamilyName,
-		Picture:       p.Picture,
+		Picture:       picture,
 		Locale:        p.Locale,
-		CreatedAt:     p.CreatedAt.AsTime().Format(time.RFC3339),
-		UpdatedAt:     p.UpdatedAt.AsTime().Format(time.RFC3339),
+		CreatedAt:     p.CreatedAt.AsTime(),
+		UpdatedAt:     p.UpdatedAt.AsTime(),
 	}
 }
 
-func linkedAccountToREST(la *pb.LinkedAccount) *LinkedAccountResponse {
-	return &LinkedAccountResponse{
-		ID:          la.Id,
+// protoLinkedAccountToAPI converts a gRPC LinkedAccount to the generated OpenAPI LinkedAccount type.
+func protoLinkedAccountToAPI(la *pb.LinkedAccount) myaccountv1.LinkedAccount {
+	id, _ := uuid.Parse(la.Id)
+	return myaccountv1.LinkedAccount{
+		Id:          id,
 		Provider:    la.Provider,
 		ExternalSub: la.ExternalSub,
-		LinkedAt:    la.LinkedAt.AsTime().Format(time.RFC3339),
+		LinkedAt:    la.LinkedAt.AsTime(),
 	}
 }
 
-func sessionToREST(s *pb.Session) *SessionResponse {
-	return &SessionResponse{
-		SessionID: s.SessionId,
-		ClientID:  s.ClientId,
+// protoSessionToAPI converts a gRPC Session to the generated OpenAPI Session type.
+func protoSessionToAPI(s *pb.Session) myaccountv1.Session {
+	sid, _ := uuid.Parse(s.SessionId)
+	return myaccountv1.Session{
+		SessionId: sid,
+		ClientId:  s.ClientId,
 		Scopes:    s.Scopes,
-		AuthTime:  s.AuthTime.AsTime().Format(time.RFC3339),
-		ExpiresAt: s.ExpiresAt.AsTime().Format(time.RFC3339),
-		CreatedAt: s.CreatedAt.AsTime().Format(time.RFC3339),
+		AuthTime:  s.AuthTime.AsTime(),
+		ExpiresAt: s.ExpiresAt.AsTime(),
+		CreatedAt: s.CreatedAt.AsTime(),
 	}
 }

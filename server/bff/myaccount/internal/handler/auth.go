@@ -3,7 +3,6 @@ package handler
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"log/slog"
 	"net/http"
 
@@ -14,9 +13,12 @@ import (
 )
 
 // AuthHandler handles OIDC RP authentication flows.
+// Only Login and Callback are handled here; Session and Logout
+// are implemented by the StrictServerInterface in server.go.
 type AuthHandler struct {
 	oauth2Config *oauth2.Config
 	verifier     *gooidc.IDTokenVerifier
+	oidcProvider *gooidc.Provider
 	sessionStore *session.Store
 	devMode      bool
 	spaOrigin    string
@@ -27,6 +29,7 @@ type AuthHandler struct {
 func NewAuthHandler(
 	oauth2Config *oauth2.Config,
 	verifier *gooidc.IDTokenVerifier,
+	oidcProvider *gooidc.Provider,
 	sessionStore *session.Store,
 	devMode bool,
 	spaOrigin string,
@@ -35,6 +38,7 @@ func NewAuthHandler(
 	return &AuthHandler{
 		oauth2Config: oauth2Config,
 		verifier:     verifier,
+		oidcProvider: oidcProvider,
 		sessionStore: sessionStore,
 		devMode:      devMode,
 		spaOrigin:    spaOrigin,
@@ -175,6 +179,35 @@ func (h *AuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If the ID token doesn't include user claims, fetch from UserInfo endpoint.
+	if claims.Email == "" {
+		userInfo, err := h.oidcProvider.UserInfo(r.Context(), oauth2.StaticTokenSource(oauth2Token))
+		if err != nil {
+			h.logger.Warn("failed to fetch userinfo", "error", err)
+		} else {
+			var uiClaims struct {
+				Email      string `json:"email"`
+				GivenName  string `json:"given_name"`
+				FamilyName string `json:"family_name"`
+				Picture    string `json:"picture"`
+			}
+			if err := userInfo.Claims(&uiClaims); err == nil {
+				if claims.Email == "" {
+					claims.Email = uiClaims.Email
+				}
+				if claims.GivenName == "" {
+					claims.GivenName = uiClaims.GivenName
+				}
+				if claims.FamilyName == "" {
+					claims.FamilyName = uiClaims.FamilyName
+				}
+				if claims.Picture == "" {
+					claims.Picture = uiClaims.Picture
+				}
+			}
+		}
+	}
+
 	// Create session in Redis.
 	sd := &session.SessionData{
 		AccessToken:  oauth2Token.AccessToken,
@@ -216,60 +249,6 @@ func (h *AuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, returnTo, http.StatusFound)
 }
 
-// Logout destroys the session and clears the cookie.
-func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
-	sd, ok := session.FromContext(r.Context())
-	if !ok {
-		writeError(w, http.StatusUnauthorized, "UNAUTHENTICATED", "no session")
-		return
-	}
-
-	// Determine the cookie name used.
-	cookieName := session.CookieName
-	if h.devMode {
-		cookieName = "myaccount_session"
-	}
-
-	// Get session ID from cookie.
-	cookie, err := r.Cookie(cookieName)
-	if err == nil {
-		_ = h.sessionStore.Delete(r.Context(), cookie.Value)
-	}
-
-	// Clear cookie.
-	http.SetCookie(w, &http.Cookie{
-		Name:     cookieName,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   !h.devMode,
-		SameSite: http.SameSiteLaxMode,
-	})
-
-	h.logger.Info("user logged out", "user_id", sd.UserID)
-
-	writeJSON(w, http.StatusOK, map[string]string{"message": "logged out"})
-}
-
-// Session returns current session info for the SPA.
-func (h *AuthHandler) Session(w http.ResponseWriter, r *http.Request) {
-	sd, ok := session.FromContext(r.Context())
-	if !ok {
-		writeError(w, http.StatusUnauthorized, "UNAUTHENTICATED", "no session")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]any{
-		"authenticated": true,
-		"user_id":       sd.UserID,
-		"email":         sd.Email,
-		"given_name":    sd.GivenName,
-		"family_name":   sd.FamilyName,
-		"picture":       sd.Picture,
-	})
-}
-
 func splitN(s, sep string, n int) []string {
 	result := make([]string, 0, n)
 	for i := 0; i < n-1; i++ {
@@ -292,6 +271,3 @@ func indexOf(s, sep string) int {
 	}
 	return -1
 }
-
-// Ensure json import is used via the claims struct unmarshaling.
-var _ = json.Marshal
