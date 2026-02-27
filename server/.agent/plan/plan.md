@@ -80,6 +80,7 @@ Rationale:
 - We are not multi-tenant. One issuer, one OP instance.
 - Simpler configuration, simpler token verification for resource servers.
 - In local development, this will be overridden to `http://localhost:<port>` with `op.WithAllowInsecure()`.
+> Author Annotation: No local E2E testing is planned. Implementation of local-specific logic (e.g., `localhost` overrides or `op.WithAllowInsecure()`) is strictly NOT required. Focus entirely on the production-grade HTTPS flow.
 
 ---
 
@@ -683,11 +684,16 @@ No E2E tests in the repo (per README policy -- E2E is done in staging).
 ## 23. Open Questions for Review
 
 1. **Database migrations**: SQL schema definitions will live in this repo, but execution is out of scope (per README). Should migration files go in `server/services/accounts/migrations/` or a top-level `migrations/` directory?
+> Author Annotation: Since each service should own and manage its own database schema (following the Bounded Context principle in microservices), it should be placed within the service’s directory — `server/services/accounts/migrations/` — rather than at the top level.
 
 2. **Upstream IdP selection UI**: When multiple upstream IdPs are supported (Google + GitHub), do we present a provider selection page, or do we default to Google and add GitHub as a secondary option later?
+> Author Annotation: We must present a provider selection page for the upstream IdP. Even if there is only one upstream IdP configured initially, always display this selection page so users explicitly choose their login method.
 
 3. **User merging**: If a user signs in with Google first and later with GitHub using the same email, should we auto-link the accounts? This has security implications (email verification trust).
+> Author Annotation: Do not auto-link accounts, even if they share the same email address. Treat them as entirely separate accounts. To reduce security risks, this IdP will not perform its own identity or email verification, so we cannot safely merge them based solely on email matching.
 
 4. **Logout**: The `TerminateSession` implementation will revoke tokens, but we don't have a cookie-based SSO session. Should the OP set its own session cookie to enable true single sign-on (user isn't re-prompted for login if they already have a valid session)?
+> Author Annotation: Keep it stateless. We do not need a custom SSO session cookie for the OP. We will rely entirely on the upstream IdPs for session state management.
 
 5. **Admin client registration**: For now clients are hardcoded. When should we plan for database-backed dynamic client registration?
+> Author Annotation: Hardcoding clients and their secrets in the source code is a major security risk, and using environment variables for multiple clients is unscalable. Therefore, we must use database-backed client storage (PostgreSQL) from Phase 1. I will leave the specific implementation details up to you in the plan. Note that we do not need to build an Admin UI for client registration right now; we will manually insert the client data into the DB using SQL.
