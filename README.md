@@ -32,6 +32,27 @@ In short:
 
 ---
 
+## Testing Policy
+
+This project follows a **Unit Test-centric** approach to ensure individual component reliability and fast feedback loops.
+
+### Unit Testing
+
+* **Focus:** Most of the business logic and utility functions must be covered by unit tests.
+* **Execution:** Developers are encouraged to run tests frequently during local development:
+```bash
+go test ./...
+```
+
+### End-to-End (E2E) Testing
+
+To keep the local development environment lightweight and focused on code iteration, **E2E tests are not performed locally.**
+
+* **Local Environment:** Limited to unit and integration tests that do not require external cloud dependencies.
+* **Staging Environment:** Full E2E testing is conducted exclusively in the **Staging environment**. This ensures the platform's interconnected applications (IdP, SSO, and microservices) are validated in a production-like setting before any release.
+
+---
+
 ## Note
 
 This is a private, internally developed platform.
