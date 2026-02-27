@@ -894,3 +894,14 @@ Section 21 mentions OTel instrumentation for our custom handlers and the library
 ### 24.10 Health Check Endpoints
 
 Section 21 mentions `GET /healthz` (library built-in) and `GET /readyz` (our custom, checks DB). The library's built-in health check calls `Storage.Health()`. Should we expose a separate `/readyz` endpoint that does the same thing, or is the library's `/healthz` sufficient? Kubernetes typically expects both a liveness probe (`/healthz`) and a readiness probe (`/readyz`).
+
+> Author Annotation: 
+> * **24.1 (State Key)**: Reuse the existing `CryptoKey` for simplicity in Phase 1.
+> * **24.2 & 24.3 (Cleanup)**: Choose Option B (Passive cleanup). Defer active DB pruning to a future external cron job or batch process.
+> * **24.4 (Token Reuse)**: Defer Refresh Token Reuse Detection to Phase 2. Standard token rotation is sufficient for now.
+> * **24.5 (BFF Redirect URI)**: Use `/api/auth/callback` as the standard path convention for the BFF (i.e., `https://myaccount.hss-science.org/api/auth/callback`).
+> * **24.6 (Logout Redirect)**: Redirect to the BFF root (`https://myaccount.hss-science.org/`) after logout.
+> * **24.7 (chi Router)**: Use `chi`. The `go.mod` is currently empty just to reduce noise for the LLM during planning. Since `zitadel/oidc` already uses `chi` internally and it is highly compatible with `net/http`, it is perfectly fine to use it explicitly.
+> * **24.8 (Logging)**: Hardcode JSON structured logging for production observability.
+> * **24.9 (OTel)**: Defer OpenTelemetry implementation to Phase 2.
+> * **24.10 (Health Checks)**: Implement separate endpoints: `/healthz` (Liveness, simply returns 200 OK) and `/readyz` (Readiness, pings the DB using `Storage.Health()`).
