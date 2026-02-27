@@ -1,0 +1,101 @@
+package config
+
+import (
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/hex"
+	"encoding/pem"
+	"fmt"
+	"os"
+)
+
+type Config struct {
+	Port        string
+	Issuer      string
+	DatabaseURL string
+	CryptoKey   [32]byte
+	SigningKey  *rsa.PrivateKey
+
+	GoogleClientID     string
+	GoogleClientSecret string
+	GitHubClientID     string
+	GitHubClientSecret string
+}
+
+func Load() (*Config, error) {
+	cfg := &Config{
+		Port:               getEnv("PORT", "8080"),
+		Issuer:             os.Getenv("ISSUER"),
+		DatabaseURL:        os.Getenv("DATABASE_URL"),
+		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+		GitHubClientID:     os.Getenv("GITHUB_CLIENT_ID"),
+		GitHubClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
+	}
+
+	if cfg.Issuer == "" {
+		return nil, fmt.Errorf("ISSUER is required")
+	}
+	if cfg.DatabaseURL == "" {
+		return nil, fmt.Errorf("DATABASE_URL is required")
+	}
+
+	cryptoKeyHex := os.Getenv("CRYPTO_KEY")
+	if cryptoKeyHex == "" {
+		return nil, fmt.Errorf("CRYPTO_KEY is required")
+	}
+	keyBytes, err := hex.DecodeString(cryptoKeyHex)
+	if err != nil {
+		return nil, fmt.Errorf("CRYPTO_KEY must be hex-encoded: %w", err)
+	}
+	if len(keyBytes) != 32 {
+		return nil, fmt.Errorf("CRYPTO_KEY must be exactly 32 bytes (64 hex chars), got %d bytes", len(keyBytes))
+	}
+	copy(cfg.CryptoKey[:], keyBytes)
+
+	signingKeyPEM := os.Getenv("SIGNING_KEY_PEM")
+	if signingKeyPEM == "" {
+		return nil, fmt.Errorf("SIGNING_KEY_PEM is required")
+	}
+	cfg.SigningKey, err = parseRSAPrivateKey(signingKeyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("SIGNING_KEY_PEM: %w", err)
+	}
+
+	if cfg.GoogleClientID == "" && cfg.GitHubClientID == "" {
+		return nil, fmt.Errorf("at least one upstream IdP must be configured (GOOGLE_CLIENT_ID or GITHUB_CLIENT_ID)")
+	}
+
+	return cfg, nil
+}
+
+func parseRSAPrivateKey(pemStr string) (*rsa.PrivateKey, error) {
+	block, _ := pem.Decode([]byte(pemStr))
+	if block == nil {
+		return nil, fmt.Errorf("failed to decode PEM block")
+	}
+
+	switch block.Type {
+	case "RSA PRIVATE KEY":
+		return x509.ParsePKCS1PrivateKey(block.Bytes)
+	case "PRIVATE KEY":
+		key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+		if err != nil {
+			return nil, err
+		}
+		rsaKey, ok := key.(*rsa.PrivateKey)
+		if !ok {
+			return nil, fmt.Errorf("PKCS#8 key is not RSA")
+		}
+		return rsaKey, nil
+	default:
+		return nil, fmt.Errorf("unsupported PEM block type: %s", block.Type)
+	}
+}
+
+func getEnv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}

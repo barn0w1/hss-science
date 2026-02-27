@@ -1,6 +1,6 @@
 # Accounts Service -- Implementation Plan
 
-> **Status**: Final -- all author annotations from Rounds 1–4 are incorporated. Implementation todo list appended.
+> **Status**: Implementation Complete -- all 13 phases (A through M) are done. All 39 tasks completed. Build, lint, vet, and full test suite pass.
 > This document describes the design for `server/services/accounts/`, the OIDC Provider (OP) / Identity service for the hss-science platform.
 
 ---
@@ -875,92 +875,82 @@ All questions from previous drafts have been resolved per author annotations:
 
 ## 24. Implementation Todo List
 
-Ordered by dependency. Each phase builds on the previous one. All work happens under `server/services/accounts/`.
+All phases complete. Build, lint, vet, and full test suite pass.
 
-### Phase A: Project Skeleton & Configuration
+### Phase A: Project Skeleton & Configuration ✓
 
-1. **Create directory structure** -- Create all directories: `config/`, `model/`, `repo/`, `oidcprovider/`, `login/`, `login/templates/`, `migrations/`.
-2. **Write `config/config.go`** -- Env-var loading struct (`Config`), validation (required fields), `CryptoKey` hex decoding, RSA PEM parsing. No external config library -- use `os.Getenv` + manual validation.
-3. **Write `main.go` (stub)** -- Entrypoint that loads config, prints "starting" log line, and exits. Just enough to verify the build compiles.
-4. **Write `Dockerfile`** -- Multi-stage build per Section 17.
-5. **Verify CI compiles** -- Run `go build ./services/accounts/...` locally.
+1. ~~Create directory structure~~ -- Done.
+2. ~~Write `config/config.go`~~ -- Done.
+3. ~~Write `main.go` (stub)~~ -- Done.
+4. ~~Write `Dockerfile`~~ -- Done.
+5. ~~Verify CI compiles~~ -- Done.
 
-### Phase B: Domain Models
+### Phase B: Domain Models ✓
 
-6. **Write `model/user.go`** -- `User` struct (UUID, email, email_verified, name, given_name, family_name, picture, created_at, updated_at).
-7. **Write `model/federated_identity.go`** -- `FederatedIdentity` struct (id, user_id, provider, provider_subject, created_at).
-8. **Write `model/client.go`** -- `Client` struct (DB model: all columns from the `clients` table schema).
-9. **Write `model/authrequest.go`** -- `AuthRequest` struct (all columns from `auth_requests` table).
-10. **Write `model/token.go`** -- `Token` and `RefreshToken` structs (all columns from `tokens` and `refresh_tokens` tables).
+6. ~~Write `model/user.go`~~ -- Done.
+7. ~~Write `model/federated_identity.go`~~ -- Done.
+8. ~~Write `model/client.go`~~ -- Done.
+9. ~~Write `model/authrequest.go`~~ -- Done.
+10. ~~Write `model/token.go`~~ -- Done.
 
-### Phase C: Database Schema
+### Phase C: Database Schema ✓
 
-11. **Write `migrations/001_initial.sql`** -- Full schema DDL per Section 16: `users`, `federated_identities`, `clients`, `auth_requests` (with partial index on `code`), `tokens`, `refresh_tokens`.
-12. **Write `migrations/002_seed_clients.sql`** -- INSERT for `myaccount-bff` per Section 16 (with bcrypt placeholder, redirect URI `https://myaccount.hss-science.org/api/auth/callback`, post-logout redirect `https://myaccount.hss-science.org/`).
+11. ~~Write `migrations/001_initial.sql`~~ -- Done.
+12. ~~Write `migrations/002_seed_clients.sql`~~ -- Done.
 
-### Phase D: Repositories
+### Phase D: Repositories ✓
 
-13. **Write `repo/user.go`** -- `UserRepository` with methods: `Create(ctx, *User)`, `GetByID(ctx, uuid)`. Uses `sqlx` + raw SQL.
-14. **Write `repo/client.go`** -- `ClientRepository` with methods: `GetByID(ctx, clientID string)`. Returns `*model.Client`.
-15. **Write `repo/authrequest.go`** -- `AuthRequestRepository` with methods: `Create(ctx, *AuthRequest)`, `GetByID(ctx, uuid)`, `GetByCode(ctx, code)`, `SaveCode(ctx, id, code)`, `CompleteLogin(ctx, id, userID, authTime, amr)`, `Delete(ctx, id)`. All SELECT queries filter by `created_at > now() - interval '30 minutes'`.
-16. **Write `repo/token.go`** -- `TokenRepository` with methods: `CreateAccess(ctx, ...)`, `CreateAccessAndRefresh(ctx, ...)`, `GetByID(ctx, tokenID)`, `GetRefreshToken(ctx, refreshToken)`, `GetRefreshInfo(ctx, refreshToken)`, `DeleteByUserAndClient(ctx, userID, clientID)`, `Revoke(ctx, tokenID)`. All SELECT queries filter by `expiration > now()`.
+13. ~~Write `repo/user.go`~~ -- Done.
+14. ~~Write `repo/client.go`~~ -- Done.
+15. ~~Write `repo/authrequest.go`~~ -- Done.
+16. ~~Write `repo/token.go`~~ -- Done.
 
-### Phase E: OIDC Provider -- Signing Keys
+### Phase E: OIDC Provider -- Signing Keys ✓
 
-17. **Write `oidcprovider/keys.go`** -- `SigningKey` struct (implements `op.SigningKey`: `SignatureAlgorithm()`, `Key()`, `ID()`), `PublicKey` struct (implements `op.Key`: `Algorithm()`, `Use()`, `Key()`, `ID()`). RSA key loading from PEM, deterministic `kid` derivation via SHA-256 of DER-encoded public key.
+17. ~~Write `oidcprovider/keys.go`~~ -- Done.
 
-### Phase F: OIDC Provider -- Client & AuthRequest Adapters
+### Phase F: OIDC Provider -- Client & AuthRequest Adapters ✓
 
-18. **Write `oidcprovider/client.go`** -- `Client` struct wrapping `model.Client`, satisfying `op.Client` interface. All methods per Section 10 (`GetID`, `RedirectURIs`, `PostLogoutRedirectURIs`, `ApplicationType`, `AuthMethod`, `ResponseTypes`, `GrantTypes`, `LoginURL`, `AccessTokenType`, `IDTokenLifetime`, `DevMode`, `IsScopeAllowed`, `RestrictAdditionalIdTokenScopes`, `RestrictAdditionalAccessTokenScopes`, `IDTokenUserinfoClaimsAssertion`, `ClockSkew`). Conversion function from `model.Client` -> `*Client`.
-19. **Write `oidcprovider/authrequest.go`** -- `AuthRequest` adapter wrapping `model.AuthRequest`, satisfying `op.AuthRequest` interface. All getter methods per Section 11 (`GetID`, `GetACR`, `GetAMR`, `GetAudience`, `GetAuthTime`, `GetClientID`, `GetCodeChallenge`, `GetCodeChallengeMethod`, `GetNonce`, `GetRedirectURI`, `GetResponseType`, `GetResponseMode`, `GetScopes`, `GetState`, `GetSubject`, `Done`).
-20. **Write `oidcprovider/refreshtoken.go`** -- `RefreshTokenRequest` struct satisfying `op.RefreshTokenRequest` interface (`GetAMR`, `GetAudience`, `GetAuthTime`, `GetClientID`, `GetScopes`, `GetSubject`, `SetCurrentScopes`).
+18. ~~Write `oidcprovider/client.go`~~ -- Done.
+19. ~~Write `oidcprovider/authrequest.go`~~ -- Done.
+20. ~~Write `oidcprovider/refreshtoken.go`~~ -- Done.
 
-### Phase G: OIDC Provider -- Storage Implementation
+### Phase G: OIDC Provider -- Storage Implementation ✓
 
-21. **Write `oidcprovider/storage.go`** -- `Storage` struct with all `op.Storage` methods per Section 9. This is the largest file. Implements:
-    - Auth request lifecycle: `CreateAuthRequest`, `AuthRequestByID`, `AuthRequestByCode`, `SaveAuthCode`, `DeleteAuthRequest`.
-    - Token lifecycle: `CreateAccessToken`, `CreateAccessAndRefreshTokens`, `TokenRequestByRefreshToken`, `TerminateSession`, `RevokeToken`, `GetRefreshTokenInfo`.
-    - Client: `GetClientByClientID`, `AuthorizeClientIDSecret` (bcrypt compare).
-    - User info: `SetUserinfoFromScopes`, `SetUserinfoFromToken`, `SetIntrospectionFromToken`, `GetPrivateClaimsFromScopes`.
-    - Keys: `SigningKey`, `SignatureAlgorithms`, `KeySet`.
-    - JWT Profile stubs: `GetKeyByIDAndClientID` (return error), `ValidateJWTProfileScopes` (return error).
-    - Health: `Health` (db ping).
-22. **Implement `CanSetUserinfoFromRequest`** -- `SetUserinfoFromRequest(ctx, userinfo, request)` method on Storage. Preferred by library, will become required in v4.
-23. **Implement `ClientCredentialsStorage`** -- `ClientCredentials(ctx, clientID, clientSecret)` and `ClientCredentialsTokenRequest(ctx, clientID, scopes)` methods on Storage per Section 19.
+21. ~~Write `oidcprovider/storage.go`~~ -- Done.
+22. ~~Implement `CanSetUserinfoFromRequest`~~ -- Done.
+23. ~~Implement `ClientCredentialsStorage`~~ -- Done.
 
-### Phase H: OIDC Provider -- Construction
+### Phase H: OIDC Provider -- Construction ✓
 
-24. **Write `oidcprovider/provider.go`** -- `NewProvider(cfg, storage)` function that constructs `op.Config` (per Section 14), calls `op.NewOpenIDProvider`, returns the provider + router. JSON `slog` logger passed via `op.WithLogger()`.
+24. ~~Write `oidcprovider/provider.go`~~ -- Done. Uses `op.NewProvider` + `op.StaticIssuer` (non-deprecated API).
 
-### Phase I: Login Handlers -- Upstream Configuration
+### Phase I: Login Handlers -- Upstream Configuration ✓
 
-25. **Write `login/upstream.go`** -- `UpstreamProvider` and `UpstreamClaims` structs per Section 5.2. `NewUpstreamProviders(cfg)` function that builds the provider list from config. Google: OIDC Discovery + IDTokenVerifier + UserInfoFunc. GitHub: OAuth2-only + `GET /user` API UserInfoFunc.
+25. ~~Write `login/upstream.go`~~ -- Done.
 
-### Phase J: Login Handlers -- HTTP Handlers
+### Phase J: Login Handlers -- HTTP Handlers ✓
 
-26. **Write `login/handler.go`** -- `Handler` struct with three methods:
-    - `SelectProvider(w, r)` -- `GET /login`, renders `select_provider.html` per Section 12.
-    - `FederatedRedirect(w, r)` -- `POST /login/select`, builds upstream OAuth2 URL with encrypted state, redirects per Section 12.
-    - `FederatedCallback(w, r)` -- `GET /login/callback`, exchanges code, verifies identity, finds-or-creates user (no profile overwrite on returning users), completes auth request, redirects to `op.AuthCallbackURL` per Section 12.
-27. **Write `login/templates/select_provider.html`** -- Minimal HTML template. Lists configured providers as form buttons. Hidden `authRequestID` field.
+26. ~~Write `login/handler.go`~~ -- Done.
+27. ~~Write login template~~ -- Done (inline HTML constant, no separate template file).
 
-### Phase K: Main Wiring
+### Phase K: Main Wiring ✓
 
-28. **Complete `main.go`** -- Full wiring per Section 15: load config -> connect PostgreSQL -> init repos -> init Storage -> create OpenIDProvider -> build chi router -> mount login routes with `IssuerInterceptor` -> mount `/healthz`, `/readyz`, `/logged-out` -> mount OP on `/` -> `ListenAndServe`.
+28. ~~Complete `main.go`~~ -- Done.
 
-### Phase L: Linting & Build Verification
+### Phase L: Linting & Build Verification ✓
 
-29. **Run `golangci-lint`** -- Fix all linter issues per `.golangci.yml` (govet, errcheck, staticcheck, gosec, etc.).
-30. **Run `go build`** -- Verify clean compile of `./services/accounts/...`.
-31. **Run `go vet`** -- Verify no vet issues.
+29. ~~Run `golangci-lint`~~ -- Done. 0 issues. Also fixed `.golangci.yml` for v2 format.
+30. ~~Run `go build`~~ -- Done. Clean compile.
+31. ~~Run `go vet`~~ -- Done. No issues.
 
-### Phase M: Tests
+### Phase M: Tests ✓
 
-32. **Write `config/config_test.go`** -- Unit tests for env-var parsing, validation, CryptoKey decoding, RSA PEM parsing.
-33. **Write `oidcprovider/keys_test.go`** -- Unit tests for key loading, kid derivation, interface satisfaction.
-34. **Write `oidcprovider/client_test.go`** -- Unit tests for `op.Client` interface method behavior (LoginURL, DevMode, IsScopeAllowed, etc.).
-35. **Write `oidcprovider/authrequest_test.go`** -- Unit tests for `op.AuthRequest` interface method behavior.
-36. **Write `repo/*_test.go`** -- Integration tests for each repository against PostgreSQL (using `testcontainers-go`).
-37. **Write `oidcprovider/storage_test.go`** -- Integration tests for Storage methods against PostgreSQL.
-38. **Write `login/handler_test.go`** -- Unit tests for login handlers with mocked upstream IdPs (httptest server), mocked repos.
-39. **Run full test suite** -- `go test ./services/accounts/...` -- all tests pass.
+32. ~~Write `config/config_test.go`~~ -- Done. 13 tests.
+33. ~~Write `oidcprovider/keys_test.go`~~ -- Done. 5 tests.
+34. ~~Write `oidcprovider/client_test.go`~~ -- Done. 20 tests.
+35. ~~Write `oidcprovider/authrequest_test.go`~~ -- Done. 17 tests (including RefreshTokenRequest).
+36. ~~Write `repo/repo_test.go`~~ -- Done. 11 integration tests with testcontainers-go PostgreSQL.
+37. ~~Write `oidcprovider/storage_test.go`~~ -- Done. 25 integration tests with testcontainers-go PostgreSQL.
+38. ~~Write `login/handler_test.go`~~ -- Done. 11 unit tests (httptest).
+39. ~~Run full test suite~~ -- Done. All tests pass.
