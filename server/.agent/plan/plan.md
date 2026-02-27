@@ -1,6 +1,6 @@
 # Accounts Service -- Implementation Plan
 
-> **Status**: Revised -- all author annotations from Rounds 1, 2, and 3 are incorporated.
+> **Status**: Final -- all author annotations from Rounds 1–4 are incorporated. Implementation todo list appended.
 > This document describes the design for `server/services/accounts/`, the OIDC Provider (OP) / Identity service for the hss-science platform.
 
 ---
@@ -210,7 +210,7 @@ Our OP
 
 ### 6.1 Auth Requests -- PostgreSQL
 
-Auth requests will be stored in PostgreSQL with a TTL (cleanup via a periodic job or `created_at` filter).
+Auth requests will be stored in PostgreSQL. Expired rows are filtered out passively in queries (e.g., `WHERE created_at > now() - interval '30 minutes'`). Active deletion of stale rows is deferred to a future external cron job or batch process.
 
 Rationale:
 - Auth requests must survive server restarts (the user might be at Google for minutes).
@@ -230,6 +230,8 @@ Even though access tokens are JWTs (self-verifiable), we still need to track the
 - Refresh token lifecycle (rotation, expiry)
 
 Each token record stores: `id`, `subject`, `client_id`, `scopes`, `audience`, `expiration`, `refresh_token_id`.
+
+Expired token cleanup is passive -- queries filter by `expiration`. Active pruning of expired rows is deferred to a future external cron job.
 
 ### 6.4 Users -- PostgreSQL
 
@@ -497,7 +499,7 @@ The login flow has three handlers, all mounted under `/login` with the `IssuerIn
    - `client_id=<our-upstream-client-id-for-this-provider>`
    - `redirect_uri=https://accounts.hss-science.org/login/callback`
    - `scope=openid email profile`
-   - `state=<encrypt(authRequestID + provider + nonce)>`
+   - `state=<encrypt(authRequestID + provider + nonce)>` (encrypted with the `CryptoKey` AES key, see Section 13)
 4. Redirect user to the upstream IdP.
 
 ### `GET /login/callback` -- Federated Completion
@@ -559,7 +561,7 @@ Notes:
 ```go
 opConfig := &op.Config{
     CryptoKey:                cryptoKey,                // [32]byte from env
-    DefaultLogoutRedirectURI: "/logged-out",
+    DefaultLogoutRedirectURI: "/logged-out",            // Fallback; per-client post_logout_redirect_uris take precedence
     CodeMethodS256:           true,                     // PKCE mandatory
     AuthMethodPost:           true,                     // Allow form-post client auth
     AuthMethodPrivateKeyJWT:  false,                    // Not needed
@@ -606,15 +608,27 @@ func main() {
         r.Get("/callback", loginHandler.FederatedCallback) // Callback from upstream IdP
     })
 
-    // 8. Mount static pages
+    // 8. Mount health endpoints
+    router.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
+        w.WriteHeader(http.StatusOK)
+    })
+    router.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
+        if err := db.PingContext(r.Context()); err != nil {
+            http.Error(w, "not ready", http.StatusServiceUnavailable)
+            return
+        }
+        w.WriteHeader(http.StatusOK)
+    })
+
+    // 9. Mount static pages
     router.Get("/logged-out", func(w http.ResponseWriter, r *http.Request) {
         w.Write([]byte("You have been signed out."))
     })
 
-    // 9. Mount the OP handler on root (so /.well-known/openid-configuration works)
+    // 10. Mount the OP handler on root (so /.well-known/openid-configuration works)
     router.Mount("/", provider)
 
-    // 10. Start server
+    // 11. Start server
     http.ListenAndServe(":"+config.Port, router)
 }
 ```
@@ -731,8 +745,8 @@ Index: `auth_requests_code_idx` on `code` WHERE `code IS NOT NULL` (partial inde
 Contains the INSERT statement for the Phase 1 client registration. The secret hash is a bcrypt placeholder that must be replaced with the real value before deployment:
 
 ```sql
-INSERT INTO clients (id, secret_hash, redirect_uris, response_types, grant_types, access_token_type) VALUES
-  ('myaccount-bff', '$2a$10$PLACEHOLDER', '{"https://myaccount.hss-science.org/auth/callback"}', '{"code"}', '{"authorization_code","refresh_token"}', 'jwt');
+INSERT INTO clients (id, secret_hash, redirect_uris, post_logout_redirect_uris, response_types, grant_types, access_token_type) VALUES
+  ('myaccount-bff', '$2a$10$PLACEHOLDER', '{"https://myaccount.hss-science.org/api/auth/callback"}', '{"https://myaccount.hss-science.org/"}', '{"code"}', '{"authorization_code","refresh_token"}', 'jwt');
 ```
 
 ---
@@ -806,16 +820,18 @@ No E2E tests in the repo (per README policy -- E2E is done in staging).
 
 ## 21. Observability
 
-- **Logging**: `log/slog` (standard library), passed to the OP via `op.WithLogger()`.
-- **Tracing**: The `zitadel/oidc` library has built-in OpenTelemetry spans. We'll add OTel instrumentation to our handlers using the standard `go.opentelemetry.io/otel` SDK. Exporter configuration via environment variables (OTLP endpoint).
-- **Health**: `GET /healthz` (from the library's built-in health endpoint) + `GET /readyz` (checks DB connectivity via `Storage.Health()`).
+- **Logging**: `log/slog` (standard library) with `slog.NewJSONHandler` (hardcoded JSON output for production observability). Passed to the OP via `op.WithLogger()`.
+- **Tracing**: Deferred to Phase 2. The `zitadel/oidc` library has built-in OpenTelemetry spans; when enabled, we'll add OTel instrumentation to our handlers using the standard `go.opentelemetry.io/otel` SDK.
+- **Health Endpoints**:
+  - `GET /healthz` -- Liveness probe. Returns `200 OK` unconditionally. Tells the orchestrator the process is alive.
+  - `GET /readyz` -- Readiness probe. Pings the database via `db.PingContext()`. Returns `200 OK` if the DB is reachable, `503 Service Unavailable` otherwise. Tells the orchestrator the service is ready to accept traffic.
 
 ---
 
 ## 22. Security Considerations
 
 - **PKCE required**: `CodeMethodS256: true` in config. All public clients must use PKCE. Confidential clients should too.
-- **State parameter**: The upstream federated login state is encrypted (AES-GCM) and includes a nonce to prevent replay.
+- **State parameter**: The upstream federated login state is encrypted (AES-GCM) using the same `CryptoKey` configured for `op.Config`, and includes a nonce to prevent replay.
 - **Refresh token rotation**: Every refresh token use invalidates the old token and issues a new one. A reuse of an old refresh token indicates token theft and should invalidate the entire family (not implemented initially, but the architecture supports it).
 - **Client secrets**: Stored as bcrypt hashes in the `clients` database table. Compared via `bcrypt.CompareHashAndPassword`.
 - **No tokens in browser**: Access/refresh tokens are never exposed to SPAs. They exist only in the BFF layer (per the architecture docs).
@@ -844,64 +860,107 @@ All questions from previous drafts have been resolved per author annotations:
 **Round 3:**
 9. **No profile overwrite on returning login** -> When a returning user logs in, their existing profile (name, email, picture, etc.) is NOT updated from upstream IdP claims. Upstream claims are only used to populate the profile during _initial_ user creation. This preserves future user-edited profile data. See Sections 5.3 (flow diagram step 14) and 12 (callback handler step 5).
 
+**Round 4:**
+10. **Federated state encryption key** -> Reuse the existing `CryptoKey` (from `op.Config`) for encrypting the upstream federated login state. No separate key. See Sections 12 and 22.
+11. **Auth request & token cleanup** -> Passive cleanup. Expired rows are filtered out in queries; active DB pruning is deferred to a future external cron job. See Sections 6.1 and 6.3.
+12. **Refresh token reuse detection** -> Deferred to Phase 2. Standard token rotation (invalidate old, issue new) is sufficient for Phase 1. See Section 22.
+13. **BFF redirect URI convention** -> `/api/auth/callback` (i.e., `https://myaccount.hss-science.org/api/auth/callback`). See Section 16.
+14. **Post-logout redirect URI** -> BFF root (`https://myaccount.hss-science.org/`). Configured per-client in `post_logout_redirect_uris`. See Section 16.
+15. **Router dependency** -> Use `chi` explicitly. It's already a transitive dependency of `zitadel/oidc` and is `net/http`-compatible. See Section 15.
+16. **Structured logging** -> Hardcode `slog.NewJSONHandler` for production observability. No env-var toggle. See Section 21.
+17. **OpenTelemetry** -> Deferred to Phase 2. The library's built-in spans will activate automatically when OTel is configured later. See Section 21.
+18. **Health check endpoints** -> Separate `/healthz` (liveness, always 200) and `/readyz` (readiness, pings DB). See Sections 15 and 21.
+
 ---
 
-## 24. Open Questions
+## 24. Implementation Todo List
 
-These are unresolved items and remaining uncertainties. They should be clarified before implementation begins.
+Ordered by dependency. Each phase builds on the previous one. All work happens under `server/services/accounts/`.
 
-### 24.1 Federated State Encryption Key
+### Phase A: Project Skeleton & Configuration
 
-Section 12 specifies that the `state` parameter sent to upstream IdPs is encrypted (AES-GCM) and includes a nonce. Should we reuse the same `CryptoKey` (the 32-byte AES key already required by `op.Config`) for encrypting the federated login state, or should this be a separate dedicated key? Reusing the `CryptoKey` is simpler (one fewer environment variable), but using separate keys provides better key isolation.
+1. **Create directory structure** -- Create all directories: `config/`, `model/`, `repo/`, `oidcprovider/`, `login/`, `login/templates/`, `migrations/`.
+2. **Write `config/config.go`** -- Env-var loading struct (`Config`), validation (required fields), `CryptoKey` hex decoding, RSA PEM parsing. No external config library -- use `os.Getenv` + manual validation.
+3. **Write `main.go` (stub)** -- Entrypoint that loads config, prints "starting" log line, and exits. Just enough to verify the build compiles.
+4. **Write `Dockerfile`** -- Multi-stage build per Section 17.
+5. **Verify CI compiles** -- Run `go build ./services/accounts/...` locally.
 
-### 24.2 Auth Request Cleanup Strategy
+### Phase B: Domain Models
 
-Section 6.1 mentions auth requests are stored in PostgreSQL with a TTL and "cleanup via a periodic job or `created_at` filter." Which approach should we use?
+6. **Write `model/user.go`** -- `User` struct (UUID, email, email_verified, name, given_name, family_name, picture, created_at, updated_at).
+7. **Write `model/federated_identity.go`** -- `FederatedIdentity` struct (id, user_id, provider, provider_subject, created_at).
+8. **Write `model/client.go`** -- `Client` struct (DB model: all columns from the `clients` table schema).
+9. **Write `model/authrequest.go`** -- `AuthRequest` struct (all columns from `auth_requests` table).
+10. **Write `model/token.go`** -- `Token` and `RefreshToken` structs (all columns from `tokens` and `refresh_tokens` tables).
 
-- **Option A**: A goroutine in the accounts service that periodically (e.g., every 10 minutes) runs `DELETE FROM auth_requests WHERE created_at < now() - interval '30 minutes'`.
-- **Option B**: No active cleanup -- rely on the `created_at` column and simply ignore expired rows in queries (add `WHERE created_at > now() - interval '30 minutes'` to all SELECT queries). Defer actual deletion to a future cron job or external process.
+### Phase C: Database Schema
 
-Option B is simpler for the initial implementation but the table will grow unboundedly until external cleanup is configured.
+11. **Write `migrations/001_initial.sql`** -- Full schema DDL per Section 16: `users`, `federated_identities`, `clients`, `auth_requests` (with partial index on `code`), `tokens`, `refresh_tokens`.
+12. **Write `migrations/002_seed_clients.sql`** -- INSERT for `myaccount-bff` per Section 16 (with bcrypt placeholder, redirect URI `https://myaccount.hss-science.org/api/auth/callback`, post-logout redirect `https://myaccount.hss-science.org/`).
 
-### 24.3 Expired Token Cleanup
+### Phase D: Repositories
 
-Same question as 24.2 but for the `tokens` and `refresh_tokens` tables. Expired tokens accumulate over time. Should the accounts service actively prune them, or defer cleanup to external infrastructure?
+13. **Write `repo/user.go`** -- `UserRepository` with methods: `Create(ctx, *User)`, `GetByID(ctx, uuid)`. Uses `sqlx` + raw SQL.
+14. **Write `repo/client.go`** -- `ClientRepository` with methods: `GetByID(ctx, clientID string)`. Returns `*model.Client`.
+15. **Write `repo/authrequest.go`** -- `AuthRequestRepository` with methods: `Create(ctx, *AuthRequest)`, `GetByID(ctx, uuid)`, `GetByCode(ctx, code)`, `SaveCode(ctx, id, code)`, `CompleteLogin(ctx, id, userID, authTime, amr)`, `Delete(ctx, id)`. All SELECT queries filter by `created_at > now() - interval '30 minutes'`.
+16. **Write `repo/token.go`** -- `TokenRepository` with methods: `CreateAccess(ctx, ...)`, `CreateAccessAndRefresh(ctx, ...)`, `GetByID(ctx, tokenID)`, `GetRefreshToken(ctx, refreshToken)`, `GetRefreshInfo(ctx, refreshToken)`, `DeleteByUserAndClient(ctx, userID, clientID)`, `Revoke(ctx, tokenID)`. All SELECT queries filter by `expiration > now()`.
 
-### 24.4 Refresh Token Reuse Detection
+### Phase E: OIDC Provider -- Signing Keys
 
-Section 22 mentions that reuse of an invalidated refresh token "indicates token theft and should invalidate the entire token family (not implemented initially, but the architecture supports it)." Should we implement at least a basic version of this detection in Phase 1? The risk is: if an attacker steals a refresh token and uses it before the legitimate client does, the attacker gets a new token pair and the legitimate client's next refresh silently fails. Without reuse detection, the legitimate client has no signal that their token was stolen.
+17. **Write `oidcprovider/keys.go`** -- `SigningKey` struct (implements `op.SigningKey`: `SignatureAlgorithm()`, `Key()`, `ID()`), `PublicKey` struct (implements `op.Key`: `Algorithm()`, `Use()`, `Key()`, `ID()`). RSA key loading from PEM, deterministic `kid` derivation via SHA-256 of DER-encoded public key.
 
-### 24.5 Redirect URI for `myaccount-bff`
+### Phase F: OIDC Provider -- Client & AuthRequest Adapters
 
-The seed SQL in Section 16 uses `https://myaccount.hss-science.org/auth/callback` as the redirect URI for the `myaccount-bff` client. Is this the correct production URL? The myaccount BFF hasn't been built yet, so this is a placeholder. Should we finalize the callback path convention now (e.g., `/auth/callback` vs `/oauth/callback` vs `/api/auth/callback`)?
+18. **Write `oidcprovider/client.go`** -- `Client` struct wrapping `model.Client`, satisfying `op.Client` interface. All methods per Section 10 (`GetID`, `RedirectURIs`, `PostLogoutRedirectURIs`, `ApplicationType`, `AuthMethod`, `ResponseTypes`, `GrantTypes`, `LoginURL`, `AccessTokenType`, `IDTokenLifetime`, `DevMode`, `IsScopeAllowed`, `RestrictAdditionalIdTokenScopes`, `RestrictAdditionalAccessTokenScopes`, `IDTokenUserinfoClaimsAssertion`, `ClockSkew`). Conversion function from `model.Client` -> `*Client`.
+19. **Write `oidcprovider/authrequest.go`** -- `AuthRequest` adapter wrapping `model.AuthRequest`, satisfying `op.AuthRequest` interface. All getter methods per Section 11 (`GetID`, `GetACR`, `GetAMR`, `GetAudience`, `GetAuthTime`, `GetClientID`, `GetCodeChallenge`, `GetCodeChallengeMethod`, `GetNonce`, `GetRedirectURI`, `GetResponseType`, `GetResponseMode`, `GetScopes`, `GetState`, `GetSubject`, `Done`).
+20. **Write `oidcprovider/refreshtoken.go`** -- `RefreshTokenRequest` struct satisfying `op.RefreshTokenRequest` interface (`GetAMR`, `GetAudience`, `GetAuthTime`, `GetClientID`, `GetScopes`, `GetSubject`, `SetCurrentScopes`).
 
-### 24.6 Post-Logout Redirect URI
+### Phase G: OIDC Provider -- Storage Implementation
 
-The `myaccount-bff` client currently has no `post_logout_redirect_uris` configured. When the user signs out of myaccount, where should they be redirected? Options include the myaccount login page, a shared "signed out" landing page, or the OP's `/logged-out` endpoint (currently a plain text response).
+21. **Write `oidcprovider/storage.go`** -- `Storage` struct with all `op.Storage` methods per Section 9. This is the largest file. Implements:
+    - Auth request lifecycle: `CreateAuthRequest`, `AuthRequestByID`, `AuthRequestByCode`, `SaveAuthCode`, `DeleteAuthRequest`.
+    - Token lifecycle: `CreateAccessToken`, `CreateAccessAndRefreshTokens`, `TokenRequestByRefreshToken`, `TerminateSession`, `RevokeToken`, `GetRefreshTokenInfo`.
+    - Client: `GetClientByClientID`, `AuthorizeClientIDSecret` (bcrypt compare).
+    - User info: `SetUserinfoFromScopes`, `SetUserinfoFromToken`, `SetIntrospectionFromToken`, `GetPrivateClaimsFromScopes`.
+    - Keys: `SigningKey`, `SignatureAlgorithms`, `KeySet`.
+    - JWT Profile stubs: `GetKeyByIDAndClientID` (return error), `ValidateJWTProfileScopes` (return error).
+    - Health: `Health` (db ping).
+22. **Implement `CanSetUserinfoFromRequest`** -- `SetUserinfoFromRequest(ctx, userinfo, request)` method on Storage. Preferred by library, will become required in v4.
+23. **Implement `ClientCredentialsStorage`** -- `ClientCredentials(ctx, clientID, clientSecret)` and `ClientCredentialsTokenRequest(ctx, clientID, scopes)` methods on Storage per Section 19.
 
-### 24.7 `chi` Router Dependency
+### Phase H: OIDC Provider -- Construction
 
-The plan uses `chi` for routing (Section 15), following the pattern from the `zitadel/oidc` example. However, `go.mod` currently has no dependencies. The `zitadel/oidc` library itself uses `chi` internally, so it will be pulled in transitively. Should we use `chi` directly (explicit import), or use the standard library `net/http.ServeMux` (Go 1.22+ has path parameters) to minimize direct dependencies?
+24. **Write `oidcprovider/provider.go`** -- `NewProvider(cfg, storage)` function that constructs `op.Config` (per Section 14), calls `op.NewOpenIDProvider`, returns the provider + router. JSON `slog` logger passed via `op.WithLogger()`.
 
-### 24.8 Structured Logging Configuration
+### Phase I: Login Handlers -- Upstream Configuration
 
-Section 21 specifies `log/slog` with `op.WithLogger()`. What log format should we use in production -- JSON (machine-readable, for log aggregation) or text (human-readable, for debugging)? Should this be configurable via environment variable, or should we hardcode JSON for production?
+25. **Write `login/upstream.go`** -- `UpstreamProvider` and `UpstreamClaims` structs per Section 5.2. `NewUpstreamProviders(cfg)` function that builds the provider list from config. Google: OIDC Discovery + IDTokenVerifier + UserInfoFunc. GitHub: OAuth2-only + `GET /user` API UserInfoFunc.
 
-### 24.9 OpenTelemetry Scope
+### Phase J: Login Handlers -- HTTP Handlers
 
-Section 21 mentions OTel instrumentation for our custom handlers and the library's built-in spans. Should we implement OTel from Phase 1, or defer it? If Phase 1, what exporter do we target (OTLP/gRPC, OTLP/HTTP, stdout)? Are there existing OTel conventions in the project?
+26. **Write `login/handler.go`** -- `Handler` struct with three methods:
+    - `SelectProvider(w, r)` -- `GET /login`, renders `select_provider.html` per Section 12.
+    - `FederatedRedirect(w, r)` -- `POST /login/select`, builds upstream OAuth2 URL with encrypted state, redirects per Section 12.
+    - `FederatedCallback(w, r)` -- `GET /login/callback`, exchanges code, verifies identity, finds-or-creates user (no profile overwrite on returning users), completes auth request, redirects to `op.AuthCallbackURL` per Section 12.
+27. **Write `login/templates/select_provider.html`** -- Minimal HTML template. Lists configured providers as form buttons. Hidden `authRequestID` field.
 
-### 24.10 Health Check Endpoints
+### Phase K: Main Wiring
 
-Section 21 mentions `GET /healthz` (library built-in) and `GET /readyz` (our custom, checks DB). The library's built-in health check calls `Storage.Health()`. Should we expose a separate `/readyz` endpoint that does the same thing, or is the library's `/healthz` sufficient? Kubernetes typically expects both a liveness probe (`/healthz`) and a readiness probe (`/readyz`).
+28. **Complete `main.go`** -- Full wiring per Section 15: load config -> connect PostgreSQL -> init repos -> init Storage -> create OpenIDProvider -> build chi router -> mount login routes with `IssuerInterceptor` -> mount `/healthz`, `/readyz`, `/logged-out` -> mount OP on `/` -> `ListenAndServe`.
 
-> Author Annotation: 
-> * **24.1 (State Key)**: Reuse the existing `CryptoKey` for simplicity in Phase 1.
-> * **24.2 & 24.3 (Cleanup)**: Choose Option B (Passive cleanup). Defer active DB pruning to a future external cron job or batch process.
-> * **24.4 (Token Reuse)**: Defer Refresh Token Reuse Detection to Phase 2. Standard token rotation is sufficient for now.
-> * **24.5 (BFF Redirect URI)**: Use `/api/auth/callback` as the standard path convention for the BFF (i.e., `https://myaccount.hss-science.org/api/auth/callback`).
-> * **24.6 (Logout Redirect)**: Redirect to the BFF root (`https://myaccount.hss-science.org/`) after logout.
-> * **24.7 (chi Router)**: Use `chi`. The `go.mod` is currently empty just to reduce noise for the LLM during planning. Since `zitadel/oidc` already uses `chi` internally and it is highly compatible with `net/http`, it is perfectly fine to use it explicitly.
-> * **24.8 (Logging)**: Hardcode JSON structured logging for production observability.
-> * **24.9 (OTel)**: Defer OpenTelemetry implementation to Phase 2.
-> * **24.10 (Health Checks)**: Implement separate endpoints: `/healthz` (Liveness, simply returns 200 OK) and `/readyz` (Readiness, pings the DB using `Storage.Health()`).
+### Phase L: Linting & Build Verification
+
+29. **Run `golangci-lint`** -- Fix all linter issues per `.golangci.yml` (govet, errcheck, staticcheck, gosec, etc.).
+30. **Run `go build`** -- Verify clean compile of `./services/accounts/...`.
+31. **Run `go vet`** -- Verify no vet issues.
+
+### Phase M: Tests
+
+32. **Write `config/config_test.go`** -- Unit tests for env-var parsing, validation, CryptoKey decoding, RSA PEM parsing.
+33. **Write `oidcprovider/keys_test.go`** -- Unit tests for key loading, kid derivation, interface satisfaction.
+34. **Write `oidcprovider/client_test.go`** -- Unit tests for `op.Client` interface method behavior (LoginURL, DevMode, IsScopeAllowed, etc.).
+35. **Write `oidcprovider/authrequest_test.go`** -- Unit tests for `op.AuthRequest` interface method behavior.
+36. **Write `repo/*_test.go`** -- Integration tests for each repository against PostgreSQL (using `testcontainers-go`).
+37. **Write `oidcprovider/storage_test.go`** -- Integration tests for Storage methods against PostgreSQL.
+38. **Write `login/handler_test.go`** -- Unit tests for login handlers with mocked upstream IdPs (httptest server), mocked repos.
+39. **Run full test suite** -- `go test ./services/accounts/...` -- all tests pass.
