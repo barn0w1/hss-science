@@ -6,9 +6,35 @@ Centered around a core Identity Provider (IdP) and Single Sign-On (SSO) foundati
 
 ---
 
+## Repository Responsibility
+
+This repository is responsible for:
+
+* Maintaining the **application source code**
+* Building applications
+* Producing artifacts such as **container images**
+* Pushing those artifacts to a container registry
+
+This repository is **not responsible** for:
+
+* Deployment to any environment (e.g., staging, production)
+* Infrastructure provisioning
+* Runtime orchestration (e.g., Kubernetes configuration)
+* Database migrations execution
+
+Database migration **schemes and definitions** may be stored in this repository,
+however, the execution of migrations is handled outside of this repository's scope.
+
+In short:
+
+> This repository defines and builds the software.
+> It does not deploy or operate the infrastructure.
+
+---
+
 ## Note
 
-This is a private, internally developed platform.  
+This is a private, internally developed platform.
 It is not an open-source project.
 
 ---
@@ -16,4 +42,5 @@ It is not an open-source project.
 ## Development Log
 
 ### 2026-01-12
-- Project initiated.
+
+* Project initiated.
