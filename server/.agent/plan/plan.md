@@ -1,6 +1,6 @@
 # Accounts Service -- Implementation Plan
 
-> **Status**: Draft -- pending review and inline annotations.
+> **Status**: Revised -- all author annotations from Round 1 are incorporated.
 > This document describes the design for `server/services/accounts/`, the OIDC Provider (OP) / Identity service for the hss-science platform.
 
 ---
@@ -64,7 +64,7 @@ Rationale:
 
 **Key management approach:**
 - A single RSA-2048 private key, loaded from an environment variable (PEM-encoded) at startup.
-- Key ID (`kid`) derived deterministically from the key (e.g., hash of public key modulus), so it's stable across restarts.
+- Key ID (`kid`) derived deterministically from the key (e.g., SHA-256 hash of the DER-encoded public key, truncated to 16 hex chars), so it's stable across restarts.
 - `SigningKey()` returns this key. `KeySet()` returns the corresponding public key.
 - Key rotation is out of scope for the initial implementation. When needed, we'll add multi-key support (active signing key + retired verification-only keys in the JWKS).
 
@@ -72,15 +72,15 @@ Rationale:
 
 ## 4. Design Decision: Issuer Strategy
 
-**Choice: Static issuer**
+**Choice: Static issuer, production-only HTTPS**
 
 Value: `https://accounts.hss-science.org` (configurable via environment variable).
 
 Rationale:
 - We are not multi-tenant. One issuer, one OP instance.
 - Simpler configuration, simpler token verification for resource servers.
-- In local development, this will be overridden to `http://localhost:<port>` with `op.WithAllowInsecure()`.
-> Author Annotation: No local E2E testing is planned. Implementation of local-specific logic (e.g., `localhost` overrides or `op.WithAllowInsecure()`) is strictly NOT required. Focus entirely on the production-grade HTTPS flow.
+
+No local development overrides are implemented. No `op.WithAllowInsecure()`, no `localhost` fallbacks, no `DevMode` toggle. The service is built exclusively for production-grade HTTPS deployment.
 
 ---
 
@@ -91,47 +91,59 @@ Our OP does NOT authenticate users directly. Authentication is **federated to up
 ```
 Relying Party (e.g., drive.hss-science.org)
     |
-    | 1. GET /authorize?client_id=drive&redirect_uri=...&scope=openid+profile+email
+    | 1. GET /authorize?client_id=drive-bff&redirect_uri=...&scope=openid+profile+email
     v
 Our OP (accounts.hss-science.org)
     |
     | 2. Library creates AuthRequest, calls Storage.CreateAuthRequest()
     | 3. AuthRequest.Done() == false -> redirects to Client.LoginURL(authRequestID)
     v
-Our Login Handler (/login/federated?authRequestID=xxx)
+Provider Selection Page (GET /login?authRequestID=xxx)
     |
-    | 4. Builds upstream OAuth2 authorize URL for Google/GitHub
-    | 5. Stores authRequestID in `state` parameter (encrypted/signed)
-    | 6. Redirects user to Google
+    | 4. Renders HTML page listing configured upstream IdPs (e.g., "Sign in with Google", "Sign in with GitHub")
+    | 5. User clicks a provider
+    | 6. POST /login/select?authRequestID=xxx&provider=google
+    v
+Federated Redirect Handler (POST /login/select)
+    |
+    | 7. Builds upstream OAuth2 authorize URL for the chosen provider
+    | 8. Stores authRequestID + provider in `state` parameter (encrypted/signed)
+    | 9. Redirects user to the upstream IdP (e.g., Google)
     v
 Google / GitHub
     |
-    | 7. User authenticates at Google
-    | 8. Google redirects to our callback: /login/federated/callback?code=xxx&state=yyy
+    | 10. User authenticates at the upstream IdP
+    | 11. IdP redirects to our callback: GET /login/callback?code=xxx&state=yyy
     v
-Our Federated Callback Handler (/login/federated/callback)
+Our Federated Callback Handler (GET /login/callback)
     |
-    | 9. Exchanges code for tokens with Google
-    | 10. Extracts user identity from Google's ID token (sub, email, name)
-    | 11. Upserts user in our database (find-or-create by provider+sub)
-    | 12. Updates AuthRequest in storage: sets UserID, marks Done=true, records AuthTime
-    | 13. Redirects to op.AuthCallbackURL: /authorize/callback?id=authRequestID
+    | 12. Exchanges code for tokens with the upstream IdP (server-to-server)
+    | 13. Extracts user identity from the upstream ID token (sub, email, name, picture)
+    | 14. Finds or creates user in our database (keyed by provider+provider_subject, NO email-based linking)
+    | 15. Updates AuthRequest in storage: sets UserID, marks Done=true, records AuthTime
+    | 16. Redirects to op.AuthCallbackURL: /authorize/callback?id=authRequestID
     v
 Our OP (library-handled callback)
     |
-    | 14. Library fetches AuthRequest by ID, sees Done()==true
-    | 15. Issues authorization code, redirects to RP's redirect_uri
+    | 17. Library fetches AuthRequest by ID, sees Done()==true
+    | 18. Issues authorization code, redirects to RP's redirect_uri
     v
 Relying Party
     |
-    | 16. Exchanges code for tokens at POST /oauth/token
+    | 19. Exchanges code for tokens at POST /oauth/token
     v
 Our OP
     |
-    | 17. Library issues access_token (JWT) + id_token + refresh_token
+    | 20. Library issues access_token (JWT) + id_token + refresh_token
 ```
 
-This is the critical insight: our "login UI" is not a username/password form -- it's an OAuth2 client that talks to upstream IdPs. The `zitadel/oidc` library only sees the result: a completed `AuthRequest` with a subject.
+### Key design points:
+
+1. **Provider selection page is always shown.** Even if only one upstream IdP is configured, the user sees the selection page and explicitly chooses their login method. This ensures the UX is consistent and ready for multi-provider support.
+
+2. **No account auto-linking.** Each `(provider, provider_subject)` pair maps to exactly one user in our database. If the same person signs in with Google and then with GitHub (even with the same email), they get two separate user accounts. We do not perform email-based identity merging because we do not independently verify email addresses.
+
+3. **Stateless OP.** The OP does not set its own session cookie. Each authorization request triggers a full login flow through the upstream IdP. If the upstream IdP has an active session (e.g., the user is already signed into Google), the IdP may auto-approve without re-prompting, giving the effect of SSO. But this is the upstream IdP's responsibility, not ours.
 
 ---
 
@@ -169,6 +181,8 @@ Our user table is the canonical identity store. Fields include:
 - `picture`
 - `created_at`, `updated_at`
 
+Note: `email` is NOT unique. Multiple user accounts (from different upstream IdPs) can share the same email address. This is by design -- we do not perform email-based account linking.
+
 ### 6.5 Federated Identities -- PostgreSQL
 
 Links upstream IdP identities to our users:
@@ -177,15 +191,23 @@ Links upstream IdP identities to our users:
 - `provider_subject` (the `sub` claim from the upstream IdP)
 - Unique constraint on `(provider, provider_subject)`
 
-### 6.6 Clients -- Hardcoded in code (for now)
+This is a strict one-to-one mapping. One federated identity record maps to exactly one user. There is no mechanism to merge identities.
 
-Our internal clients (drive, chat, myaccount-bff) are known at compile time. We'll register them in Go code, similar to the example's `RegisterClients()` pattern.
+### 6.6 Clients -- PostgreSQL (database-backed)
 
-Rationale: Adding a dynamic client registration API is premature. We have a handful of first-party clients. If we need dynamic registration later, we can move the client store to the database.
+OAuth/OIDC client registrations are stored in PostgreSQL. This avoids hardcoding secrets in source code and supports adding/modifying clients without redeploying.
+
+For the initial deployment, clients will be inserted manually via SQL. No admin UI or dynamic registration API is needed yet. The `GetClientByClientID` and `AuthorizeClientIDSecret` storage methods will query the `clients` table.
+
+Client secrets are stored as bcrypt hashes in the database.
 
 ### 6.7 Signing Keys -- Environment variable
 
 Loaded at startup. Stored in-memory. Not persisted to DB.
+
+### 6.8 Database Migrations
+
+Migration files will live in `server/services/accounts/migrations/`, following the bounded context principle -- each service owns its own schema. Migration execution is out of scope for this codebase (handled by infrastructure tooling).
 
 ---
 
@@ -210,25 +232,32 @@ PKCE: **Required** for the authorization code flow. `code_challenge_method=S256`
 server/services/accounts/
 ├── main.go                    # Entrypoint: config loading, wiring, HTTP server start
 ├── Dockerfile                 # Multi-stage Docker build
+├── migrations/
+│   ├── 001_initial.sql        # Schema: users, federated_identities, auth_requests, tokens, refresh_tokens, clients
+│   └── 002_seed_clients.sql   # Initial client registrations (placeholder secrets)
 ├── config/
 │   └── config.go              # Env-var based configuration struct
 ├── oidcprovider/
 │   ├── provider.go            # op.NewOpenIDProvider construction and router setup
 │   ├── storage.go             # op.Storage implementation (orchestrator, delegates to repos)
 │   ├── authrequest.go         # AuthRequest struct implementing op.AuthRequest interface
-│   ├── client.go              # Client struct implementing op.Client interface + client registry
+│   ├── client.go              # Client struct implementing op.Client interface (loaded from DB)
 │   ├── refreshtoken.go        # RefreshTokenRequest struct implementing op.RefreshTokenRequest
 │   └── keys.go                # SigningKey / PublicKey structs implementing op.SigningKey / op.Key
 ├── login/
-│   ├── handler.go             # HTTP handlers: federated login initiation + callback
-│   └── upstream.go            # Upstream IdP OAuth2 client configuration (Google, GitHub)
+│   ├── handler.go             # HTTP handlers: provider selection page, federated redirect, callback
+│   ├── upstream.go            # Upstream IdP OAuth2 client configuration (Google, GitHub)
+│   └── templates/
+│       └── select_provider.html  # Provider selection page template
 ├── model/
 │   ├── user.go                # User domain model
 │   ├── federated_identity.go  # FederatedIdentity domain model
+│   ├── client.go              # Client domain model
 │   ├── token.go               # Token / RefreshToken domain models
 │   └── authrequest.go         # AuthRequest domain/DB model
 └── repo/
     ├── user.go                # UserRepository (PostgreSQL CRUD)
+    ├── client.go              # ClientRepository (PostgreSQL CRUD)
     ├── authrequest.go         # AuthRequestRepository (PostgreSQL CRUD)
     └── token.go               # TokenRepository (PostgreSQL CRUD)
 ```
@@ -236,10 +265,11 @@ server/services/accounts/
 ### Why this layout
 
 - **`oidcprovider/`**: Everything that directly satisfies the `zitadel/oidc` library contracts. `storage.go` is the central `op.Storage` impl. It delegates to `repo/` for persistence and uses domain models from `model/`.
-- **`login/`**: The federated login flow handlers. These are HTTP routes mounted alongside the OP, wrapped with `op.IssuerInterceptor`. Completely separate from the OIDC protocol layer.
+- **`login/`**: The federated login flow handlers. These are HTTP routes mounted alongside the OP, wrapped with `op.IssuerInterceptor`. Completely separate from the OIDC protocol layer. Includes the provider selection page template.
 - **`model/`**: Domain types that are independent of the OIDC library. Pure data structures.
 - **`repo/`**: Database access layer. One file per aggregate. Uses `sqlx` + raw SQL (no ORM).
 - **`config/`**: Env-var loading. Single struct, populated at startup.
+- **`migrations/`**: SQL schema files. Owned by this service (bounded context). Execution is handled externally.
 
 ---
 
@@ -250,9 +280,9 @@ The `Storage` struct in `oidcprovider/storage.go` will hold references to the re
 ```go
 type Storage struct {
     userRepo       *repo.UserRepository
+    clientRepo     *repo.ClientRepository
     authReqRepo    *repo.AuthRequestRepository
     tokenRepo      *repo.TokenRepository
-    clients        map[string]*Client           // in-memory client registry
     signingKey     *SigningKey
     publicKey      *PublicKey
 }
@@ -276,8 +306,8 @@ type Storage struct {
 | `SigningKey` | returns `s.signingKey` | In-memory |
 | `SignatureAlgorithms` | returns `[]jose.RS256` | Static |
 | `KeySet` | returns `[]op.Key{s.publicKey}` | In-memory |
-| `GetClientByClientID` | `s.clients[id]` | In-memory map lookup |
-| `AuthorizeClientIDSecret` | `s.clients[id]` | Compares bcrypt hash |
+| `GetClientByClientID` | `clientRepo.GetByID()` | Database query, returns `*Client` implementing `op.Client` |
+| `AuthorizeClientIDSecret` | `clientRepo.GetByID()` | Load client from DB, compare bcrypt hash |
 | `SetUserinfoFromScopes` | `userRepo.GetByID()` | Maps user fields to `*oidc.UserInfo` based on scopes |
 | `SetUserinfoFromToken` | `tokenRepo.Get()` + `userRepo.GetByID()` | Lookup token, then populate userinfo |
 | `SetIntrospectionFromToken` | `tokenRepo.Get()` + `userRepo.GetByID()` | Lookup token, check active, populate introspection |
@@ -300,25 +330,36 @@ type Storage struct {
 
 ## 10. `op.Client` Implementation
 
+The `Client` struct in `oidcprovider/client.go` is loaded from the `clients` database table and satisfies the `op.Client` interface:
+
 ```go
 type Client struct {
-    id                   string
-    secret               string              // bcrypt hash, empty for public clients
-    redirectURIs         []string
-    postLogoutURIs       []string
-    applicationType      op.ApplicationType
-    authMethod           oidc.AuthMethod
-    responseTypes        []oidc.ResponseType
-    grantTypes           []oidc.GrantType
-    accessTokenType      op.AccessTokenType
-    idTokenLifetime      time.Duration
-    loginURL             func(string) string  // returns login initiation URL with authRequestID
-    clockSkew            time.Duration
-    devMode              bool
+    id                             string
+    secretHash                     string              // bcrypt hash from DB
+    redirectURIs                   []string
+    postLogoutRedirectURIs         []string
+    applicationType                op.ApplicationType
+    authMethod                     oidc.AuthMethod
+    responseTypes                  []oidc.ResponseType
+    grantTypes                     []oidc.GrantType
+    accessTokenType                op.AccessTokenType
+    idTokenLifetime                time.Duration
+    idTokenUserinfoClaimsAssertion bool
+    clockSkew                      time.Duration
 }
 ```
 
-### Initial Client Registry
+The `LoginURL(id string) string` method is not stored in the database -- it's implemented directly on the struct and always returns `/login?authRequestID=<id>`, pointing to the provider selection page. This is constant across all clients.
+
+`DevMode() bool` always returns `false` -- there is no dev mode.
+
+`IsScopeAllowed(scope string) bool` returns `false` for all custom scopes (we have none). Standard OIDC scopes are handled by the library.
+
+`RestrictAdditionalIdTokenScopes()` and `RestrictAdditionalAccessTokenScopes()` pass through all scopes (no filtering).
+
+### Initial Client Registrations (via SQL)
+
+These clients will be manually inserted into the `clients` table:
 
 | Client ID | Type | Auth Method | Grant Types | Notes |
 |---|---|---|---|---|
@@ -328,7 +369,9 @@ type Client struct {
 | `chat-service` | Web | `client_secret_basic` | `client_credentials` | Chat gRPC service (S2S) |
 | `drive-service` | Web | `client_secret_basic` | `client_credentials` | Drive gRPC service (S2S) |
 
-All BFF clients will have `AccessTokenTypeJWT` and `LoginURL` pointing to `/login/federated?authRequestID=`.
+All BFF clients will have `AccessTokenTypeJWT`, `response_type=code`, and `id_token_lifetime=1h`.
+
+A seed SQL file (`migrations/002_seed_clients.sql`) will contain the initial INSERT statements with bcrypt-hashed placeholder secrets that must be replaced with real values before deployment.
 
 ---
 
@@ -373,35 +416,48 @@ func (a *AuthRequest) Done() bool                  { return a.IsDone }
 
 ---
 
-## 12. Federated Login Handlers
+## 12. Login Handlers
 
-### `/login/federated` -- Initiation
+The login flow has three handlers, all mounted under `/login` with the `IssuerInterceptor` middleware:
+
+### `GET /login` -- Provider Selection Page
 
 1. Read `authRequestID` from query params.
-2. Build upstream OAuth2 authorization URL (e.g., Google):
+2. Validate the auth request exists (fetch from DB to confirm it's pending).
+3. Render the `select_provider.html` template, listing all configured upstream IdPs.
+   - Each provider is rendered as a form button that POSTs to `/login/select`.
+   - The `authRequestID` is included as a hidden form field.
+4. The page always lists all configured providers, even if only one exists.
+
+### `POST /login/select` -- Federated Redirect
+
+1. Read `authRequestID` and `provider` from form body.
+2. Validate the `provider` value against the configured upstream IdP list.
+3. Build upstream OAuth2 authorization URL for the chosen provider:
    - `response_type=code`
-   - `client_id=<our-google-client-id>`
-   - `redirect_uri=https://accounts.hss-science.org/login/federated/callback`
+   - `client_id=<our-upstream-client-id-for-this-provider>`
+   - `redirect_uri=https://accounts.hss-science.org/login/callback`
    - `scope=openid email profile`
    - `state=<encrypt(authRequestID + provider + nonce)>`
-3. Redirect user to Google.
+4. Redirect user to the upstream IdP.
 
-### `/login/federated/callback` -- Completion
+### `GET /login/callback` -- Federated Completion
 
 1. Read `code` and `state` from query params.
 2. Decrypt/verify `state`, extract `authRequestID` and `provider`.
-3. Exchange `code` for tokens with the upstream IdP (server-to-server).
+3. Exchange `code` for tokens with the upstream IdP (server-to-server HTTP call).
 4. Verify the upstream ID token. Extract claims: `sub`, `email`, `email_verified`, `name`, `given_name`, `family_name`, `picture`.
-5. **Upsert user:**
+5. **Find or create user** (strict identity isolation -- no email-based linking):
    - Query `federated_identities` for `(provider, provider_subject)`.
-   - If found: load the associated user.
+   - If found: load the associated user. Update user profile fields from upstream claims (name, picture, etc.).
    - If not found: create a new user from the upstream claims, create the federated identity link.
+   - No email-based matching. No cross-provider account merging.
 6. **Complete the auth request:**
    - `authReqRepo.CompleteLogin(ctx, authRequestID, user.ID, time.Now(), []string{"federated"})`
    - This sets `UserID`, `AuthTime`, `AMR`, `IsDone=true`.
 7. Redirect to `{issuer}/authorize/callback?id={authRequestID}`.
 
-The `IssuerInterceptor` is needed on the callback handler so we can construct the callback URL from `op.IssuerFromContext(ctx)`.
+The `IssuerInterceptor` is applied to all three handlers so we can construct the callback URL from `op.IssuerFromContext(ctx)`.
 
 ---
 
@@ -413,33 +469,29 @@ All configuration via environment variables:
 type Config struct {
     // Server
     Port     string  // default: "8080"
-    Issuer   string  // default: "https://accounts.hss-science.org"
-    DevMode  bool    // default: false; enables http:// issuer
+    Issuer   string  // required, e.g. "https://accounts.hss-science.org"
 
     // Database
-    DatabaseURL string  // PostgreSQL connection string
+    DatabaseURL string  // required, PostgreSQL connection string
 
     // Signing
-    SigningKeyPEM string  // RSA private key in PEM format
+    SigningKeyPEM string  // required, RSA private key in PEM format
 
     // OIDC
-    CryptoKey string  // 32-byte hex-encoded AES key for opaque token encryption
+    CryptoKey string  // required, 32-byte hex-encoded AES key for opaque token encryption
 
     // Upstream IdPs
-    GoogleClientID     string
-    GoogleClientSecret string
-    GitHubClientID     string
-    GitHubClientSecret string
-
-    // Client Secrets (for our RP clients)
-    // Each BFF/service client secret is injected via env
-    MyAccountBFFSecret string
-    DriveBFFSecret     string
-    ChatBFFSecret      string
-    ChatServiceSecret  string
-    DriveServiceSecret string
+    GoogleClientID     string  // required if Google is enabled
+    GoogleClientSecret string  // required if Google is enabled
+    GitHubClientID     string  // optional, omit to disable GitHub login
+    GitHubClientSecret string  // optional, omit to disable GitHub login
 }
 ```
+
+Notes:
+- No `DevMode` flag. The service is production-only.
+- No per-client secret environment variables. Client secrets are stored in the database.
+- Upstream IdP configuration is minimal. The callback URL is always `{Issuer}/login/callback` (derived from the issuer).
 
 ---
 
@@ -456,17 +508,15 @@ opConfig := &op.Config{
     RequestObjectSupported:   false,                    // Not needed initially
     SupportedUILocales:       []language.Tag{language.English, language.Japanese},
 }
-```
 
-Options:
-```go
 opts := []op.Option{
     op.WithLogger(logger.WithGroup("oidc")),
 }
-if config.DevMode {
-    opts = append(opts, op.WithAllowInsecure())
-}
+
+provider, err := op.NewOpenIDProvider(config.Issuer, opConfig, storage, opts...)
 ```
+
+No `WithAllowInsecure()`. The issuer must be a valid HTTPS URL.
 
 ---
 
@@ -476,8 +526,8 @@ if config.DevMode {
 func main() {
     // 1. Load config from env
     // 2. Connect to PostgreSQL
-    // 3. Initialize repositories
-    // 4. Initialize Storage
+    // 3. Initialize repositories (user, client, authrequest, token)
+    // 4. Initialize Storage (with repos + signing key)
     // 5. Create OpenIDProvider
 
     provider, err := op.NewOpenIDProvider(config.Issuer, opConfig, storage, opts...)
@@ -489,11 +539,12 @@ func main() {
 
     // 7. Mount login handlers (with IssuerInterceptor)
     interceptor := op.NewIssuerInterceptor(provider.IssuerFromRequest)
-    loginHandler := login.NewHandler(storage, upstreamConfig, op.AuthCallbackURL(provider))
+    loginHandler := login.NewHandler(authReqRepo, userRepo, upstreamProviders, op.AuthCallbackURL(provider))
     router.Route("/login", func(r chi.Router) {
         r.Use(interceptor.Handler)
-        r.Get("/federated", loginHandler.Initiate)
-        r.Get("/federated/callback", loginHandler.Callback)
+        r.Get("/", loginHandler.SelectProvider)           // Provider selection page
+        r.Post("/select", loginHandler.FederatedRedirect)  // Redirect to upstream IdP
+        r.Get("/callback", loginHandler.FederatedCallback) // Callback from upstream IdP
     })
 
     // 8. Mount static pages
@@ -511,14 +562,18 @@ func main() {
 
 ---
 
-## 16. Database Schema (Conceptual)
+## 16. Database Schema
 
-### `users`
+Migration files in `server/services/accounts/migrations/`.
+
+### `001_initial.sql`
+
+#### `users`
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `UUID` | PK, default `gen_random_uuid()` |
-| `email` | `TEXT NOT NULL` | |
+| `email` | `TEXT NOT NULL` | NOT unique (multiple accounts can share email) |
 | `email_verified` | `BOOLEAN NOT NULL DEFAULT false` | |
 | `name` | `TEXT` | Display name |
 | `given_name` | `TEXT` | |
@@ -527,18 +582,37 @@ func main() {
 | `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | |
 | `updated_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | |
 
-### `federated_identities`
+#### `federated_identities`
 
 | Column | Type | Notes |
 |---|---|---|
-| `id` | `UUID` | PK |
-| `user_id` | `UUID NOT NULL` | FK -> users |
+| `id` | `UUID` | PK, default `gen_random_uuid()` |
+| `user_id` | `UUID NOT NULL` | FK -> users(id) ON DELETE CASCADE |
 | `provider` | `TEXT NOT NULL` | e.g., "google", "github" |
 | `provider_subject` | `TEXT NOT NULL` | Upstream `sub` claim |
 | `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | |
 | | | UNIQUE(`provider`, `provider_subject`) |
 
-### `auth_requests`
+#### `clients`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `TEXT` | PK (e.g., "drive-bff", "chat-service") |
+| `secret_hash` | `TEXT` | bcrypt hash; empty string for public clients |
+| `redirect_uris` | `TEXT[] NOT NULL` | |
+| `post_logout_redirect_uris` | `TEXT[] NOT NULL DEFAULT '{}'` | |
+| `application_type` | `TEXT NOT NULL DEFAULT 'web'` | "web", "native", "user_agent" |
+| `auth_method` | `TEXT NOT NULL DEFAULT 'client_secret_basic'` | "client_secret_basic", "client_secret_post", "none" |
+| `response_types` | `TEXT[] NOT NULL` | e.g., `{"code"}` |
+| `grant_types` | `TEXT[] NOT NULL` | e.g., `{"authorization_code","refresh_token"}` |
+| `access_token_type` | `TEXT NOT NULL DEFAULT 'jwt'` | "jwt" or "bearer" |
+| `id_token_lifetime_seconds` | `INTEGER NOT NULL DEFAULT 3600` | |
+| `clock_skew_seconds` | `INTEGER NOT NULL DEFAULT 0` | |
+| `id_token_userinfo_assertion` | `BOOLEAN NOT NULL DEFAULT false` | |
+| `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | |
+| `updated_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | |
+
+#### `auth_requests`
 
 | Column | Type | Notes |
 |---|---|---|
@@ -562,36 +636,49 @@ func main() {
 | `code` | `TEXT` | Authorization code, set after auth |
 | `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | |
 
-Index: `auth_requests_code_idx` on `code` (for `AuthRequestByCode` lookup).
+Index: `auth_requests_code_idx` on `code` WHERE `code IS NOT NULL` (partial index for `AuthRequestByCode` lookup).
 
-### `tokens`
+#### `tokens`
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `UUID` | PK (this is the `jti` in JWT access tokens) |
 | `client_id` | `TEXT NOT NULL` | |
-| `subject` | `UUID NOT NULL` | FK -> users |
+| `subject` | `TEXT NOT NULL` | User UUID for user tokens, client ID for client_credentials tokens |
 | `audience` | `TEXT[]` | |
 | `scopes` | `TEXT[]` | |
 | `expiration` | `TIMESTAMPTZ NOT NULL` | |
 | `refresh_token_id` | `UUID` | FK -> refresh_tokens, nullable |
 | `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | |
 
-### `refresh_tokens`
+#### `refresh_tokens`
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `UUID` | PK |
 | `token` | `TEXT NOT NULL UNIQUE` | The actual refresh token string |
 | `client_id` | `TEXT NOT NULL` | |
-| `user_id` | `UUID NOT NULL` | FK -> users |
+| `user_id` | `UUID NOT NULL` | FK -> users(id) |
 | `audience` | `TEXT[]` | |
 | `scopes` | `TEXT[]` | |
 | `auth_time` | `TIMESTAMPTZ NOT NULL` | |
 | `amr` | `TEXT[]` | |
-| `access_token_id` | `UUID` | FK -> tokens |
+| `access_token_id` | `UUID` | FK -> tokens(id) |
 | `expiration` | `TIMESTAMPTZ NOT NULL` | |
 | `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | |
+
+### `002_seed_clients.sql`
+
+Contains INSERT statements for the initial client registrations. Secret hashes are bcrypt values that must be generated and replaced before deployment:
+
+```sql
+INSERT INTO clients (id, secret_hash, redirect_uris, response_types, grant_types, access_token_type) VALUES
+  ('myaccount-bff', '$2a$10$PLACEHOLDER', '{"https://myaccount.hss-science.org/auth/callback"}', '{"code"}', '{"authorization_code","refresh_token"}', 'jwt'),
+  ('drive-bff',     '$2a$10$PLACEHOLDER', '{"https://drive.hss-science.org/auth/callback"}',     '{"code"}', '{"authorization_code","refresh_token"}', 'jwt'),
+  ('chat-bff',      '$2a$10$PLACEHOLDER', '{"https://chat.hss-science.org/auth/callback"}',      '{"code"}', '{"authorization_code","refresh_token"}', 'jwt'),
+  ('chat-service',  '$2a$10$PLACEHOLDER', '{}',                                                   '{"code"}', '{"client_credentials"}',                 'jwt'),
+  ('drive-service', '$2a$10$PLACEHOLDER', '{}',                                                   '{"code"}', '{"client_credentials"}',                 'jwt');
+```
 
 ---
 
@@ -637,7 +724,7 @@ Custom scopes: none initially.
 For S2S calls, services authenticate with their own `client_id` + `client_secret` and receive an access token without any user context.
 
 The `ClientCredentialsStorage` interface methods:
-- `ClientCredentials(ctx, clientID, clientSecret)`: Looks up client, verifies hashed secret.
+- `ClientCredentials(ctx, clientID, clientSecret)`: Loads client from DB, verifies bcrypt-hashed secret.
 - `ClientCredentialsTokenRequest(ctx, clientID, scopes)`: Returns a `TokenRequest` with the client ID as subject and the client ID in the audience.
 
 The resulting JWT access token will have:
@@ -654,7 +741,7 @@ Resource servers verify these tokens the same way as user tokens -- via JWKS.
 Aligned with the README's "Unit Test-centric" policy:
 
 - **`oidcprovider/storage_test.go`**: Test each `op.Storage` method with a real PostgreSQL database (using `testcontainers-go` or an in-memory mock). Focus: correct interface contract behavior, edge cases (expired tokens, missing auth requests, etc.).
-- **`login/handler_test.go`**: Test federated callback logic with mocked upstream IdP responses (httptest server).
+- **`login/handler_test.go`**: Test federated callback logic with mocked upstream IdP responses (httptest server). Test provider selection page rendering.
 - **`repo/*_test.go`**: Integration tests for each repository against PostgreSQL.
 - **`model/` and `config/`**: Standard unit tests.
 
@@ -675,25 +762,20 @@ No E2E tests in the repo (per README policy -- E2E is done in staging).
 - **PKCE required**: `CodeMethodS256: true` in config. All public clients must use PKCE. Confidential clients should too.
 - **State parameter**: The upstream federated login state is encrypted (AES-GCM) and includes a nonce to prevent replay.
 - **Refresh token rotation**: Every refresh token use invalidates the old token and issues a new one. A reuse of an old refresh token indicates token theft and should invalidate the entire family (not implemented initially, but the architecture supports it).
-- **Client secrets**: Stored as bcrypt hashes. Compared via `bcrypt.CompareHashAndPassword`.
+- **Client secrets**: Stored as bcrypt hashes in the `clients` database table. Compared via `bcrypt.CompareHashAndPassword`.
 - **No tokens in browser**: Access/refresh tokens are never exposed to SPAs. They exist only in the BFF layer (per the architecture docs).
 - **Short-lived access tokens**: 15 minutes. Limits the damage window if a token is leaked.
+- **No account linking**: Each federated identity is an isolated user. No cross-provider merging.
+- **HTTPS only**: No dev mode, no insecure overrides. The issuer must be HTTPS.
 
 ---
 
-## 23. Open Questions for Review
+## 23. Resolved Questions
 
-1. **Database migrations**: SQL schema definitions will live in this repo, but execution is out of scope (per README). Should migration files go in `server/services/accounts/migrations/` or a top-level `migrations/` directory?
-> Author Annotation: Since each service should own and manage its own database schema (following the Bounded Context principle in microservices), it should be placed within the service’s directory — `server/services/accounts/migrations/` — rather than at the top level.
+All questions from the previous draft have been resolved per author annotations:
 
-2. **Upstream IdP selection UI**: When multiple upstream IdPs are supported (Google + GitHub), do we present a provider selection page, or do we default to Google and add GitHub as a secondary option later?
-> Author Annotation: We must present a provider selection page for the upstream IdP. Even if there is only one upstream IdP configured initially, always display this selection page so users explicitly choose their login method.
-
-3. **User merging**: If a user signs in with Google first and later with GitHub using the same email, should we auto-link the accounts? This has security implications (email verification trust).
-> Author Annotation: Do not auto-link accounts, even if they share the same email address. Treat them as entirely separate accounts. To reduce security risks, this IdP will not perform its own identity or email verification, so we cannot safely merge them based solely on email matching.
-
-4. **Logout**: The `TerminateSession` implementation will revoke tokens, but we don't have a cookie-based SSO session. Should the OP set its own session cookie to enable true single sign-on (user isn't re-prompted for login if they already have a valid session)?
-> Author Annotation: Keep it stateless. We do not need a custom SSO session cookie for the OP. We will rely entirely on the upstream IdPs for session state management.
-
-5. **Admin client registration**: For now clients are hardcoded. When should we plan for database-backed dynamic client registration?
-> Author Annotation: Hardcoding clients and their secrets in the source code is a major security risk, and using environment variables for multiple clients is unscalable. Therefore, we must use database-backed client storage (PostgreSQL) from Phase 1. I will leave the specific implementation details up to you in the plan. Note that we do not need to build an Admin UI for client registration right now; we will manually insert the client data into the DB using SQL.
+1. **Database migrations** -> `server/services/accounts/migrations/` (bounded context).
+2. **Upstream IdP selection UI** -> Always show a provider selection page, even with one provider.
+3. **User merging** -> No auto-linking. Separate accounts per `(provider, provider_subject)`.
+4. **Logout / SSO sessions** -> Stateless OP. No session cookie. Rely on upstream IdP sessions.
+5. **Client registration** -> Database-backed from Phase 1. Manual SQL inserts. No admin UI.
