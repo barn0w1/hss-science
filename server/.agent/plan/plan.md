@@ -1,6 +1,6 @@
 # Accounts Service -- Implementation Plan
 
-> **Status**: Revised -- all author annotations from Rounds 1 and 2 are incorporated.
+> **Status**: Revised -- all author annotations from Rounds 1, 2, and 3 are incorporated.
 > This document describes the design for `server/services/accounts/`, the OIDC Provider (OP) / Identity service for the hss-science platform.
 
 ---
@@ -144,10 +144,6 @@ At startup, we build the provider list:
 4. `UserInfoFunc`: use the `oauth2.Token` to call `GET https://api.github.com/user`, parse the JSON response, map `id` -> Subject (as string), `email`, `name`, `avatar_url` -> Picture.
 
 ### 5.3 Full Flow Diagram
-> Author Annotation:
-> Regarding the "Finds or creates user" logic during the federated callback:
-> Please explicitly specify that if the user already exists (Find), we must **NOT** update or overwrite their existing profile information (such as name, picture, or email) with the claims received from the upstream IdP. 
-> The claims from Google/GitHub..etc should ONLY be used to populate the profile during the initial user creation (Create). This is crucial because users will be able to manually edit their profiles in our system in the future, and we do not want their custom profiles wiped out every time they log in.
 
 Here is how the login flow works within the `zitadel/oidc` library's callback mechanism:
 
@@ -182,7 +178,7 @@ Our Federated Callback Handler (GET /login/callback)
     |
     | 12. Exchanges code for tokens with the upstream IdP (server-to-server)
     | 13. Extracts user identity from the upstream ID token (sub, email, name, picture)
-    | 14. Finds or creates user in our database (keyed by provider+provider_subject, NO email-based linking)
+    | 14. Finds or creates user in our database (keyed by provider+provider_subject, NO email-based linking, NO profile overwrite on returning login)
     | 15. Updates AuthRequest in storage: sets UserID, marks Done=true, records AuthTime
     | 16. Redirects to op.AuthCallbackURL: /authorize/callback?id=authRequestID
     v
@@ -512,8 +508,8 @@ The login flow has three handlers, all mounted under `/login` with the `IssuerIn
 4. Verify the upstream ID token. Extract claims: `sub`, `email`, `email_verified`, `name`, `given_name`, `family_name`, `picture`.
 5. **Find or create user** (strict identity isolation -- no email-based linking):
    - Query `federated_identities` for `(provider, provider_subject)`.
-   - If found: load the associated user. Update user profile fields from upstream claims (name, picture, etc.).
-   - If not found: create a new user from the upstream claims, create the federated identity link.
+   - If found: load the associated user. **Do NOT update the user's profile fields** (name, email, picture, etc.) from upstream claims. The user's existing profile is preserved as-is. This is critical because users will be able to manually edit their profiles in the future, and we must not overwrite their customizations on every login.
+   - If not found: create a new user, populating profile fields (name, email, email_verified, picture, etc.) from the upstream claims. Create the federated identity link. This is the **only** time upstream claims are used to set profile data.
    - No email-based matching. No cross-provider account merging.
 6. **Complete the auth request:**
    - `authReqRepo.CompleteLogin(ctx, authRequestID, user.ID, time.Now(), []string{"federated"})`
@@ -844,3 +840,57 @@ All questions from previous drafts have been resolved per author annotations:
 6. **Upstream RP library** -> `golang.org/x/oauth2` + `github.com/coreos/go-oidc/v3`. Google uses full OIDC; GitHub uses OAuth2 + user API. See Section 5.1-5.2.
 7. **Federated identity cardinality** -> Many-to-one (multiple providers per user). Schema supports future explicit linking. No auto-merge on login. See Section 6.5.
 8. **Phase 1 client scope** -> Only `myaccount-bff`. Account management API will be built into the OP itself. See Section 10.
+
+**Round 3:**
+9. **No profile overwrite on returning login** -> When a returning user logs in, their existing profile (name, email, picture, etc.) is NOT updated from upstream IdP claims. Upstream claims are only used to populate the profile during _initial_ user creation. This preserves future user-edited profile data. See Sections 5.3 (flow diagram step 14) and 12 (callback handler step 5).
+
+---
+
+## 24. Open Questions
+
+These are unresolved items and remaining uncertainties. They should be clarified before implementation begins.
+
+### 24.1 Federated State Encryption Key
+
+Section 12 specifies that the `state` parameter sent to upstream IdPs is encrypted (AES-GCM) and includes a nonce. Should we reuse the same `CryptoKey` (the 32-byte AES key already required by `op.Config`) for encrypting the federated login state, or should this be a separate dedicated key? Reusing the `CryptoKey` is simpler (one fewer environment variable), but using separate keys provides better key isolation.
+
+### 24.2 Auth Request Cleanup Strategy
+
+Section 6.1 mentions auth requests are stored in PostgreSQL with a TTL and "cleanup via a periodic job or `created_at` filter." Which approach should we use?
+
+- **Option A**: A goroutine in the accounts service that periodically (e.g., every 10 minutes) runs `DELETE FROM auth_requests WHERE created_at < now() - interval '30 minutes'`.
+- **Option B**: No active cleanup -- rely on the `created_at` column and simply ignore expired rows in queries (add `WHERE created_at > now() - interval '30 minutes'` to all SELECT queries). Defer actual deletion to a future cron job or external process.
+
+Option B is simpler for the initial implementation but the table will grow unboundedly until external cleanup is configured.
+
+### 24.3 Expired Token Cleanup
+
+Same question as 24.2 but for the `tokens` and `refresh_tokens` tables. Expired tokens accumulate over time. Should the accounts service actively prune them, or defer cleanup to external infrastructure?
+
+### 24.4 Refresh Token Reuse Detection
+
+Section 22 mentions that reuse of an invalidated refresh token "indicates token theft and should invalidate the entire token family (not implemented initially, but the architecture supports it)." Should we implement at least a basic version of this detection in Phase 1? The risk is: if an attacker steals a refresh token and uses it before the legitimate client does, the attacker gets a new token pair and the legitimate client's next refresh silently fails. Without reuse detection, the legitimate client has no signal that their token was stolen.
+
+### 24.5 Redirect URI for `myaccount-bff`
+
+The seed SQL in Section 16 uses `https://myaccount.hss-science.org/auth/callback` as the redirect URI for the `myaccount-bff` client. Is this the correct production URL? The myaccount BFF hasn't been built yet, so this is a placeholder. Should we finalize the callback path convention now (e.g., `/auth/callback` vs `/oauth/callback` vs `/api/auth/callback`)?
+
+### 24.6 Post-Logout Redirect URI
+
+The `myaccount-bff` client currently has no `post_logout_redirect_uris` configured. When the user signs out of myaccount, where should they be redirected? Options include the myaccount login page, a shared "signed out" landing page, or the OP's `/logged-out` endpoint (currently a plain text response).
+
+### 24.7 `chi` Router Dependency
+
+The plan uses `chi` for routing (Section 15), following the pattern from the `zitadel/oidc` example. However, `go.mod` currently has no dependencies. The `zitadel/oidc` library itself uses `chi` internally, so it will be pulled in transitively. Should we use `chi` directly (explicit import), or use the standard library `net/http.ServeMux` (Go 1.22+ has path parameters) to minimize direct dependencies?
+
+### 24.8 Structured Logging Configuration
+
+Section 21 specifies `log/slog` with `op.WithLogger()`. What log format should we use in production -- JSON (machine-readable, for log aggregation) or text (human-readable, for debugging)? Should this be configurable via environment variable, or should we hardcode JSON for production?
+
+### 24.9 OpenTelemetry Scope
+
+Section 21 mentions OTel instrumentation for our custom handlers and the library's built-in spans. Should we implement OTel from Phase 1, or defer it? If Phase 1, what exporter do we target (OTLP/gRPC, OTLP/HTTP, stdout)? Are there existing OTel conventions in the project?
+
+### 24.10 Health Check Endpoints
+
+Section 21 mentions `GET /healthz` (library built-in) and `GET /readyz` (our custom, checks DB). The library's built-in health check calls `Storage.Health()`. Should we expose a separate `/readyz` endpoint that does the same thing, or is the library's `/healthz` sufficient? Kubernetes typically expects both a liveness probe (`/healthz`) and a readiness probe (`/readyz`).
