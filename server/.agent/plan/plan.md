@@ -1,6 +1,6 @@
 # Accounts Service -- Implementation Plan
 
-> **Status**: Revised -- all author annotations from Round 1 are incorporated.
+> **Status**: Revised -- all author annotations from Rounds 1 and 2 are incorporated.
 > This document describes the design for `server/services/accounts/`, the OIDC Provider (OP) / Identity service for the hss-science platform.
 
 ---
@@ -86,10 +86,66 @@ No local development overrides are implemented. No `op.WithAllowInsecure()`, no 
 
 ## 5. Design Decision: Federated Authentication Flow
 
-> Author Annotation:
-> Regarding the Relying Party (RP) implementation for federating to upstream IdPs (Google/GitHub): The current plan completely omits which library we will use for this client-side OIDC flow and how it will be implemented. Please explicitly plan this part.
+Our OP does NOT authenticate users directly. Authentication is **federated to upstream IdPs** (Google, GitHub).
 
-Our OP does NOT authenticate users directly. Authentication is **federated to upstream IdPs** (Google, GitHub). Here is how the login flow works within the `zitadel/oidc` library's callback mechanism:
+### 5.1 Upstream RP Library Choice
+
+**Libraries: `golang.org/x/oauth2` + `github.com/coreos/go-oidc/v3`**
+
+Our login handlers act as an OAuth2/OIDC **Relying Party** toward upstream IdPs. This requires two capabilities: (a) performing the OAuth2 authorization code flow (URL construction, code exchange), and (b) verifying the upstream ID token (OIDC discovery, JWT signature verification, claims extraction).
+
+| Library | Role | What It Does |
+|---|---|---|
+| `golang.org/x/oauth2` | OAuth2 client | Constructs authorization URLs, exchanges authorization codes for tokens, manages HTTP client with credentials. Has built-in `google.Endpoint` for Google's OAuth2 URLs. |
+| `github.com/coreos/go-oidc/v3` | OIDC verification | Performs OIDC Discovery (fetches `/.well-known/openid-configuration` from the upstream IdP), caches the upstream JWKS, verifies ID token signatures, validates `iss`/`aud`/`exp`/`nonce` claims. |
+
+**Why this pairing (and not alternatives):**
+- This is the standard Go ecosystem combination. `x/oauth2` is maintained by the Go team. `go-oidc` is maintained by CoreOS/Red Hat and is the most widely used OIDC client library in Go.
+- The `zitadel/oidc` library also has an `rp` (Relying Party) package, but it's not included in our curated directory and using zitadel for both the OP and RP sides couples both ends to a single library. Keeping them separate gives us clearer boundaries.
+- GitHub does not fully support OIDC (no `id_token` from the token endpoint in the standard OAuth2 flow), so we use `x/oauth2` for the code exchange and then call the GitHub user API (`GET /user`) to get identity claims. `go-oidc` is only used for providers that support OIDC (Google).
+
+### 5.2 Upstream Provider Configuration (`login/upstream.go`)
+
+Each upstream provider is represented as a struct:
+
+```go
+type UpstreamProvider struct {
+    Name         string                // "google", "github"
+    DisplayName  string                // "Sign in with Google"
+    OAuth2Config *oauth2.Config        // from golang.org/x/oauth2
+    OIDCVerifier *oidc.IDTokenVerifier // from coreos/go-oidc; nil for non-OIDC providers (GitHub)
+    UserInfoFunc func(ctx context.Context, token *oauth2.Token) (*UpstreamClaims, error)
+    // ^ For OIDC providers: parse the id_token. For GitHub: call GET /user API.
+}
+
+type UpstreamClaims struct {
+    Subject       string  // upstream sub
+    Email         string
+    EmailVerified bool
+    Name          string
+    GivenName     string
+    FamilyName    string
+    Picture       string
+}
+```
+
+At startup, we build the provider list:
+
+**Google** (full OIDC):
+1. Use `go-oidc` to perform OIDC Discovery against `https://accounts.google.com`.
+2. Create an `oidc.IDTokenVerifier` with our Google client ID as the expected audience.
+3. Build `oauth2.Config` with the discovered auth/token endpoints (or use `google.Endpoint` from `x/oauth2`).
+4. `UserInfoFunc`: decode the `id_token` from the token response, verify it with the verifier, extract claims.
+
+**GitHub** (OAuth2 only, no OIDC):
+1. Build `oauth2.Config` with GitHub's endpoints (`https://github.com/login/oauth/authorize`, `https://github.com/login/oauth/access_token`).
+2. Scopes: `read:user`, `user:email`.
+3. `OIDCVerifier`: nil (GitHub doesn't issue ID tokens).
+4. `UserInfoFunc`: use the `oauth2.Token` to call `GET https://api.github.com/user`, parse the JSON response, map `id` -> Subject (as string), `email`, `name`, `avatar_url` -> Picture.
+
+### 5.3 Full Flow Diagram
+
+Here is how the login flow works within the `zitadel/oidc` library's callback mechanism:
 
 ```
 Relying Party (e.g., drive.hss-science.org)
@@ -188,15 +244,15 @@ Note: `email` is NOT unique. Multiple user accounts (from different upstream IdP
 
 ### 6.5 Federated Identities -- PostgreSQL
 
-> Author Annotation: Just to clarify the wording here: While we will not *auto-merge* accounts based on email (as discussed earlier), a single user within our system **can and should** be able to explicitly link multiple external providers (e.g., both Google and GitHub) to their single `user_id` in the future. 
-
 Links upstream IdP identities to our users:
 - `user_id` (FK -> users)
 - `provider` (e.g., "google", "github")
 - `provider_subject` (the `sub` claim from the upstream IdP)
 - Unique constraint on `(provider, provider_subject)`
 
-This is a strict one-to-one mapping. One federated identity record maps to exactly one user. There is no mechanism to merge identities.
+The relationship is **many-to-one**: a single user can have multiple federated identity records (e.g., both a Google identity and a GitHub identity linked to the same `user_id`). However, during the initial login flow, each new `(provider, provider_subject)` pair creates a **new, separate user** -- there is no automatic email-based merging.
+
+Explicit account linking (a user choosing to connect an additional provider to their existing account) is a future feature that will be built into the account management API. The schema already supports it: when implemented, linking will insert a new `federated_identities` row pointing to the user's existing `user_id`.
 
 ### 6.6 Clients -- PostgreSQL (database-backed)
 
@@ -363,23 +419,18 @@ The `LoginURL(id string) string` method is not stored in the database -- it's im
 `RestrictAdditionalIdTokenScopes()` and `RestrictAdditionalAccessTokenScopes()` pass through all scopes (no filtering).
 
 ### Initial Client Registrations (via SQL)
-> Author Annotation:
-> Let's simplify the initial client registrations for Phase 1. We only need `myaccount-bff`. 
-> Note: The account management API (what would theoretically be `myaccount-service`) will be built directly into this `accounts` OP service in the future as a Resource Server. Therefore, it does not need to be registered as an OIDC client itself. 
 
-These clients will be manually inserted into the `clients` table:
+For Phase 1, we register only the `myaccount-bff` client. Additional clients (drive-bff, chat-bff, S2S service clients) will be added when those services are implemented.
+
+Note: The account management API (profile editing, linked identities, etc.) will be built directly into this `accounts` OP service as a Resource Server in the future. It does not need a separate OIDC client registration.
 
 | Client ID | Type | Auth Method | Grant Types | Notes |
 |---|---|---|---|---|
 | `myaccount-bff` | Web | `client_secret_basic` | `authorization_code`, `refresh_token` | BFF for the MyAccount SPA |
-| `drive-bff` | Web | `client_secret_basic` | `authorization_code`, `refresh_token` | BFF for the Drive SPA |
-| `chat-bff` | Web | `client_secret_basic` | `authorization_code`, `refresh_token` | BFF for the Chat SPA |
-| `chat-service` | Web | `client_secret_basic` | `client_credentials` | Chat gRPC service (S2S) |
-| `drive-service` | Web | `client_secret_basic` | `client_credentials` | Drive gRPC service (S2S) |
 
-All BFF clients will have `AccessTokenTypeJWT`, `response_type=code`, and `id_token_lifetime=1h`.
+`myaccount-bff` will have `AccessTokenTypeJWT`, `response_type=code`, and `id_token_lifetime=1h`.
 
-A seed SQL file (`migrations/002_seed_clients.sql`) will contain the initial INSERT statements with bcrypt-hashed placeholder secrets that must be replaced with real values before deployment.
+A seed SQL file (`migrations/002_seed_clients.sql`) will contain the INSERT statement with a bcrypt-hashed placeholder secret that must be replaced with the real value before deployment.
 
 ---
 
@@ -677,15 +728,11 @@ Index: `auth_requests_code_idx` on `code` WHERE `code IS NOT NULL` (partial inde
 
 ### `002_seed_clients.sql`
 
-Contains INSERT statements for the initial client registrations. Secret hashes are bcrypt values that must be generated and replaced before deployment:
+Contains the INSERT statement for the Phase 1 client registration. The secret hash is a bcrypt placeholder that must be replaced with the real value before deployment:
 
 ```sql
 INSERT INTO clients (id, secret_hash, redirect_uris, response_types, grant_types, access_token_type) VALUES
-  ('myaccount-bff', '$2a$10$PLACEHOLDER', '{"https://myaccount.hss-science.org/auth/callback"}', '{"code"}', '{"authorization_code","refresh_token"}', 'jwt'),
-  ('drive-bff',     '$2a$10$PLACEHOLDER', '{"https://drive.hss-science.org/auth/callback"}',     '{"code"}', '{"authorization_code","refresh_token"}', 'jwt'),
-  ('chat-bff',      '$2a$10$PLACEHOLDER', '{"https://chat.hss-science.org/auth/callback"}',      '{"code"}', '{"authorization_code","refresh_token"}', 'jwt'),
-  ('chat-service',  '$2a$10$PLACEHOLDER', '{}',                                                   '{"code"}', '{"client_credentials"}',                 'jwt'),
-  ('drive-service', '$2a$10$PLACEHOLDER', '{}',                                                   '{"code"}', '{"client_credentials"}',                 'jwt');
+  ('myaccount-bff', '$2a$10$PLACEHOLDER', '{"https://myaccount.hss-science.org/auth/callback"}', '{"code"}', '{"authorization_code","refresh_token"}', 'jwt');
 ```
 
 ---
@@ -773,17 +820,23 @@ No E2E tests in the repo (per README policy -- E2E is done in staging).
 - **Client secrets**: Stored as bcrypt hashes in the `clients` database table. Compared via `bcrypt.CompareHashAndPassword`.
 - **No tokens in browser**: Access/refresh tokens are never exposed to SPAs. They exist only in the BFF layer (per the architecture docs).
 - **Short-lived access tokens**: 15 minutes. Limits the damage window if a token is leaked.
-- **No account linking**: Each federated identity is an isolated user. No cross-provider merging.
+- **No automatic account linking**: Each login creates a new user per `(provider, provider_subject)`. No email-based merging. Explicit user-initiated account linking is a future feature.
 - **HTTPS only**: No dev mode, no insecure overrides. The issuer must be HTTPS.
 
 ---
 
 ## 23. Resolved Questions
 
-All questions from the previous draft have been resolved per author annotations:
+All questions from previous drafts have been resolved per author annotations:
 
+**Round 1:**
 1. **Database migrations** -> `server/services/accounts/migrations/` (bounded context).
 2. **Upstream IdP selection UI** -> Always show a provider selection page, even with one provider.
 3. **User merging** -> No auto-linking. Separate accounts per `(provider, provider_subject)`.
 4. **Logout / SSO sessions** -> Stateless OP. No session cookie. Rely on upstream IdP sessions.
 5. **Client registration** -> Database-backed from Phase 1. Manual SQL inserts. No admin UI.
+
+**Round 2:**
+6. **Upstream RP library** -> `golang.org/x/oauth2` + `github.com/coreos/go-oidc/v3`. Google uses full OIDC; GitHub uses OAuth2 + user API. See Section 5.1-5.2.
+7. **Federated identity cardinality** -> Many-to-one (multiple providers per user). Schema supports future explicit linking. No auto-merge on login. See Section 6.5.
+8. **Phase 1 client scope** -> Only `myaccount-bff`. Account management API will be built into the OP itself. See Section 10.
