@@ -86,6 +86,9 @@ No local development overrides are implemented. No `op.WithAllowInsecure()`, no 
 
 ## 5. Design Decision: Federated Authentication Flow
 
+> Author Annotation:
+> Regarding the Relying Party (RP) implementation for federating to upstream IdPs (Google/GitHub): The current plan completely omits which library we will use for this client-side OIDC flow and how it will be implemented. Please explicitly plan this part.
+
 Our OP does NOT authenticate users directly. Authentication is **federated to upstream IdPs** (Google, GitHub). Here is how the login flow works within the `zitadel/oidc` library's callback mechanism:
 
 ```
@@ -184,6 +187,8 @@ Our user table is the canonical identity store. Fields include:
 Note: `email` is NOT unique. Multiple user accounts (from different upstream IdPs) can share the same email address. This is by design -- we do not perform email-based account linking.
 
 ### 6.5 Federated Identities -- PostgreSQL
+
+> Author Annotation: Just to clarify the wording here: While we will not *auto-merge* accounts based on email (as discussed earlier), a single user within our system **can and should** be able to explicitly link multiple external providers (e.g., both Google and GitHub) to their single `user_id` in the future. 
 
 Links upstream IdP identities to our users:
 - `user_id` (FK -> users)
@@ -358,6 +363,9 @@ The `LoginURL(id string) string` method is not stored in the database -- it's im
 `RestrictAdditionalIdTokenScopes()` and `RestrictAdditionalAccessTokenScopes()` pass through all scopes (no filtering).
 
 ### Initial Client Registrations (via SQL)
+> Author Annotation:
+> Let's simplify the initial client registrations for Phase 1. We only need `myaccount-bff`. 
+> Note: The account management API (what would theoretically be `myaccount-service`) will be built directly into this `accounts` OP service in the future as a Resource Server. Therefore, it does not need to be registered as an OIDC client itself. 
 
 These clients will be manually inserted into the `clients` table:
 
