@@ -144,6 +144,10 @@ At startup, we build the provider list:
 4. `UserInfoFunc`: use the `oauth2.Token` to call `GET https://api.github.com/user`, parse the JSON response, map `id` -> Subject (as string), `email`, `name`, `avatar_url` -> Picture.
 
 ### 5.3 Full Flow Diagram
+> Author Annotation:
+> Regarding the "Finds or creates user" logic during the federated callback:
+> Please explicitly specify that if the user already exists (Find), we must **NOT** update or overwrite their existing profile information (such as name, picture, or email) with the claims received from the upstream IdP. 
+> The claims from Google/GitHub..etc should ONLY be used to populate the profile during the initial user creation (Create). This is crucial because users will be able to manually edit their profiles in our system in the future, and we do not want their custom profiles wiped out every time they log in.
 
 Here is how the login flow works within the `zitadel/oidc` library's callback mechanism:
 
