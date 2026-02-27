@@ -19,7 +19,7 @@ This repository is **not responsible** for:
 
 * Deployment to any environment (e.g., staging, production)
 * Infrastructure provisioning
-* Runtime orchestration (e.g., Kubernetes configuration)
+* Runtime orchestration
 * Database migrations execution
 
 Database migration **schemes and definitions** may be stored in this repository,
