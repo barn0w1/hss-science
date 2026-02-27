@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: accounts-idp
+          - name: accounts
             path: server/services/accounts
             build: ./services/accounts/...
         
