@@ -28,11 +28,11 @@ jobs:
             image-name: accounts
             type: backend
           
-          - name: myaccount-bff
-            dockerfile: ./server/bff/myaccount/Dockerfile
-            context: .
-            image-name: myaccount-bff
-            type: backend
+          #- name: myaccount-bff
+          #  dockerfile: ./server/bff/myaccount/Dockerfile
+          #  context: .
+          #  image-name: myaccount-bff
+          #  type: backend
 
           - name: drive-web
             dockerfile: ./web/apps/drive/Dockerfile
@@ -44,12 +44,6 @@ jobs:
             dockerfile: ./web/apps/chat/Dockerfile
             context: .
             image-name: chat-spa
-            type: frontend
-
-          - name: myaccount-web
-            dockerfile: ./web/apps/myaccount/Dockerfile
-            context: .
-            image-name: myaccount-spa
             type: frontend
 
     steps:
