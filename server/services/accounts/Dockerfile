@@ -1,30 +1,10 @@
 FROM golang:1.25-alpine AS builder
-
 WORKDIR /app
-
-RUN apk add --no-cache git
-
-COPY server/go.mod server/go.sum ./server/
-
-WORKDIR /app/server
+COPY server/go.mod server/go.sum ./
 RUN go mod download
+COPY server/ ./
+RUN CGO_ENABLED=0 go build -o /accounts ./services/accounts/
 
-WORKDIR /app
-COPY server ./server
-
-WORKDIR /app/server
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/bin/accounts ./services/accounts/cmd/server
-
-# Runtime Stage
-FROM alpine:latest
-
-WORKDIR /app
-
-RUN apk --no-cache add ca-certificates tzdata
-
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-USER appuser
-
-COPY --from=builder /app/bin/accounts .
-
-CMD ["./accounts"]
+FROM gcr.io/distroless/static-debian13:nonroot
+COPY --from=builder /accounts /accounts
+ENTRYPOINT ["/accounts"]

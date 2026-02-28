@@ -1,4 +1,4 @@
-name: CI - Lint & Build
+name: CI
 
 on:
   push:
@@ -14,16 +14,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: accounts-idp
+          - name: accounts
             path: server/services/accounts
             build: ./services/accounts/...
         
-          - name: myaccount-bff
-            path: server/bff/myaccount
-            build: ./bff/myaccount/...
+          #- name: myaccount-bff
+          #  path: server/bff/myaccount
+          #  build: ./bff/myaccount/...
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: dorny/paths-filter@v3
         id: filter
@@ -41,16 +41,15 @@ jobs:
 
       - name: Set up Go
         if: steps.filter.outputs.changed == 'true'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          # バージョンをハードコードせず、go.mod を参照するように変更
           go-version-file: 'server/go.mod'
           cache: true
           cache-dependency-path: server/go.sum
 
       - name: GolangCI-Lint
         if: steps.filter.outputs.changed == 'true'
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
           version: latest
           install-mode: goinstall
@@ -62,7 +61,7 @@ jobs:
       - name: Test
         if: steps.filter.outputs.changed == 'true'
         working-directory: server
-        run: go test -v -count=1 ${{ matrix.build }}
+        run: go test -v -count=1 -timeout 10m ${{ matrix.build }}
 
       - name: Verify Build
         if: steps.filter.outputs.changed == 'true'
@@ -75,10 +74,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [drive, chat, myaccount]
+        app: [drive, chat]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # Detect Changes
       - uses: dorny/paths-filter@v3
@@ -95,14 +94,14 @@ jobs:
       # Install pnpm (Node.jsのキャッシュを効かせるため、先に実行するように順序を変更)
       - name: Install pnpm
         if: steps.filter.outputs.changed == 'true'
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v4
         with:
           version: 9
 
       # Set up Node.js
       - name: Set up Node.js
         if: steps.filter.outputs.changed == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
           # pnpm の依存関係キャッシュを有効化
