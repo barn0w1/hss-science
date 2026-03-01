@@ -53,8 +53,8 @@ type Storage struct {
 	clientRepo           ClientReader
 	authReqRepo          AuthRequestStore
 	tokenRepo            TokenStore
-	signing              *signingKey
-	public               *publicKey
+	signing              *SigningKeyWithID
+	public               *PublicKeyWithID
 	accessTokenLifetime  time.Duration
 	refreshTokenLifetime time.Duration
 }
@@ -65,8 +65,8 @@ func NewStorage(
 	clientRepo ClientReader,
 	authReqRepo AuthRequestStore,
 	tokenRepo TokenStore,
-	signing *signingKey,
-	public *publicKey,
+	signing *SigningKeyWithID,
+	public *PublicKeyWithID,
 	accessTokenLifetime time.Duration,
 	refreshTokenLifetime time.Duration,
 ) *Storage {
