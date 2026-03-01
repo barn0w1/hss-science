@@ -53,9 +53,13 @@ To keep the local development environment lightweight and focused on code iterat
 
 ---
 
-## Note
+## Repository Metadata
 
-This is a private, internally developed platform.
+* **Canonical Repository:** [https://github.com/barn0w1/hss-science](https://github.com/barn0w1/hss-science)
+* **Visibility:** Private (personal repository)
+* **Ownership:** Individual development project
+
+This repository is private and not publicly accessible.
 It is not an open-source project.
 
 ---
