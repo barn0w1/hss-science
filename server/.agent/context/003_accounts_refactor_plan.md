@@ -62,6 +62,39 @@ If the schema changes, all three must be updated in lockstep, violating DRY and 
 - The `TestMain` functions remain in each test package (they own the lifecycle of the container), but they delegate setup to the shared helper.
 - Both test files' `TestMain` currently use a package-level `var testDB *sqlx.DB` / `var storageTestDB *sqlx.DB`. This pattern is preserved -- only the migration execution is centralized.
 
+> **Go Architect:** `testing.TB` is an interface satisfied by `*testing.T`, `*testing.B`, and `*testing.F` — but **NOT** by `*testing.M`. From GoDoc: *"TB is the interface common to T, B, and F."* — `*testing.M` is excluded by design; it represents the test binary's `main`, not an individual test. Crucially, `testing.TB` has `// Has unexported methods` meaning **no code outside the `testing` package can implement it** — you cannot pass a nil that satisfies it. Passing `nil` as `testing.TB` to `SetupTestDB` is especially dangerous: any call inside the helper (e.g. `t.Helper()`, `t.Fatal()`) will panic with a nil pointer dereference. The plan's proposed call `testhelper.SetupTestDB(nil)` from `TestMain` is a latent bug.
+>
+> **Recommended fix:** give `testhelper` a focused migration-runner that `TestMain` can call on its already-connected `*sqlx.DB`, and keep the container lifecycle in each `TestMain` as it already is:
+> ```go
+> // testhelper/testdb.go
+>
+> // RunMigrations executes all embedded *.sql files against db in lexicographic order.
+> // It is safe to call from TestMain (no testing.TB required).
+> func RunMigrations(db *sqlx.DB) error
+>
+> // CleanTables truncates all data tables in dependency-safe order.
+> // For use inside individual test functions.
+> func CleanTables(t testing.TB, db *sqlx.DB)
+> ```
+> Each `TestMain` keeps starting its own container (this is intentional parallel isolation), calls `testhelper.RunMigrations(testDB)` instead of its inline `runMigrations()`, and panics on error exactly as before. This is the minimal, non-breaking extraction.
+
+> **Go Architect:** The sort guarantee does **NOT** come from the `embed.FS.ReadDir` method doc itself — that doc simply says *"ReadDir reads and returns the entire named directory."* with no mention of ordering. The authoritative guarantee is in `io/fs.ReadDir` (the wrapper function): *"ReadDir reads the named directory and returns a list of directory entries **sorted by filename**."* ([pkg.go.dev/io/fs#ReadDir](https://pkg.go.dev/io/fs#ReadDir)). To ensure the documented guarantee applies, `RunMigrations` should call `fs.ReadDir(migrations.FS, ".")` from `io/fs` rather than `migrations.FS.ReadDir(".")` directly:
+> ```go
+> import (
+>     "io/fs"
+>     "github.com/barn0w1/hss-science/server/services/accounts/migrations"
+> )
+>
+> func RunMigrations(db *sqlx.DB) error {
+>     // fs.ReadDir guarantees lexicographic order; 001_initial.sql runs before 002_seed_clients.sql.
+>     entries, err := fs.ReadDir(migrations.FS, ".")
+>     ...
+> }
+> ```
+> Using the `io/fs` wrapper is the idiomatically correct approach and makes the sort invariant explicit and spec-backed.
+>
+> **Also note:** the `testcontainers-go/modules/postgres` package exposes `WithInitScripts(scripts ...string)` and `WithOrderedInitScripts(scripts ...string)` ([package summary](https://pkg.go.dev/github.com/testcontainers/testcontainers-go/modules/postgres)). These could run SQL files at container startup. However, they accept **filesystem paths**, not embedded content, which reintroduces the fragile relative-path problem. The `embed.FS` + `RunMigrations` approach remains superior.
+
 **File changes**:
 | File | Action |
 |------|--------|
@@ -71,6 +104,15 @@ If the schema changes, all three must be updated in lockstep, violating DRY and 
 | `oidcprovider/storage_test.go` | **Modify** -- remove inline DDL, delegate to testhelper |
 
 **Risk**: Low. Test-only change. No production code modified.
+
+> **Go Architect:** The existing `TestMain` container setup in both test files uses the correct current API. Verified signatures:
+> - `postgres.Run(ctx context.Context, img string, opts ...testcontainers.ContainerCustomizer) (*PostgresContainer, error)` ✓
+> - `postgres.WithDatabase`, `WithUsername`, `WithPassword` all return `testcontainers.ContainerCustomizer` ✓
+> - `testcontainers.WithWaitStrategy(strategies ...wait.Strategy) CustomizeRequestOption` ✓ (`CustomizeRequestOption` implements `ContainerCustomizer`)
+> - `(*PostgresContainer).ConnectionString(ctx context.Context, args ...string) (string, error)` — the `"sslmode=disable"` passed as a variadic argument is correct; it's appended as a query param ✓
+> - `(*PostgresContainer).Terminate(ctx context.Context, opts ...TerminateOption) error` — variadic opts means `pgC.Terminate(ctx)` with no options is valid ✓
+>
+> No changes needed to the existing `TestMain` container setup code.
 
 ---
 
@@ -133,6 +175,10 @@ type Storage struct {
 
 The `NewStorage` constructor signature changes from concrete types to interfaces. The existing concrete `repo.*Repository` types already satisfy these interfaces -- no changes to `repo/` package.
 
+> **Go Architect:** All interface method signatures above were verified against the actual source in `repo/*.go`. Every method name, parameter type, and return type is correct. One subtle point on `TokenStore.GetRefreshInfo`: the concrete implementation uses named return values — `func (...) (userID, tokenID string, err error)` — while the interface uses unnamed `(string, string, error)`. In Go, named vs. unnamed returns do **not** affect interface satisfaction; only the underlying types are compared. ✓
+>
+> Confirm: `AuthRequestRepository.Delete` exists at [`repo/authrequest.go`](../repo/authrequest.go) and matches `Delete(ctx context.Context, id string) error`. ✓ The plan's `AuthRequestStore` interface is complete.
+
 **Impact on `login/handler.go`**:
 The login handler also depends on `*repo.UserRepository` and `*repo.AuthRequestRepository` directly. We should define similar interfaces in the `login` package (or reuse from `oidcprovider`). However, introducing a cross-package interface dependency creates coupling. The cleanest approach:
 - Define the interfaces in each consuming package (`oidcprovider` and `login`) independently. They can have the same method signatures. Go's structural typing means the concrete repos satisfy both without any explicit `implements` declaration.
@@ -160,6 +206,8 @@ And update the `Handler` struct fields from `*repo.UserRepository` to `userFinde
 **Impact on tests**:
 - `oidcprovider/storage_test.go`: Currently uses real repos with testcontainers. These tests remain as integration tests. Optionally, new pure unit tests can be added that use mock implementations of the interfaces.
 - `login/handler_test.go`: The `testHandler()` function currently sets `userRepo: nil` and `authReqRepo: nil` (because the tests that exist don't exercise those paths). With interfaces, we can now write tests that use mocks for `findOrCreateUser` and `SelectProvider` flows.
+
+> **Go Architect:** The `nil` struct-literal assignments in `handler_test.go` are safe after the interface change. There is a well-known Go gotcha: assigning a *typed nil pointer* to an interface variable produces a **non-nil interface** (e.g. `var p *repo.UserRepository = nil; var i userFinder = p` — `i != nil`). However, a direct `nil` in a composite literal — `userRepo: nil` — when the field type is an interface results in a **true nil interface value** where `i == nil`. No behaviour change here. ✓
 
 **File changes**:
 | File | Action |
@@ -219,6 +267,34 @@ logger.Info("server stopped")
 - The `defer db.Close()` already in `main.go` will execute after shutdown.
 - Added imports: `os/signal`, `syscall`, `time`.
 
+> **Go Architect:** Key `http.Server.Shutdown` guarantee from GoDoc: *"When Shutdown is called, Serve, ServeTLS, ListenAndServe, and ListenAndServeTLS immediately return ErrServerClosed."* This is exactly why the goroutine checks `err != http.ErrServerClosed` — that sentinel is the normal exit path, not an error. The plan handles this correctly. ✓
+>
+> Full `Shutdown` signature: `func (s *Server) Shutdown(ctx context.Context) error` — *"Shutdown gracefully shuts down the server without interrupting any active connections... If the provided context expires before the shutdown is complete, Shutdown returns the context's error."* The 15-second context timeout is therefore a hard ceiling, not a suggestion. ✓
+>
+> One subtle note: `Shutdown` *"does not attempt to close nor wait for hijacked connections such as WebSockets."* This service has no WebSocket or hijacked connections, so this limitation does not apply. ✓
+>
+> `signal.Notify` signature: `func Notify(c chan<- os.Signal, sig ...os.Signal)` — the doc warns: *"Package signal will not block sending to c: the caller must ensure that c has sufficient buffer space."* The `make(chan os.Signal, 1)` buffer of 1 is exactly what the doc recommends: *"For a channel used for notification of just one signal value, a buffer of size 1 is sufficient."* ✓
+
+> **Go Architect:** The bare `&http.Server{Addr: ..., Handler: router}` in the proposed code has no `ReadTimeout`, `WriteTimeout`, or `IdleTimeout`. The existing `http.ListenAndServe` call already carries `//nolint:gosec` (for **G112** — Slowloris attack). The new struct literal will trigger the same lint finding unless you either add timeouts or carry the nolint annotation forward.
+>
+> From GoDoc, the relevant fields and their zero-value fallback behaviour:
+> - `ReadHeaderTimeout` — *"If zero, the value of ReadTimeout is used."*
+> - `IdleTimeout` — *"If zero, the value of ReadTimeout is used. If negative, or if zero and ReadTimeout is zero or negative, there is no timeout."*
+> - `ReadTimeout` / `WriteTimeout` — *"A zero or negative value means there will be no timeout."*
+>
+> This means if you only set `ReadTimeout`, all three of `ReadHeaderTimeout`, `IdleTimeout`, and `ReadTimeout` are effectively covered. But explicit values are clearer. For an OIDC provider with known short request shapes, these are reasonable values:
+> ```go
+> srv := &http.Server{
+>     Addr:              ":" + cfg.Port,
+>     Handler:           router,
+>     ReadHeaderTimeout: 5 * time.Second,
+>     ReadTimeout:       10 * time.Second,
+>     WriteTimeout:      30 * time.Second, // auth code + token responses can be slightly large
+>     IdleTimeout:       120 * time.Second,
+> }
+> ```
+> Setting these also removes the need for any nolint suppression. The `time` import is already being added in this step — no extra import cost.
+
 **File changes**:
 | File | Action |
 |------|--------|
@@ -249,6 +325,35 @@ cfg.RefreshTokenLifetimeDays = getEnvInt("REFRESH_TOKEN_LIFETIME_DAYS", 7)
 ```
 
 Add validation: `AccessTokenLifetimeMinutes` must be >= 1 and <= 60. `RefreshTokenLifetimeDays` must be >= 1 and <= 90. These bounds prevent misconfiguration (e.g., 0-minute tokens or year-long refresh tokens).
+
+> **Go Architect:** The human approved that `0` falls back to the defaults (15 min / 7 days), but the validation text still says "must be >= 1" — these conflict. The implementation must **substitute the default before the bounds check**, not after. Concretely:
+> ```go
+> // getEnvInt returns defaultVal when the env var is absent or empty.
+> // A value of "0" returns 0 — the caller is responsible for semantic defaulting.
+> func getEnvInt(key string, defaultVal int) int {
+>     v := os.Getenv(key)
+>     if v == "" {
+>         return defaultVal
+>     }
+>     n, err := strconv.Atoi(v)
+>     if err != nil {
+>         return defaultVal // malformed value: fall back to default
+>     }
+>     return n
+> }
+>
+> // In Load():
+> cfg.AccessTokenLifetimeMinutes = getEnvInt("ACCESS_TOKEN_LIFETIME_MINUTES", 15)
+> if cfg.AccessTokenLifetimeMinutes == 0 {
+>     cfg.AccessTokenLifetimeMinutes = 15 // explicit "0" → default
+> }
+> if cfg.AccessTokenLifetimeMinutes < 1 || cfg.AccessTokenLifetimeMinutes > 60 {
+>     return nil, fmt.Errorf("ACCESS_TOKEN_LIFETIME_MINUTES must be 0 (default) or 1-60, got %d", cfg.AccessTokenLifetimeMinutes)
+> }
+> ```
+> `strconv.Atoi` signature from GoDoc: `func Atoi(s string) (int, error)` — *"Atoi is equivalent to ParseInt(s, 10, 0), converted to type int."* On a 64-bit system `int` is 64-bit so there is no overflow risk for reasonable lifetime values.
+>
+> Also: the existing `config.go` imports `crypto/rsa`, `crypto/x509`, `encoding/hex`, `encoding/pem`, `fmt`, `os` — **`strconv` is not imported**. Add it for `getEnvInt`.
 
 3. Add a `getEnvInt` helper to `config.go`.
 
@@ -346,6 +451,8 @@ After each step: `go build ./services/accounts/...`, `go vet ./services/accounts
 |------|---------|---------|
 | `migrations/embed.go` | `migrations` | `//go:embed *.sql` for test migration helper |
 | `testhelper/testdb.go` | `testhelper` | Shared `SetupTestDB` and `CleanTables` for integration tests |
+
+> **Go Architect:** The `testhelper/testdb.go` purpose column should be updated to reflect the corrected API from the R1 annotation: `RunMigrations(db *sqlx.DB) error` and `CleanTables(t testing.TB, db *sqlx.DB)`. The `SetupTestDB` name is misleading because this helper does **not** start a container — it only runs migrations against an already-connected DB. The description should read: *"Shared `RunMigrations` and `CleanTables` helpers — migrations runner safe for `TestMain`, clean-tables helper for individual tests."*
 
 ### Modified Files
 | File | Changes |
