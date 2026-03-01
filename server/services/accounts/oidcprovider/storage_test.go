@@ -21,6 +21,7 @@ import (
 
 	"github.com/barn0w1/hss-science/server/services/accounts/model"
 	"github.com/barn0w1/hss-science/server/services/accounts/repo"
+	"github.com/barn0w1/hss-science/server/services/accounts/testhelper"
 )
 
 var storageTestDB *sqlx.DB
@@ -52,106 +53,11 @@ func TestMain(m *testing.M) {
 	}
 	defer func() { _ = storageTestDB.Close() }()
 
-	if err := runMigrations(storageTestDB); err != nil {
+	if err := testhelper.RunMigrations(storageTestDB); err != nil {
 		panic("failed to run migrations: " + err.Error())
 	}
 
 	os.Exit(m.Run())
-}
-
-func runMigrations(db *sqlx.DB) error {
-	schema := `
-CREATE TABLE users (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email           TEXT NOT NULL,
-    email_verified  BOOLEAN NOT NULL DEFAULT false,
-    name            TEXT,
-    given_name      TEXT,
-    family_name     TEXT,
-    picture         TEXT,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE TABLE federated_identities (
-    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    provider          TEXT NOT NULL,
-    provider_subject  TEXT NOT NULL,
-    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE(provider, provider_subject)
-);
-CREATE TABLE clients (
-    id                          TEXT PRIMARY KEY,
-    secret_hash                 TEXT NOT NULL DEFAULT '',
-    redirect_uris               TEXT[] NOT NULL,
-    post_logout_redirect_uris   TEXT[] NOT NULL DEFAULT '{}',
-    application_type            TEXT NOT NULL DEFAULT 'web',
-    auth_method                 TEXT NOT NULL DEFAULT 'client_secret_basic',
-    response_types              TEXT[] NOT NULL,
-    grant_types                 TEXT[] NOT NULL,
-    access_token_type           TEXT NOT NULL DEFAULT 'jwt',
-    id_token_lifetime_seconds   INTEGER NOT NULL DEFAULT 3600,
-    clock_skew_seconds          INTEGER NOT NULL DEFAULT 0,
-    id_token_userinfo_assertion BOOLEAN NOT NULL DEFAULT false,
-    created_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE TABLE auth_requests (
-    id                    UUID PRIMARY KEY,
-    client_id             TEXT NOT NULL,
-    redirect_uri          TEXT NOT NULL,
-    state                 TEXT,
-    nonce                 TEXT,
-    scopes                TEXT[],
-    response_type         TEXT NOT NULL,
-    response_mode         TEXT,
-    code_challenge        TEXT,
-    code_challenge_method TEXT,
-    prompt                TEXT[],
-    max_age               INTEGER,
-    login_hint            TEXT,
-    user_id               UUID,
-    auth_time             TIMESTAMPTZ,
-    amr                   TEXT[],
-    is_done               BOOLEAN NOT NULL DEFAULT false,
-    code                  TEXT,
-    created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX auth_requests_code_idx ON auth_requests (code) WHERE code IS NOT NULL;
-CREATE TABLE tokens (
-    id               UUID PRIMARY KEY,
-    client_id        TEXT NOT NULL,
-    subject          TEXT NOT NULL,
-    audience         TEXT[],
-    scopes           TEXT[],
-    expiration       TIMESTAMPTZ NOT NULL,
-    refresh_token_id UUID,
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE TABLE refresh_tokens (
-    id               UUID PRIMARY KEY,
-    token            TEXT NOT NULL UNIQUE,
-    client_id        TEXT NOT NULL,
-    user_id          UUID NOT NULL REFERENCES users(id),
-    audience         TEXT[],
-    scopes           TEXT[],
-    auth_time        TIMESTAMPTZ NOT NULL,
-    amr              TEXT[],
-    access_token_id  UUID,
-    expiration       TIMESTAMPTZ NOT NULL,
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
-);`
-	_, err := db.Exec(schema)
-	return err
-}
-
-func cleanTables(t *testing.T) {
-	t.Helper()
-	for _, table := range []string{"refresh_tokens", "tokens", "auth_requests", "federated_identities", "users", "clients"} {
-		if _, err := storageTestDB.Exec("DELETE FROM " + table); err != nil {
-			t.Fatalf("failed to clean table %s: %v", table, err)
-		}
-	}
 }
 
 func newTestStorage(t *testing.T) *Storage {
@@ -169,6 +75,8 @@ func newTestStorage(t *testing.T) *Storage {
 		repo.NewAuthRequestRepository(storageTestDB),
 		repo.NewTokenRepository(storageTestDB),
 		sk, pk,
+		15*time.Minute,
+		7*24*time.Hour,
 	)
 }
 
@@ -214,7 +122,7 @@ func seedTestUser(t *testing.T) *model.User {
 }
 
 func TestStorage_CreateAuthRequest(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	ctx := context.Background()
 
@@ -240,7 +148,7 @@ func TestStorage_CreateAuthRequest(t *testing.T) {
 }
 
 func TestStorage_AuthRequestByID(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	ctx := context.Background()
 
@@ -265,7 +173,7 @@ func TestStorage_AuthRequestByID(t *testing.T) {
 }
 
 func TestStorage_AuthRequestByID_NotFound(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	_, err := s.AuthRequestByID(context.Background(), uuid.New().String())
 	if err == nil {
@@ -274,7 +182,7 @@ func TestStorage_AuthRequestByID_NotFound(t *testing.T) {
 }
 
 func TestStorage_SaveAuthCode_AuthRequestByCode(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	ctx := context.Background()
 
@@ -304,7 +212,7 @@ func TestStorage_SaveAuthCode_AuthRequestByCode(t *testing.T) {
 }
 
 func TestStorage_DeleteAuthRequest(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	ctx := context.Background()
 
@@ -330,7 +238,7 @@ func TestStorage_DeleteAuthRequest(t *testing.T) {
 }
 
 func TestStorage_GetClientByClientID(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	ctx := context.Background()
 	seedTestClient(t, "my-client", "secret123")
@@ -345,7 +253,7 @@ func TestStorage_GetClientByClientID(t *testing.T) {
 }
 
 func TestStorage_GetClientByClientID_NotFound(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	_, err := s.GetClientByClientID(context.Background(), "nonexistent")
 	if err == nil {
@@ -354,7 +262,7 @@ func TestStorage_GetClientByClientID_NotFound(t *testing.T) {
 }
 
 func TestStorage_AuthorizeClientIDSecret(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	ctx := context.Background()
 	seedTestClient(t, "my-client", "secret123")
@@ -369,7 +277,7 @@ func TestStorage_AuthorizeClientIDSecret(t *testing.T) {
 }
 
 func TestStorage_CreateAccessToken(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	ctx := context.Background()
 
@@ -392,7 +300,7 @@ func TestStorage_CreateAccessToken(t *testing.T) {
 }
 
 func TestStorage_CreateAccessAndRefreshTokens(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	ctx := context.Background()
 	user := seedTestUser(t)
@@ -418,7 +326,7 @@ func TestStorage_CreateAccessAndRefreshTokens(t *testing.T) {
 }
 
 func TestStorage_TokenRequestByRefreshToken(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	ctx := context.Background()
 	user := seedTestUser(t)
@@ -446,7 +354,7 @@ func TestStorage_TokenRequestByRefreshToken(t *testing.T) {
 }
 
 func TestStorage_TokenRequestByRefreshToken_NotFound(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	_, err := s.TokenRequestByRefreshToken(context.Background(), "nonexistent")
 	if !errors.Is(err, op.ErrInvalidRefreshToken) {
@@ -455,7 +363,7 @@ func TestStorage_TokenRequestByRefreshToken_NotFound(t *testing.T) {
 }
 
 func TestStorage_RevokeToken(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	ctx := context.Background()
 
@@ -475,7 +383,7 @@ func TestStorage_RevokeToken(t *testing.T) {
 }
 
 func TestStorage_TerminateSession(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	ctx := context.Background()
 	user := seedTestUser(t)
@@ -499,7 +407,7 @@ func TestStorage_TerminateSession(t *testing.T) {
 }
 
 func TestStorage_SetUserinfoFromScopes(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	ctx := context.Background()
 	user := seedTestUser(t)
@@ -525,7 +433,7 @@ func TestStorage_SetUserinfoFromScopes(t *testing.T) {
 }
 
 func TestStorage_SetUserinfoFromScopes_NotFound(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	userinfo := &oidc.UserInfo{}
 	err := s.SetUserinfoFromScopes(context.Background(), userinfo, uuid.New().String(), "test-client", []string{oidc.ScopeOpenID})
@@ -535,7 +443,7 @@ func TestStorage_SetUserinfoFromScopes_NotFound(t *testing.T) {
 }
 
 func TestStorage_SetIntrospectionFromToken(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	ctx := context.Background()
 	user := seedTestUser(t)
@@ -564,7 +472,7 @@ func TestStorage_SetIntrospectionFromToken(t *testing.T) {
 }
 
 func TestStorage_SetIntrospectionFromToken_NotFound(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	introspection := &oidc.IntrospectionResponse{}
 	err := s.SetIntrospectionFromToken(context.Background(), introspection, uuid.New().String(), "user-1", "test-client")
@@ -577,7 +485,7 @@ func TestStorage_SetIntrospectionFromToken_NotFound(t *testing.T) {
 }
 
 func TestStorage_SigningKey(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	key, err := s.SigningKey(context.Background())
 	if err != nil {
@@ -589,7 +497,7 @@ func TestStorage_SigningKey(t *testing.T) {
 }
 
 func TestStorage_KeySet(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	keys, err := s.KeySet(context.Background())
 	if err != nil {
@@ -601,7 +509,7 @@ func TestStorage_KeySet(t *testing.T) {
 }
 
 func TestStorage_Health(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	if err := s.Health(context.Background()); err != nil {
 		t.Fatalf("Health: %v", err)
@@ -636,7 +544,7 @@ func TestStorage_ValidateJWTProfileScopes(t *testing.T) {
 }
 
 func TestStorage_GetRefreshTokenInfo(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	ctx := context.Background()
 	user := seedTestUser(t)
@@ -667,7 +575,7 @@ func TestStorage_GetRefreshTokenInfo(t *testing.T) {
 }
 
 func TestStorage_GetRefreshTokenInfo_NotFound(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	_, _, err := s.GetRefreshTokenInfo(context.Background(), "client", "nonexistent")
 	if !errors.Is(err, op.ErrInvalidRefreshToken) {
@@ -676,7 +584,7 @@ func TestStorage_GetRefreshTokenInfo_NotFound(t *testing.T) {
 }
 
 func TestStorage_ClientCredentials(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	ctx := context.Background()
 	seedTestClient(t, "cc-client", "cc-secret")
@@ -707,7 +615,7 @@ func TestStorage_ClientCredentialsTokenRequest(t *testing.T) {
 }
 
 func TestStorage_SetUserinfoFromToken(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	ctx := context.Background()
 	user := seedTestUser(t)
@@ -736,7 +644,7 @@ func TestStorage_SetUserinfoFromToken(t *testing.T) {
 }
 
 func TestStorage_SetUserinfoFromToken_TokenNotFound(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, storageTestDB)
 	s := newTestStorage(t)
 	userinfo := &oidc.UserInfo{}
 	err := s.SetUserinfoFromToken(context.Background(), userinfo, uuid.New().String(), "user-1", "test-client")

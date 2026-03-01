@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
+	"strconv"
 )
 
 type Config struct {
@@ -15,6 +16,9 @@ type Config struct {
 	DatabaseURL string
 	CryptoKey   [32]byte
 	SigningKey  *rsa.PrivateKey
+
+	AccessTokenLifetimeMinutes int
+	RefreshTokenLifetimeDays   int
 
 	GoogleClientID     string
 	GoogleClientSecret string
@@ -66,6 +70,22 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("at least one upstream IdP must be configured (GOOGLE_CLIENT_ID or GITHUB_CLIENT_ID)")
 	}
 
+	cfg.AccessTokenLifetimeMinutes = getEnvInt("ACCESS_TOKEN_LIFETIME_MINUTES", 15)
+	if cfg.AccessTokenLifetimeMinutes == 0 {
+		cfg.AccessTokenLifetimeMinutes = 15
+	}
+	if cfg.AccessTokenLifetimeMinutes < 1 || cfg.AccessTokenLifetimeMinutes > 60 {
+		return nil, fmt.Errorf("ACCESS_TOKEN_LIFETIME_MINUTES must be 0 (default) or 1-60, got %d", cfg.AccessTokenLifetimeMinutes)
+	}
+
+	cfg.RefreshTokenLifetimeDays = getEnvInt("REFRESH_TOKEN_LIFETIME_DAYS", 7)
+	if cfg.RefreshTokenLifetimeDays == 0 {
+		cfg.RefreshTokenLifetimeDays = 7
+	}
+	if cfg.RefreshTokenLifetimeDays < 1 || cfg.RefreshTokenLifetimeDays > 90 {
+		return nil, fmt.Errorf("REFRESH_TOKEN_LIFETIME_DAYS must be 0 (default) or 1-90, got %d", cfg.RefreshTokenLifetimeDays)
+	}
+
 	return cfg, nil
 }
 
@@ -98,4 +118,16 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func getEnvInt(key string, defaultVal int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return defaultVal
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return defaultVal
+	}
+	return n
 }

@@ -203,3 +203,77 @@ func TestParseRSAPrivateKey_UnsupportedBlockType(t *testing.T) {
 		t.Fatal("expected error for unsupported PEM block type")
 	}
 }
+
+func TestLoad_TokenLifetimeDefaults(t *testing.T) {
+	pemKey := generateTestKey(t)
+	setRequiredEnv(t, pemKey)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AccessTokenLifetimeMinutes != 15 {
+		t.Errorf("expected default 15, got %d", cfg.AccessTokenLifetimeMinutes)
+	}
+	if cfg.RefreshTokenLifetimeDays != 7 {
+		t.Errorf("expected default 7, got %d", cfg.RefreshTokenLifetimeDays)
+	}
+}
+
+func TestLoad_TokenLifetimeCustom(t *testing.T) {
+	pemKey := generateTestKey(t)
+	setRequiredEnv(t, pemKey)
+	t.Setenv("ACCESS_TOKEN_LIFETIME_MINUTES", "30")
+	t.Setenv("REFRESH_TOKEN_LIFETIME_DAYS", "14")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AccessTokenLifetimeMinutes != 30 {
+		t.Errorf("expected 30, got %d", cfg.AccessTokenLifetimeMinutes)
+	}
+	if cfg.RefreshTokenLifetimeDays != 14 {
+		t.Errorf("expected 14, got %d", cfg.RefreshTokenLifetimeDays)
+	}
+}
+
+func TestLoad_TokenLifetimeZeroFallsBackToDefault(t *testing.T) {
+	pemKey := generateTestKey(t)
+	setRequiredEnv(t, pemKey)
+	t.Setenv("ACCESS_TOKEN_LIFETIME_MINUTES", "0")
+	t.Setenv("REFRESH_TOKEN_LIFETIME_DAYS", "0")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AccessTokenLifetimeMinutes != 15 {
+		t.Errorf("expected default 15 for zero, got %d", cfg.AccessTokenLifetimeMinutes)
+	}
+	if cfg.RefreshTokenLifetimeDays != 7 {
+		t.Errorf("expected default 7 for zero, got %d", cfg.RefreshTokenLifetimeDays)
+	}
+}
+
+func TestLoad_TokenLifetimeOutOfRange(t *testing.T) {
+	pemKey := generateTestKey(t)
+
+	setRequiredEnv(t, pemKey)
+	t.Setenv("ACCESS_TOKEN_LIFETIME_MINUTES", "120")
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected error for out-of-range ACCESS_TOKEN_LIFETIME_MINUTES")
+	}
+}
+
+func TestLoad_RefreshTokenLifetimeOutOfRange(t *testing.T) {
+	pemKey := generateTestKey(t)
+
+	setRequiredEnv(t, pemKey)
+	t.Setenv("REFRESH_TOKEN_LIFETIME_DAYS", "365")
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected error for out-of-range REFRESH_TOKEN_LIFETIME_DAYS")
+	}
+}
