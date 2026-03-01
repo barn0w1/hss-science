@@ -2,7 +2,7 @@
 
 > **Author**: AI agent (session 3)
 > **Status**: Reviewed -- all open questions resolved, all Go Architect corrections incorporated. Ready for implementation.
-> **Prerequisite reading**: `001_accounts_completed_plan.md`, `001_zitadel_oidc_research.md`, `002_accounts_handoff.md`
+> **Prerequisite reading**: `002_accounts_service_implementation_plan_and_design.md`, `001_zitadel_oidc_library_internal_architecture_and_api_research.md`, `003_accounts-service-oidc-handoff-architecture-status-debt.md`
 
 ---
 

@@ -1,8 +1,8 @@
 # Accounts Service -- Handoff Document
 
 > Written at the end of the initial implementation session.
-> For the full design rationale, see `server/.agent/context/001_accounts_completed_plan.md`.
-> For `zitadel/oidc` library internals, see `server/.agent/context/001_zitadel_oidc_research.md`.
+> For the full design rationale, see `server/.agent/context/002_accounts_service_implementation_plan_and_design.md`.
+> For `zitadel/oidc` library internals, see `server/.agent/context/001_zitadel_oidc_library_internal_architecture_and_api_research.md`.
 
 ---
 
