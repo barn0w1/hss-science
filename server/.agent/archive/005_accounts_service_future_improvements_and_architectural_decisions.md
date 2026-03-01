@@ -1,7 +1,7 @@
 # Accounts Service -- Future Improvements Memo
 
 > **Written after**: Refactoring session (003) completed all 5 items (R1-R5).
-> **Prerequisite reading**: `002_accounts_handoff.md`, `003_accounts_refactor_plan.md`
+> **Prerequisite reading**: `003_accounts-service-oidc-handoff-architecture-status-debt.md`, `004_accounts_service_refactoring_plan_reviewed.md`
 
 ---
 

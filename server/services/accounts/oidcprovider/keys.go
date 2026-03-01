@@ -9,42 +9,68 @@ import (
 	jose "github.com/go-jose/go-jose/v4"
 )
 
-type signingKey struct {
+// SigningKeyWithID wraps a jose.SigningKey with a derived key ID to satisfy the op.SigningKey interface.
+type SigningKeyWithID struct {
+	signingKey jose.SigningKey
 	id         string
-	algorithm  jose.SignatureAlgorithm
-	privateKey *rsa.PrivateKey
 }
 
-func NewSigningKey(key *rsa.PrivateKey) *signingKey {
-	return &signingKey{
-		id:         deriveKeyID(&key.PublicKey),
-		algorithm:  jose.RS256,
-		privateKey: key,
+// NewSigningKey creates a signing key with a derived ID from the RSA private key.
+func NewSigningKey(key *rsa.PrivateKey) *SigningKeyWithID {
+	return &SigningKeyWithID{
+		signingKey: jose.SigningKey{
+			Algorithm: jose.RS256,
+			Key:       key,
+		},
+		id: deriveKeyID(&key.PublicKey),
 	}
 }
 
-func (k *signingKey) SignatureAlgorithm() jose.SignatureAlgorithm { return k.algorithm }
-func (k *signingKey) Key() any                                    { return k.privateKey }
-func (k *signingKey) ID() string                                  { return k.id }
-
-type publicKey struct {
-	id        string
-	algorithm jose.SignatureAlgorithm
-	key       *rsa.PublicKey
+func (k *SigningKeyWithID) SignatureAlgorithm() jose.SignatureAlgorithm {
+	return k.signingKey.Algorithm
 }
 
-func NewPublicKey(key *rsa.PrivateKey) *publicKey {
-	return &publicKey{
-		id:        deriveKeyID(&key.PublicKey),
-		algorithm: jose.RS256,
-		key:       &key.PublicKey,
+func (k *SigningKeyWithID) Key() any {
+	return k.signingKey.Key
+}
+
+func (k *SigningKeyWithID) ID() string {
+	return k.id
+}
+
+// PublicKeyWithID wraps a jose.JSONWebKey with a derived key ID to satisfy the op.Key interface.
+type PublicKeyWithID struct {
+	jwk jose.JSONWebKey
+	id  string
+}
+
+// NewPublicKey creates a public key with a derived ID from the RSA private key's public part.
+func NewPublicKey(key *rsa.PrivateKey) *PublicKeyWithID {
+	return &PublicKeyWithID{
+		jwk: jose.JSONWebKey{
+			Key:       &key.PublicKey,
+			Algorithm: string(jose.RS256),
+			Use:       "sig",
+		},
+		id: deriveKeyID(&key.PublicKey),
 	}
 }
 
-func (k *publicKey) ID() string                         { return k.id }
-func (k *publicKey) Algorithm() jose.SignatureAlgorithm { return k.algorithm }
-func (k *publicKey) Use() string                        { return "sig" }
-func (k *publicKey) Key() any                           { return k.key }
+func (k *PublicKeyWithID) ID() string {
+	return k.id
+}
+
+func (k *PublicKeyWithID) Algorithm() jose.SignatureAlgorithm {
+	return jose.RS256
+}
+
+func (k *PublicKeyWithID) Use() string {
+	return "sig"
+}
+
+func (k *PublicKeyWithID) Key() any {
+	return k.jwk.Key
+}
 
 func deriveKeyID(pub *rsa.PublicKey) string {
 	der, err := x509.MarshalPKIXPublicKey(pub)
