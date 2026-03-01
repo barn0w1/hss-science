@@ -1,3 +1,10 @@
+-- WARNING: The secret_hash below is a PLACEHOLDER.
+-- Before first deployment, generate a real bcrypt hash:
+--   htpasswd -nbBC 10 "" 'your-secret' | cut -d: -f2
+-- or in Go:
+--   hash, _ := bcrypt.GenerateFromPassword([]byte("your-secret"), bcrypt.DefaultCost)
+-- Replace '$2a$10$PLACEHOLDER' with the generated hash.
+
 INSERT INTO clients (id, secret_hash, redirect_uris, post_logout_redirect_uris, response_types, grant_types, access_token_type)
 VALUES (
     'myaccount-bff',

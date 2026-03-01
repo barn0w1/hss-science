@@ -17,14 +17,23 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/barn0w1/hss-science/server/services/accounts/model"
-	"github.com/barn0w1/hss-science/server/services/accounts/repo"
 )
+
+type userFinder interface {
+	FindByFederatedIdentity(ctx context.Context, provider, providerSubject string) (*model.User, error)
+	CreateWithFederatedIdentity(ctx context.Context, u *model.User, fi *model.FederatedIdentity) error
+}
+
+type authRequestCompleter interface {
+	GetByID(ctx context.Context, id string) (*model.AuthRequest, error)
+	CompleteLogin(ctx context.Context, id, userID string, authTime time.Time, amr []string) error
+}
 
 type Handler struct {
 	providers   []*UpstreamProvider
 	providerMap map[string]*UpstreamProvider
-	userRepo    *repo.UserRepository
-	authReqRepo *repo.AuthRequestRepository
+	userRepo    userFinder
+	authReqRepo authRequestCompleter
 	cryptoKey   [32]byte
 	callbackURL func(context.Context, string) string
 	tmpl        *template.Template
@@ -33,8 +42,8 @@ type Handler struct {
 
 func NewHandler(
 	providers []*UpstreamProvider,
-	userRepo *repo.UserRepository,
-	authReqRepo *repo.AuthRequestRepository,
+	userRepo userFinder,
+	authReqRepo authRequestCompleter,
 	cryptoKey [32]byte,
 	callbackURL func(context.Context, string) string,
 	logger *slog.Logger,

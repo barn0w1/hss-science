@@ -15,6 +15,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/barn0w1/hss-science/server/services/accounts/model"
+	"github.com/barn0w1/hss-science/server/services/accounts/testhelper"
 )
 
 var testDB *sqlx.DB
@@ -46,110 +47,15 @@ func TestMain(m *testing.M) {
 	}
 	defer func() { _ = testDB.Close() }()
 
-	if err := runMigrations(testDB); err != nil {
+	if err := testhelper.RunMigrations(testDB); err != nil {
 		panic("failed to run migrations: " + err.Error())
 	}
 
 	os.Exit(m.Run())
 }
 
-func runMigrations(db *sqlx.DB) error {
-	schema := `
-CREATE TABLE users (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email           TEXT NOT NULL,
-    email_verified  BOOLEAN NOT NULL DEFAULT false,
-    name            TEXT,
-    given_name      TEXT,
-    family_name     TEXT,
-    picture         TEXT,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE TABLE federated_identities (
-    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    provider          TEXT NOT NULL,
-    provider_subject  TEXT NOT NULL,
-    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE(provider, provider_subject)
-);
-CREATE TABLE clients (
-    id                          TEXT PRIMARY KEY,
-    secret_hash                 TEXT NOT NULL DEFAULT '',
-    redirect_uris               TEXT[] NOT NULL,
-    post_logout_redirect_uris   TEXT[] NOT NULL DEFAULT '{}',
-    application_type            TEXT NOT NULL DEFAULT 'web',
-    auth_method                 TEXT NOT NULL DEFAULT 'client_secret_basic',
-    response_types              TEXT[] NOT NULL,
-    grant_types                 TEXT[] NOT NULL,
-    access_token_type           TEXT NOT NULL DEFAULT 'jwt',
-    id_token_lifetime_seconds   INTEGER NOT NULL DEFAULT 3600,
-    clock_skew_seconds          INTEGER NOT NULL DEFAULT 0,
-    id_token_userinfo_assertion BOOLEAN NOT NULL DEFAULT false,
-    created_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE TABLE auth_requests (
-    id                    UUID PRIMARY KEY,
-    client_id             TEXT NOT NULL,
-    redirect_uri          TEXT NOT NULL,
-    state                 TEXT,
-    nonce                 TEXT,
-    scopes                TEXT[],
-    response_type         TEXT NOT NULL,
-    response_mode         TEXT,
-    code_challenge        TEXT,
-    code_challenge_method TEXT,
-    prompt                TEXT[],
-    max_age               INTEGER,
-    login_hint            TEXT,
-    user_id               UUID,
-    auth_time             TIMESTAMPTZ,
-    amr                   TEXT[],
-    is_done               BOOLEAN NOT NULL DEFAULT false,
-    code                  TEXT,
-    created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX auth_requests_code_idx ON auth_requests (code) WHERE code IS NOT NULL;
-CREATE TABLE tokens (
-    id               UUID PRIMARY KEY,
-    client_id        TEXT NOT NULL,
-    subject          TEXT NOT NULL,
-    audience         TEXT[],
-    scopes           TEXT[],
-    expiration       TIMESTAMPTZ NOT NULL,
-    refresh_token_id UUID,
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE TABLE refresh_tokens (
-    id               UUID PRIMARY KEY,
-    token            TEXT NOT NULL UNIQUE,
-    client_id        TEXT NOT NULL,
-    user_id          UUID NOT NULL REFERENCES users(id),
-    audience         TEXT[],
-    scopes           TEXT[],
-    auth_time        TIMESTAMPTZ NOT NULL,
-    amr              TEXT[],
-    access_token_id  UUID,
-    expiration       TIMESTAMPTZ NOT NULL,
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
-);`
-	_, err := db.Exec(schema)
-	return err
-}
-
-func cleanTables(t *testing.T) {
-	t.Helper()
-	for _, table := range []string{"refresh_tokens", "tokens", "auth_requests", "federated_identities", "users", "clients"} {
-		if _, err := testDB.Exec("DELETE FROM " + table); err != nil {
-			t.Fatalf("failed to clean table %s: %v", table, err)
-		}
-	}
-}
-
 func TestUserRepository_CreateAndGetByID(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, testDB)
 	repo := NewUserRepository(testDB)
 	ctx := context.Background()
 
@@ -179,7 +85,7 @@ func TestUserRepository_CreateAndGetByID(t *testing.T) {
 }
 
 func TestUserRepository_GetByID_NotFound(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, testDB)
 	repo := NewUserRepository(testDB)
 	_, err := repo.GetByID(context.Background(), uuid.New().String())
 	if err != sql.ErrNoRows {
@@ -188,7 +94,7 @@ func TestUserRepository_GetByID_NotFound(t *testing.T) {
 }
 
 func TestUserRepository_FindByFederatedIdentity(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, testDB)
 	repo := NewUserRepository(testDB)
 	ctx := context.Background()
 
@@ -220,7 +126,7 @@ func TestUserRepository_FindByFederatedIdentity(t *testing.T) {
 }
 
 func TestUserRepository_FindByFederatedIdentity_NotFound(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, testDB)
 	repo := NewUserRepository(testDB)
 	got, err := repo.FindByFederatedIdentity(context.Background(), "google", "nonexistent")
 	if err != nil {
@@ -232,7 +138,7 @@ func TestUserRepository_FindByFederatedIdentity_NotFound(t *testing.T) {
 }
 
 func TestClientRepository_GetByID(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, testDB)
 	ctx := context.Background()
 
 	_, err := testDB.ExecContext(ctx,
@@ -265,7 +171,7 @@ func TestClientRepository_GetByID(t *testing.T) {
 }
 
 func TestClientRepository_GetByID_NotFound(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, testDB)
 	repo := NewClientRepository(testDB)
 	_, err := repo.GetByID(context.Background(), "nonexistent")
 	if err != sql.ErrNoRows {
@@ -274,7 +180,7 @@ func TestClientRepository_GetByID_NotFound(t *testing.T) {
 }
 
 func TestAuthRequestRepository_CRUD(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, testDB)
 	repo := NewAuthRequestRepository(testDB)
 	ctx := context.Background()
 
@@ -341,7 +247,7 @@ func TestAuthRequestRepository_CRUD(t *testing.T) {
 }
 
 func TestTokenRepository_CreateAccess(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, testDB)
 	repo := NewTokenRepository(testDB)
 	ctx := context.Background()
 
@@ -367,7 +273,7 @@ func TestTokenRepository_CreateAccess(t *testing.T) {
 }
 
 func TestTokenRepository_CreateAccessAndRefresh(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, testDB)
 	ctx := context.Background()
 
 	userID := uuid.New().String()
@@ -436,7 +342,7 @@ func TestTokenRepository_CreateAccessAndRefresh(t *testing.T) {
 }
 
 func TestTokenRepository_Revoke(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, testDB)
 	repo := NewTokenRepository(testDB)
 	ctx := context.Background()
 
@@ -457,7 +363,7 @@ func TestTokenRepository_Revoke(t *testing.T) {
 }
 
 func TestTokenRepository_DeleteByUserAndClient(t *testing.T) {
-	cleanTables(t)
+	testhelper.CleanTables(t, testDB)
 	ctx := context.Background()
 
 	userID := uuid.New().String()

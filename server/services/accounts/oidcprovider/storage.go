@@ -15,41 +15,71 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/barn0w1/hss-science/server/services/accounts/model"
-	"github.com/barn0w1/hss-science/server/services/accounts/repo"
 )
 
-const (
-	accessTokenLifetime  = 15 * time.Minute
-	refreshTokenLifetime = 7 * 24 * time.Hour
-)
+type UserReader interface {
+	GetByID(ctx context.Context, id string) (*model.User, error)
+	FindByFederatedIdentity(ctx context.Context, provider, providerSubject string) (*model.User, error)
+	CreateWithFederatedIdentity(ctx context.Context, u *model.User, fi *model.FederatedIdentity) error
+}
+
+type ClientReader interface {
+	GetByID(ctx context.Context, clientID string) (*model.Client, error)
+}
+
+type AuthRequestStore interface {
+	Create(ctx context.Context, ar *model.AuthRequest) error
+	GetByID(ctx context.Context, id string) (*model.AuthRequest, error)
+	GetByCode(ctx context.Context, code string) (*model.AuthRequest, error)
+	SaveCode(ctx context.Context, id, code string) error
+	CompleteLogin(ctx context.Context, id, userID string, authTime time.Time, amr []string) error
+	Delete(ctx context.Context, id string) error
+}
+
+type TokenStore interface {
+	CreateAccess(ctx context.Context, clientID, subject string, audience, scopes []string, expiration time.Time) (string, error)
+	CreateAccessAndRefresh(ctx context.Context, clientID, subject string, audience, scopes []string, accessExpiration, refreshExpiration time.Time, authTime time.Time, amr []string, currentRefreshToken string) (string, string, error)
+	GetByID(ctx context.Context, tokenID string) (*model.Token, error)
+	GetRefreshToken(ctx context.Context, token string) (*model.RefreshToken, error)
+	GetRefreshInfo(ctx context.Context, token string) (string, string, error)
+	DeleteByUserAndClient(ctx context.Context, userID, clientID string) error
+	Revoke(ctx context.Context, tokenID string) error
+	RevokeRefreshToken(ctx context.Context, token string) error
+}
 
 type Storage struct {
-	db          *sqlx.DB
-	userRepo    *repo.UserRepository
-	clientRepo  *repo.ClientRepository
-	authReqRepo *repo.AuthRequestRepository
-	tokenRepo   *repo.TokenRepository
-	signing     *signingKey
-	public      *publicKey
+	db                   *sqlx.DB
+	userRepo             UserReader
+	clientRepo           ClientReader
+	authReqRepo          AuthRequestStore
+	tokenRepo            TokenStore
+	signing              *signingKey
+	public               *publicKey
+	accessTokenLifetime  time.Duration
+	refreshTokenLifetime time.Duration
 }
 
 func NewStorage(
 	db *sqlx.DB,
-	userRepo *repo.UserRepository,
-	clientRepo *repo.ClientRepository,
-	authReqRepo *repo.AuthRequestRepository,
-	tokenRepo *repo.TokenRepository,
+	userRepo UserReader,
+	clientRepo ClientReader,
+	authReqRepo AuthRequestStore,
+	tokenRepo TokenStore,
 	signing *signingKey,
 	public *publicKey,
+	accessTokenLifetime time.Duration,
+	refreshTokenLifetime time.Duration,
 ) *Storage {
 	return &Storage{
-		db:          db,
-		userRepo:    userRepo,
-		clientRepo:  clientRepo,
-		authReqRepo: authReqRepo,
-		tokenRepo:   tokenRepo,
-		signing:     signing,
-		public:      public,
+		db:                   db,
+		userRepo:             userRepo,
+		clientRepo:           clientRepo,
+		authReqRepo:          authReqRepo,
+		tokenRepo:            tokenRepo,
+		signing:              signing,
+		public:               public,
+		accessTokenLifetime:  accessTokenLifetime,
+		refreshTokenLifetime: refreshTokenLifetime,
 	}
 }
 
@@ -115,7 +145,7 @@ func (s *Storage) DeleteAuthRequest(ctx context.Context, id string) error {
 }
 
 func (s *Storage) CreateAccessToken(ctx context.Context, request op.TokenRequest) (string, time.Time, error) {
-	expiration := time.Now().UTC().Add(accessTokenLifetime)
+	expiration := time.Now().UTC().Add(s.accessTokenLifetime)
 	tokenID, err := s.tokenRepo.CreateAccess(ctx,
 		clientIDFromRequest(request),
 		request.GetSubject(),
@@ -130,8 +160,8 @@ func (s *Storage) CreateAccessToken(ctx context.Context, request op.TokenRequest
 }
 
 func (s *Storage) CreateAccessAndRefreshTokens(ctx context.Context, request op.TokenRequest, currentRefreshToken string) (string, string, time.Time, error) {
-	accessExp := time.Now().UTC().Add(accessTokenLifetime)
-	refreshExp := time.Now().UTC().Add(refreshTokenLifetime)
+	accessExp := time.Now().UTC().Add(s.accessTokenLifetime)
+	refreshExp := time.Now().UTC().Add(s.refreshTokenLifetime)
 
 	var authTime time.Time
 	var amr []string

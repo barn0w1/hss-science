@@ -5,6 +5,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -43,7 +46,12 @@ func main() {
 	signingKey := oidcprovider.NewSigningKey(cfg.SigningKey)
 	publicKey := oidcprovider.NewPublicKey(cfg.SigningKey)
 
-	storage := oidcprovider.NewStorage(db, userRepo, clientRepo, authReqRepo, tokenRepo, signingKey, publicKey)
+	storage := oidcprovider.NewStorage(
+		db, userRepo, clientRepo, authReqRepo, tokenRepo,
+		signingKey, publicKey,
+		time.Duration(cfg.AccessTokenLifetimeMinutes)*time.Minute,
+		time.Duration(cfg.RefreshTokenLifetimeDays)*24*time.Hour,
+	)
 
 	provider, err := oidcprovider.NewProvider(cfg.Issuer, cfg.CryptoKey, storage, logger)
 	if err != nil {
@@ -93,9 +101,34 @@ func main() {
 
 	router.Mount("/", provider)
 
-	logger.Info("accounts service starting", "port", cfg.Port)
-	if err := http.ListenAndServe(":"+cfg.Port, router); err != nil { //nolint:gosec
-		logger.Error("server error", "error", err)
+	srv := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("server error", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	logger.Info("accounts service started", "port", cfg.Port)
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Info("shutting down server")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Error("server forced to shutdown", "error", err)
 		os.Exit(1)
 	}
+	logger.Info("server stopped")
 }
