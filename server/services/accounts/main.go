@@ -16,9 +16,12 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/op"
 
 	"github.com/barn0w1/hss-science/server/services/accounts/config"
-	"github.com/barn0w1/hss-science/server/services/accounts/login"
-	"github.com/barn0w1/hss-science/server/services/accounts/oidcprovider"
-	"github.com/barn0w1/hss-science/server/services/accounts/repo"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/authn"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/identity"
+	identitypg "github.com/barn0w1/hss-science/server/services/accounts/internal/identity/postgres"
+	oidcdom "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc"
+	oidcadapter "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc/adapter"
+	oidcpg "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc/postgres"
 )
 
 func main() {
@@ -38,37 +41,49 @@ func main() {
 	}
 	defer func() { _ = db.Close() }()
 
-	userRepo := repo.NewUserRepository(db)
-	clientRepo := repo.NewClientRepository(db)
-	authReqRepo := repo.NewAuthRequestRepository(db)
-	tokenRepo := repo.NewTokenRepository(db)
+	identitySvc := identity.NewService(identitypg.NewUserRepository(db))
 
-	signingKey := oidcprovider.NewSigningKey(cfg.SigningKey)
-	publicKey := oidcprovider.NewPublicKey(cfg.SigningKey)
+	authReqRepo := oidcpg.NewAuthRequestRepository(db)
+	clientRepo := oidcpg.NewClientRepository(db)
+	tokenRepo := oidcpg.NewTokenRepository(db)
 
-	storage := oidcprovider.NewStorage(
-		db, userRepo, clientRepo, authReqRepo, tokenRepo,
+	authReqSvc := oidcdom.NewAuthRequestService(authReqRepo, time.Duration(cfg.AuthRequestTTLMinutes)*time.Minute)
+	clientSvc := oidcdom.NewClientService(clientRepo)
+	tokenSvc := oidcdom.NewTokenService(tokenRepo)
+
+	signingKey := oidcadapter.NewSigningKey(cfg.SigningKey)
+	publicKey := oidcadapter.NewPublicKey(cfg.SigningKey)
+
+	storage := oidcadapter.NewStorageAdapter(
+		identitySvc, authReqSvc, clientSvc, tokenSvc,
 		signingKey, publicKey,
 		time.Duration(cfg.AccessTokenLifetimeMinutes)*time.Minute,
 		time.Duration(cfg.RefreshTokenLifetimeDays)*24*time.Hour,
+		db.PingContext,
 	)
 
-	provider, err := oidcprovider.NewProvider(cfg.Issuer, cfg.CryptoKey, storage, logger)
+	provider, err := oidcadapter.NewProvider(cfg.Issuer, cfg.CryptoKey, storage, logger)
 	if err != nil {
 		logger.Error("failed to create OIDC provider", "error", err)
 		os.Exit(1)
 	}
 
-	upstreamProviders, err := login.NewUpstreamProviders(context.Background(), cfg)
+	upstreamProviders, err := authn.NewProviders(context.Background(), authn.Config{
+		IssuerURL:          cfg.Issuer,
+		GoogleClientID:     cfg.GoogleClientID,
+		GoogleClientSecret: cfg.GoogleClientSecret,
+		GitHubClientID:     cfg.GitHubClientID,
+		GitHubClientSecret: cfg.GitHubClientSecret,
+	})
 	if err != nil {
 		logger.Error("failed to initialize upstream providers", "error", err)
 		os.Exit(1)
 	}
 
-	loginHandler := login.NewHandler(
+	loginHandler := authn.NewHandler(
 		upstreamProviders,
-		userRepo,
-		authReqRepo,
+		identitySvc,
+		&authReqBridge{svc: authReqSvc},
 		cfg.CryptoKey,
 		op.AuthCallbackURL(provider),
 		logger,
@@ -131,4 +146,20 @@ func main() {
 		os.Exit(1)
 	}
 	logger.Info("server stopped")
+}
+
+type authReqBridge struct {
+	svc oidcdom.AuthRequestService
+}
+
+func (b *authReqBridge) GetByID(ctx context.Context, id string) (authn.AuthRequestInfo, error) {
+	ar, err := b.svc.GetByID(ctx, id)
+	if err != nil {
+		return authn.AuthRequestInfo{}, err
+	}
+	return authn.AuthRequestInfo{ID: ar.ID}, nil
+}
+
+func (b *authReqBridge) CompleteLogin(ctx context.Context, id, userID string, authTime time.Time, amr []string) error {
+	return b.svc.CompleteLogin(ctx, id, userID, authTime, amr)
 }

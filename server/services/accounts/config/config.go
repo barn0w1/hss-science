@@ -19,6 +19,7 @@ type Config struct {
 
 	AccessTokenLifetimeMinutes int
 	RefreshTokenLifetimeDays   int
+	AuthRequestTTLMinutes      int
 
 	GoogleClientID     string
 	GoogleClientSecret string
@@ -84,6 +85,14 @@ func Load() (*Config, error) {
 	}
 	if cfg.RefreshTokenLifetimeDays < 1 || cfg.RefreshTokenLifetimeDays > 90 {
 		return nil, fmt.Errorf("REFRESH_TOKEN_LIFETIME_DAYS must be 0 (default) or 1-90, got %d", cfg.RefreshTokenLifetimeDays)
+	}
+
+	cfg.AuthRequestTTLMinutes = getEnvInt("AUTH_REQUEST_TTL_MINUTES", 30)
+	if cfg.AuthRequestTTLMinutes == 0 {
+		cfg.AuthRequestTTLMinutes = 30
+	}
+	if cfg.AuthRequestTTLMinutes < 1 || cfg.AuthRequestTTLMinutes > 60 {
+		return nil, fmt.Errorf("AUTH_REQUEST_TTL_MINUTES must be 0 (default) or 1-60, got %d", cfg.AuthRequestTTLMinutes)
 	}
 
 	return cfg, nil
