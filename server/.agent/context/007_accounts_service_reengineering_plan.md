@@ -1,6 +1,4 @@
-# Accounts Service Refactoring Plan -- Iteration 1
-
-> User Annotaion: Rename the document and approach to "Reengineering" rather than "Refactoring".
+# Accounts Service Reengineering Plan -- Iteration 1
 
 **Scope:** Extract `internal/pkg`, `internal/identity`, and `internal/authn` from the current flat structure.
 **Out of Scope:** `internal/oidc` domain, dismantling `oidcprovider.Storage`, token management. See [Future Roadmap](#9-future-roadmap).
@@ -42,17 +40,17 @@ services/accounts/
         aes_test.go               (new -- extracted from login/handler_test.go)
 
     identity/
-      domain.go                   (new -- pure domain types: User, FederatedIdentity)
+      domain.go                   (new -- reengineered domain types: User, FederatedIdentity, UserWithClaims)
       domain_test.go              (new)
       service.go                  (new -- application service / use cases)
       service_test.go             (new)
       ports.go                    (new -- repository interface + service interface)
       postgres/
-        user_repo.go              (new -- moved from repo/user.go, targets identity domain types)
+        user_repo.go              (new -- reengineered from repo/user.go, targets new domain types)
         user_repo_test.go         (new -- moved from repo/repo_test.go user tests)
 
     authn/
-      provider.go                 (new -- UpstreamProvider, UpstreamClaims, factory)
+      provider.go                 (new -- Provider struct, factory)
       provider_google.go          (new -- extracted from login/upstream.go)
       provider_github.go          (new -- extracted from login/upstream.go)
       handler.go                  (new -- HTTP handlers, depends on identity.Service interface)
@@ -60,10 +58,10 @@ services/accounts/
       config.go                   (new -- authn-specific config subset)
 
   config/
-    config.go                     (adapted -- remove upstream IdP fields, import authn config)
-    config_test.go                (adapted)
+    config.go                     (adapted -- upstream IdP fields remain, used to populate authn.Config)
+    config_test.go                (unchanged)
 
-  oidcprovider/                   (adapted -- storage.go UserReader interface replaced by identity.Service)
+  oidcprovider/                   (adapted -- storage.go bridges to identity.Service for userinfo)
     storage.go                    (adapted)
     storage_test.go               (adapted)
     provider.go                   (unchanged)
@@ -91,19 +89,20 @@ services/accounts/
   login/                          (deleted entirely -- replaced by internal/authn/)
 
   migrations/
-    001_initial.sql               (adapted -- see Section 5)
+    001_initial.sql               (reengineered -- see Section 5)
     002_seed_clients.sql          (unchanged)
     embed.go                      (unchanged)
 
   testhelper/
-    testdb.go                     (unchanged)
+    testdb.go                     (adapted -- CleanTables ordering updated for new schema)
 ```
 
 ### Key Decisions
 
 - **`internal/` is inside `services/accounts/`**, not at the server root. This keeps the modular-monolith boundaries within the service while allowing future services to have their own `internal/` trees.
-- **The `model/` and `repo/` packages survive this iteration** for auth requests, clients, and tokens. They will be dismantled in Iteration 2 when `internal/oidc` is created.
-- **The `login/` package is deleted entirely**. Its contents are split between `internal/authn/` (HTTP handlers, upstream providers) and `internal/identity/` (findOrCreateUser use case).
+- **The `model/` and `repo/` packages partially survive this iteration** (auth requests, clients, tokens). They will be dismantled in Iteration 2 when `internal/oidc` is created.
+- **The `login/` package is deleted entirely**. Its contents are split between `internal/authn/` (HTTP handlers, upstream providers) and `internal/identity/` (FindOrCreate use case).
+- **The `users` and `federated_identities` tables are fully reengineered** with a new schema reflecting the correct domain ownership of profile data (see Section 5).
 
 ---
 
@@ -111,7 +110,7 @@ services/accounts/
 
 ### 2.1 internal/pkg/domerr -- Domain Error Types
 
-A small, dependency-free package defining sentinel errors and error constructors used across all domain modules.
+A small, dependency-free package defining sentinel errors used across all domain modules.
 
 ```go
 // internal/pkg/domerr/errors.go
@@ -121,7 +120,7 @@ import "errors"
 
 // Sentinel errors for domain-level failures.
 // Infrastructure layers (repos, HTTP handlers) translate these
-// into appropriate responses (sql.ErrNoRows -> NotFound, etc.).
+// into appropriate responses (sql.ErrNoRows -> ErrNotFound, etc.).
 var (
     ErrNotFound      = errors.New("not found")
     ErrAlreadyExists = errors.New("already exists")
@@ -134,9 +133,9 @@ func Is(err, target error) bool { return errors.Is(err, target) }
 ```
 
 **Design rationale:**
-- Sentinel errors (not struct types) keep it simple. The `errors.Is` chain works naturally.
-- Domain code returns `fmt.Errorf("user %s: %w", id, domerr.ErrNotFound)` -- the caller can `errors.Is(err, domerr.ErrNotFound)` to detect the category.
-- HTTP handlers and OIDC adapters translate these into HTTP status codes or OIDC error types at the boundary.
+- Sentinel errors keep it simple. The `errors.Is` chain works naturally through wrapping.
+- Domain code wraps them: `fmt.Errorf("user %s: %w", id, domerr.ErrNotFound)`.
+- HTTP handlers and OIDC adapters translate these into HTTP status codes or OIDC error types at their respective boundaries.
 
 ### 2.2 internal/pkg/crypto -- AES-GCM Utilities
 
@@ -203,80 +202,104 @@ func Decrypt(key [32]byte, encoded string) ([]byte, error) {
 
 **Design rationale:**
 - Generic `Encrypt(key, plaintext) -> string` / `Decrypt(key, encoded) -> plaintext` -- no knowledge of what is being encrypted.
-- The caller (authn handler) marshals/unmarshals the state struct itself. This keeps the crypto package free of domain knowledge.
-- Tests are a direct port of the existing `TestEncryptDecryptState_RoundTrip` etc., targeting the raw functions.
+- The caller (authn handler) handles JSON marshaling/unmarshaling of its state struct. This keeps the crypto package free of domain knowledge.
+- Tests are direct ports of the existing `TestEncryptDecryptState_*` suite, targeting the raw functions.
 
 ---
 
 ## 3. internal/identity -- Identity Domain
 
-This is the core of Iteration 1. It defines the User aggregate, the FederatedIdentity value object, the repository port, the application service, and the PostgreSQL adapter.
+This is the core of Iteration 1. The key reengineering insight is that profile fields (`Email`, `EmailVerified`, `Name`, `Picture`, etc.) are **claims provided by the upstream identity provider** -- they belong to `FederatedIdentity`, not to `User`. The `User` aggregate is merely a stable, internal anchor; the proof that an entity exists in our system. All profile data is derived from its associated federated identities.
 
 ### 3.1 Domain Types -- `internal/identity/domain.go`
 
-> User Annotation:    A `User` is inherently tied to a `FederatedIdentity`. Properties like `EmailVerified`, `Email`, `Picture`, etc., actually belong to the upstream Identity Provider, not our core User identity. 
-> Remove `EmailVerified` (and potentially other IdP-specific profile data) from the base `User` struct.
-> Re-design the domain models so that the `User` aggregate correctly derives or holds this information via its associated `FederatedIdentity` or a dedicated profile entity.
-> Show exactly how the OIDC `setUserinfo` method will still be able to retrieve the `email_verified` claim if it's removed from the base User struct.
-
-> User Annotation: the DB schema MUST change. Section 5 must not say "No schema changes". You must explicitly write the new `CREATE TABLE` SQL statements for the `users` and `federated_identities` tables reflecting this reengineered domain model. Consider using ULID instead of UUID for new primary keys.
-
 ```go
+// internal/identity/domain.go
 package identity
 
 import "time"
 
-// User is the root aggregate for the identity domain.
-// It represents a person who has authenticated at least once.
 type User struct {
-    ID            string
+    ID        string    // ULID, application-generated
+    CreatedAt time.Time
+}
+
+type FederatedIdentity struct {
+    ID              string    // ULID, application-generated
+    UserID          string
+    Provider        string    // e.g. "google", "github"
+    ProviderSubject string    // the upstream provider's user ID for this subject
+
+    // Profile claims sourced from the upstream provider.
+    // These are refreshed on every successful login.
     Email         string
     EmailVerified bool
-    Name          string
+    DisplayName   string    // maps to OIDC standard "name" claim
     GivenName     string
     FamilyName    string
-    Picture       string
-    CreatedAt     time.Time
-    UpdatedAt     time.Time
+    PictureURL    string
+
+    LastLoginAt time.Time // updated on every successful federated login
+    CreatedAt   time.Time
+    UpdatedAt   time.Time // updated whenever profile claims are refreshed
 }
 
-// FederatedIdentity links a User to an external identity provider.
-// A User may have multiple federated identities (e.g., both Google and GitHub).
-type FederatedIdentity struct {
-    ID              string
-    UserID          string
-    Provider        string
-    ProviderSubject string
-    CreatedAt       time.Time
-}
-
-// FederatedClaims is the set of claims obtained from an upstream identity
-// provider during federated authentication. It is NOT persisted directly;
-// it is used as input to the FindOrCreate use case.
 type FederatedClaims struct {
     Subject       string
     Email         string
     EmailVerified bool
-    Name          string
+    Name          string // full display name
     GivenName     string
     FamilyName    string
     Picture       string
 }
+
+type UserWithClaims struct {
+    UserID          string
+    Email           string
+    EmailVerified   bool
+    Name            string
+    GivenName       string
+    FamilyName      string
+    Picture         string
+    ClaimsUpdatedAt time.Time // federated_identity.updated_at of the primary record
+}
 ```
 
-**Key differences from current `model.User` and `model.FederatedIdentity`:**
-- No `db:` struct tags. These are pure domain types, decoupled from the persistence mechanism.
-- `FederatedClaims` is a new type that replaces `login.UpstreamClaims` as the input to the identity use case. The authn layer maps upstream-provider-specific responses into this generic type before calling the identity service.
+> **[NOTE FOR CLAUDE: REENGINEERING - SIMPLIFICATION & RULES]**
+>
+> I want to simplify the architecture significantly. Please rewrite the plan based on these strict rules:
+>
+> 1.  **Strict 1:1 Relationship**: A `User` has exactly one `FederatedIdentity`. The system does not support linking multiple providers to one user for now.
+> 2.  **User Struct**: This is the canonical system identity. It **MUST** store all profile fields directly (`Email`, `EmailVerified`, `Name`, `Picture`, `GivenName`, `FamilyName`).
+>     - **Mutability Rule**: The `User` record is created ONCE (populated from claims). On subsequent logins, **DO NOT overwrite** the `User` fields with upstream data. The user's profile in our system is stable and should not change just because the provider changed.
+> 3.  **FederatedIdentity Struct**: This acts as the link and raw data record. It **MUST** store the raw claims from the provider (`ProviderEmail`, `ProviderName`, `ProviderPicture`, etc.).
+>     - **Sync Rule**: This record **MUST** be updated on *every* successful login to keep the upstream state fresh (e.g., to track if they verified their email on Google).
+> 4.  **UserWithClaims**: **DELETE** this struct. It is redundant since `User` holds the data needed for OIDC tokens.
+
+**Why `User` has no profile fields:**
+- Email, name, and picture come from the IdP -- they are that provider's assertion, not our own. A user's Google profile and GitHub profile may differ; neither is definitively "our" data.
+- If we copied profile data onto `User`, we'd face the question of which provider's fields win, and when to re-sync them. Keeping them on `FederatedIdentity` sidesteps this entirely.
+- The core `User.ID` is what all other parts of the system (OIDC tokens, auth requests) reference. Its immutability and stability are what matter.
+
+**Why `UserWithClaims` as a read model:**
+- The OIDC layer needs a unified, flat view of a user's claims to populate `userinfo` and introspection responses. Rather than the OIDC layer knowing how to navigate `FederatedIdentity` records, the identity service provides a pre-aggregated read model.
+- When a user has multiple federated identities, the most recently logged-in one is used as the primary claim source (ordered by `last_login_at DESC`). This is a clear, stable policy.
 
 ### 3.2 Ports -- `internal/identity/ports.go`
 
 ```go
+// internal/identity/ports.go
 package identity
 
-import "context"
+import (
+    "context"
+    "time"
+)
 
 // Repository defines the persistence contract for the identity domain.
-// It is the "driven port" (secondary port) in hexagonal architecture.
+// It is the "driven port" (secondary port) -- what the service calls internally.
+// External modules MUST NOT depend on this interface; they use Service instead.
 type Repository interface {
     // GetByID retrieves a user by their internal ID.
     // Returns domerr.ErrNotFound if the user does not exist.
@@ -285,43 +308,71 @@ type Repository interface {
     // FindByFederatedIdentity looks up a user by their upstream provider
     // and provider-specific subject identifier.
     // Returns (nil, nil) if no matching federated identity is found.
+    // This (nil, nil) convention signals "not yet registered" as a normal
+    // outcome -- not an error.
     FindByFederatedIdentity(ctx context.Context, provider, providerSubject string) (*User, error)
 
     // CreateWithFederatedIdentity atomically creates a new User and their
     // initial FederatedIdentity in a single transaction.
     CreateWithFederatedIdentity(ctx context.Context, user *User, fi *FederatedIdentity) error
+
+    // UpdateFederatedIdentityClaims refreshes the profile claims on an existing
+    // FederatedIdentity record for the given provider and subject, and records
+    // the login timestamp. Called on every successful federated login where
+    // the user already exists.
+    UpdateFederatedIdentityClaims(
+        ctx context.Context,
+        provider, providerSubject string,
+        claims FederatedClaims,
+        lastLoginAt time.Time,
+    ) error
+
+    // GetUserWithClaims returns the user's ID combined with their most recent
+    // federated identity's profile claims (latest by last_login_at).
+    // Returns domerr.ErrNotFound if the user does not exist.
+    GetUserWithClaims(ctx context.Context, userID string) (*UserWithClaims, error)
 }
 
 // Service defines the application-level use cases for the identity domain.
-// It is the "driving port" (primary port) -- what other modules call.
+// It is the "driving port" (primary port) -- the contract that external modules
+// (authn, oidcprovider) depend on.
 type Service interface {
-    // GetUser retrieves a user by ID.
+    // GetUser retrieves a user's stable identity by ID.
     // Returns domerr.ErrNotFound if the user does not exist.
     GetUser(ctx context.Context, userID string) (*User, error)
 
-    // FindOrCreateByFederatedLogin looks up a user by their federated identity.
-    // If no user exists, it creates one using the provided claims.
-    // Returns the user (existing or newly created).
+    // GetUserWithClaims retrieves a user with their aggregated profile claims,
+    // sourced from the most recently used federated identity.
+    // Returns domerr.ErrNotFound if the user does not exist.
+    // Used by the OIDC layer to populate userinfo/introspection responses.
+    GetUserWithClaims(ctx context.Context, userID string) (*UserWithClaims, error)
+
+    // FindOrCreateByFederatedLogin is the primary login use case.
+    //
+    // For an existing user: the FederatedIdentity is updated with the
+    // fresh claims from the upstream provider (e.g., if the user's email or
+    // picture changed). The User record itself is NOT modified.
+    //
+    // For a new user: a User and their initial FederatedIdentity are
+    // created atomically from the provided claims.
+    //
+    // Returns the User (existing or newly created) in both cases.
     FindOrCreateByFederatedLogin(ctx context.Context, provider string, claims FederatedClaims) (*User, error)
 }
 ```
 
-**Design rationale:**
-- **Two separate interfaces** (Repository and Service) create a clean layered architecture. External modules (`authn`, `oidcprovider`) depend on `identity.Service`, never on `identity.Repository` directly.
-- **`FindByFederatedIdentity` returns `(nil, nil)` for not-found** rather than an error. This preserves the current behavior from `repo/user.go:52` and is appropriate because "no matching identity" is a normal outcome, not an error.
-- **`CreateWithFederatedIdentity` takes domain types**, not model types with `db:` tags.
-- **`GetUser`** is the method the OIDC layer will call for userinfo population, replacing the current `oidcprovider.UserReader.GetByID`.
-
 ### 3.3 Application Service -- `internal/identity/service.go`
 
 ```go
+// internal/identity/service.go
 package identity
 
 import (
     "context"
     "fmt"
+    "time"
 
-    "github.com/google/uuid"
+    "github.com/oklog/ulid/v2"
 
     "github.com/barn0w1/hss-science/server/services/accounts/internal/pkg/domerr"
 )
@@ -333,7 +384,7 @@ type identityService struct {
     repo Repository
 }
 
-// NewService creates a new identity application service.
+// NewService creates a new identity application service backed by the given repository.
 func NewService(repo Repository) Service {
     return &identityService{repo: repo}
 }
@@ -346,6 +397,14 @@ func (s *identityService) GetUser(ctx context.Context, userID string) (*User, er
     return user, nil
 }
 
+func (s *identityService) GetUserWithClaims(ctx context.Context, userID string) (*UserWithClaims, error) {
+    uwc, err := s.repo.GetUserWithClaims(ctx, userID)
+    if err != nil {
+        return nil, fmt.Errorf("identity.GetUserWithClaims(%s): %w", userID, err)
+    }
+    return uwc, nil
+}
+
 func (s *identityService) FindOrCreateByFederatedLogin(
     ctx context.Context,
     provider string,
@@ -355,38 +414,61 @@ func (s *identityService) FindOrCreateByFederatedLogin(
     if err != nil {
         return nil, fmt.Errorf("identity.FindOrCreate: lookup: %w", err)
     }
+
     if existing != nil {
+        // User exists. Refresh the FederatedIdentity record with the latest
+        // claims from the upstream provider (email changes, picture updates, etc.).
+        // We intentionally never modify the User record itself -- the User is a
+        // stable internal anchor. Only IdP-sourced data on FederatedIdentity changes.
+        now := time.Now().UTC()
+        if err := s.repo.UpdateFederatedIdentityClaims(ctx, provider, claims.Subject, claims, now); err != nil {
+            return nil, fmt.Errorf("identity.FindOrCreate: update claims: %w", err)
+        }
         return existing, nil
     }
 
-    userID := uuid.New().String()
+    // New user: create User + FederatedIdentity atomically.
+    now := time.Now().UTC()
     user := &User{
-        ID:            userID,
-        Email:         claims.Email,
-        EmailVerified: claims.EmailVerified,
-        Name:          claims.Name,
-        GivenName:     claims.GivenName,
-        FamilyName:    claims.FamilyName,
-        Picture:       claims.Picture,
+        ID:        newID(),
+        CreatedAt: now,
     }
     fi := &FederatedIdentity{
-        ID:              uuid.New().String(),
-        UserID:          userID,
+        ID:              newID(),
+        UserID:          user.ID,
         Provider:        provider,
         ProviderSubject: claims.Subject,
+        Email:           claims.Email,
+        EmailVerified:   claims.EmailVerified,
+        DisplayName:     claims.Name,
+        GivenName:       claims.GivenName,
+        FamilyName:      claims.FamilyName,
+        PictureURL:      claims.Picture,
+        LastLoginAt:     now,
+        CreatedAt:       now,
+        UpdatedAt:       now,
     }
     if err := s.repo.CreateWithFederatedIdentity(ctx, user, fi); err != nil {
         return nil, fmt.Errorf("identity.FindOrCreate: create: %w", err)
     }
     return user, nil
 }
+
+// newID generates a new ULID string. ULIDs are time-sortable, URL-safe,
+// and application-generated, avoiding database-side ID generation.
+func newID() string {
+    return ulid.Make().String()
+}
 ```
 
-**What moved here:** The `findOrCreateUser` logic from `login/handler.go:193-222` is now a proper application service method. The handler no longer contains any domain logic.
+**What moved here from `login/handler.go`:** The `findOrCreateUser` logic (lines 193-222) is now a proper application service method. The handler has zero domain logic.
+
+**Key change from the original plan:** The existing-user path now calls `UpdateFederatedIdentityClaims` before returning. This ensures every successful login refreshes the profile data from the upstream provider -- email, verified status, display name, picture -- while the `User` record remains untouched.
 
 ### 3.4 PostgreSQL Adapter -- `internal/identity/postgres/user_repo.go`
 
 ```go
+// internal/identity/postgres/user_repo.go
 package postgres
 
 import (
@@ -412,40 +494,44 @@ func NewUserRepository(db *sqlx.DB) *UserRepository {
     return &UserRepository{db: db}
 }
 
-// userRow is the database-specific representation. Domain types are never
-// annotated with `db:` tags; the mapping happens here at the boundary.
+// userRow and federatedIdentityRow are database-specific scan targets.
+// Domain types carry NO `db:` tags; all schema coupling lives here at the boundary.
 type userRow struct {
-    ID            string    `db:"id"`
-    Email         string    `db:"email"`
-    EmailVerified bool      `db:"email_verified"`
-    Name          string    `db:"name"`
-    GivenName     string    `db:"given_name"`
-    FamilyName    string    `db:"family_name"`
-    Picture       string    `db:"picture"`
-    CreatedAt     time.Time `db:"created_at"`
-    UpdatedAt     time.Time `db:"updated_at"`
+    ID        string    `db:"id"`
+    CreatedAt time.Time `db:"created_at"`
 }
 
-func (row *userRow) toDomain() *identity.User {
-    return &identity.User{
-        ID:            row.ID,
-        Email:         row.Email,
-        EmailVerified: row.EmailVerified,
-        Name:          row.Name,
-        GivenName:     row.GivenName,
-        FamilyName:    row.FamilyName,
-        Picture:       row.Picture,
-        CreatedAt:     row.CreatedAt,
-        UpdatedAt:     row.UpdatedAt,
-    }
+type federatedIdentityRow struct {
+    ID              string    `db:"id"`
+    UserID          string    `db:"user_id"`
+    Provider        string    `db:"provider"`
+    ProviderSubject string    `db:"provider_subject"`
+    Email           string    `db:"email"`
+    EmailVerified   bool      `db:"email_verified"`
+    DisplayName     string    `db:"display_name"`
+    GivenName       string    `db:"given_name"`
+    FamilyName      string    `db:"family_name"`
+    PictureURL      string    `db:"picture_url"`
+    LastLoginAt     time.Time `db:"last_login_at"`
+    CreatedAt       time.Time `db:"created_at"`
+    UpdatedAt       time.Time `db:"updated_at"`
+}
+
+type userWithClaimsRow struct {
+    UserID          string    `db:"user_id"`
+    Email           string    `db:"email"`
+    EmailVerified   bool      `db:"email_verified"`
+    DisplayName     string    `db:"display_name"`
+    GivenName       string    `db:"given_name"`
+    FamilyName      string    `db:"family_name"`
+    PictureURL      string    `db:"picture_url"`
+    ClaimsUpdatedAt time.Time `db:"claims_updated_at"`
 }
 
 func (r *UserRepository) GetByID(ctx context.Context, id string) (*identity.User, error) {
     var row userRow
     err := r.db.QueryRowxContext(ctx,
-        `SELECT id, email, email_verified, name, given_name, family_name,
-                picture, created_at, updated_at
-         FROM users WHERE id = $1`, id,
+        `SELECT id, created_at FROM users WHERE id = $1`, id,
     ).StructScan(&row)
     if errors.Is(err, sql.ErrNoRows) {
         return nil, domerr.ErrNotFound
@@ -453,29 +539,32 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*identity.User
     if err != nil {
         return nil, err
     }
-    return row.toDomain(), nil
+    return &identity.User{ID: row.ID, CreatedAt: row.CreatedAt}, nil
 }
 
 func (r *UserRepository) FindByFederatedIdentity(ctx context.Context, provider, providerSubject string) (*identity.User, error) {
     var row userRow
     err := r.db.QueryRowxContext(ctx,
-        `SELECT u.id, u.email, u.email_verified, u.name, u.given_name,
-                u.family_name, u.picture, u.created_at, u.updated_at
+        `SELECT u.id, u.created_at
          FROM users u
          JOIN federated_identities fi ON fi.user_id = u.id
          WHERE fi.provider = $1 AND fi.provider_subject = $2`,
         provider, providerSubject,
     ).StructScan(&row)
     if errors.Is(err, sql.ErrNoRows) {
-        return nil, nil
+        return nil, nil // (nil, nil) signals "not yet registered" -- a normal outcome
     }
     if err != nil {
         return nil, err
     }
-    return row.toDomain(), nil
+    return &identity.User{ID: row.ID, CreatedAt: row.CreatedAt}, nil
 }
 
-func (r *UserRepository) CreateWithFederatedIdentity(ctx context.Context, user *identity.User, fi *identity.FederatedIdentity) error {
+func (r *UserRepository) CreateWithFederatedIdentity(
+    ctx context.Context,
+    user *identity.User,
+    fi *identity.FederatedIdentity,
+) error {
     tx, err := r.db.BeginTxx(ctx, nil)
     if err != nil {
         return err
@@ -483,18 +572,22 @@ func (r *UserRepository) CreateWithFederatedIdentity(ctx context.Context, user *
     defer func() { _ = tx.Rollback() }()
 
     _, err = tx.ExecContext(ctx,
-        `INSERT INTO users (id, email, email_verified, name, given_name, family_name, picture)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        user.ID, user.Email, user.EmailVerified, user.Name, user.GivenName, user.FamilyName, user.Picture,
+        `INSERT INTO users (id, created_at) VALUES ($1, $2)`,
+        user.ID, user.CreatedAt,
     )
     if err != nil {
         return err
     }
 
     _, err = tx.ExecContext(ctx,
-        `INSERT INTO federated_identities (id, user_id, provider, provider_subject)
-         VALUES ($1, $2, $3, $4)`,
+        `INSERT INTO federated_identities
+            (id, user_id, provider, provider_subject,
+             email, email_verified, display_name, given_name, family_name, picture_url,
+             last_login_at, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
         fi.ID, fi.UserID, fi.Provider, fi.ProviderSubject,
+        fi.Email, fi.EmailVerified, fi.DisplayName, fi.GivenName, fi.FamilyName, fi.PictureURL,
+        fi.LastLoginAt, fi.CreatedAt, fi.UpdatedAt,
     )
     if err != nil {
         return err
@@ -502,15 +595,79 @@ func (r *UserRepository) CreateWithFederatedIdentity(ctx context.Context, user *
 
     return tx.Commit()
 }
+
+func (r *UserRepository) UpdateFederatedIdentityClaims(
+    ctx context.Context,
+    provider, providerSubject string,
+    claims identity.FederatedClaims,
+    lastLoginAt time.Time,
+) error {
+    _, err := r.db.ExecContext(ctx,
+        `UPDATE federated_identities
+         SET email           = $1,
+             email_verified  = $2,
+             display_name    = $3,
+             given_name      = $4,
+             family_name     = $5,
+             picture_url     = $6,
+             last_login_at   = $7,
+             updated_at      = now()
+         WHERE provider = $8 AND provider_subject = $9`,
+        claims.Email, claims.EmailVerified, claims.Name,
+        claims.GivenName, claims.FamilyName, claims.Picture,
+        lastLoginAt, provider, providerSubject,
+    )
+    return err
+}
+
+func (r *UserRepository) GetUserWithClaims(ctx context.Context, userID string) (*identity.UserWithClaims, error) {
+    // Selects the user's stable ID combined with the profile claims from the
+    // federated identity most recently used to log in. When a user has multiple
+    // federated identities (e.g., Google + GitHub), the most recently active
+    // one is treated as the primary claims source.
+    var row userWithClaimsRow
+    err := r.db.QueryRowxContext(ctx,
+        `SELECT
+             u.id              AS user_id,
+             fi.email          AS email,
+             fi.email_verified AS email_verified,
+             fi.display_name   AS display_name,
+             fi.given_name     AS given_name,
+             fi.family_name    AS family_name,
+             fi.picture_url    AS picture_url,
+             fi.updated_at     AS claims_updated_at
+         FROM users u
+         JOIN federated_identities fi ON fi.user_id = u.id
+         WHERE u.id = $1
+         ORDER BY fi.last_login_at DESC
+         LIMIT 1`,
+        userID,
+    ).StructScan(&row)
+    if errors.Is(err, sql.ErrNoRows) {
+        return nil, domerr.ErrNotFound
+    }
+    if err != nil {
+        return nil, err
+    }
+    return &identity.UserWithClaims{
+        UserID:          row.UserID,
+        Email:           row.Email,
+        EmailVerified:   row.EmailVerified,
+        Name:            row.DisplayName,
+        GivenName:       row.GivenName,
+        FamilyName:      row.FamilyName,
+        Picture:         row.PictureURL,
+        ClaimsUpdatedAt: row.ClaimsUpdatedAt,
+    }, nil
+}
 ```
 
-**Key difference from current `repo/user.go`:**
-- Returns `domerr.ErrNotFound` instead of raw `sql.ErrNoRows`. The domain error translation happens at the persistence boundary.
-- Uses an internal `userRow` struct with `db:` tags for scanning, then converts to the pure domain `identity.User` via `toDomain()`.
-- `FindByFederatedIdentity` preserves the `(nil, nil)` convention for not-found.
-
-> User Annotation:    In `FindOrCreateByFederatedLogin`, if `existing != nil`, you are currently ignoring the newly fetched `FederatedClaims`. While we absolutely MUST NOT blindly overwrite the internal `User`'s core profile (like their customized name or picture), we MUST update the `FederatedIdentity` record with the latest claims from the upstream provider (e.g., if their Google email changed or verified status changed). 
-> Update the logic and repository interfaces to support updating the `FederatedIdentity` with the latest claims upon every successful login.
+**Key differences from the old `repo/user.go`:**
+- `userRow` only maps `id` and `created_at` -- no profile fields.
+- `federatedIdentityRow` carries all the profile columns that used to live on `userRow`.
+- `UpdateFederatedIdentityClaims` is a new method that refreshes profile data on every login.
+- `GetUserWithClaims` joins `users` + latest `federated_identities` record by `last_login_at`.
+- All `sql.ErrNoRows` responses are translated to `domerr.ErrNotFound` at this boundary.
 
 ---
 
@@ -521,10 +678,12 @@ This module owns the HTTP login flow and upstream IdP integration. It depends on
 ### 4.1 Config -- `internal/authn/config.go`
 
 ```go
+// internal/authn/config.go
 package authn
 
 // Config holds the configuration for upstream identity providers.
-// It is a focused subset, not the monolithic top-level Config.
+// It is a focused subset of the top-level service config,
+// decoupling the authn module from the monolithic config.Config struct.
 type Config struct {
     IssuerURL          string
     GoogleClientID     string
@@ -534,11 +693,11 @@ type Config struct {
 }
 ```
 
-The top-level `config.Config` will populate this subset and pass it to `authn.NewProviders()`. This decouples the authn module from the monolithic config.
+The top-level `config.Config` populates this struct in `main.go` and passes it to `authn.NewProviders()`.
 
-### 4.2 Upstream Providers -- extracted from `login/upstream.go`
+### 4.2 Upstream Providers -- `internal/authn/provider.go`
 
-The `UpstreamProvider` struct and `UpstreamClaims` type move here. The key change: the claims type now maps to `identity.FederatedClaims` at a defined boundary rather than being its own standalone type consumed by both the handler and the identity layer.
+The `UpstreamProvider` struct and its factory functions move here. The key change: `FetchClaims` returns `*identity.FederatedClaims` directly -- no intermediate `UpstreamClaims` type, no redundant mapping step.
 
 ```go
 // internal/authn/provider.go
@@ -546,6 +705,7 @@ package authn
 
 import (
     "context"
+    "fmt"
 
     "golang.org/x/oauth2"
 
@@ -557,11 +717,13 @@ type Provider struct {
     Name         string
     DisplayName  string
     OAuth2Config *oauth2.Config
-    // FetchClaims exchanges an OAuth2 token for identity claims.
+    // FetchClaims exchanges a completed OAuth2 token for the user's
+    // identity claims. It is provider-specific and returns the claims
+    // in the domain's canonical type directly.
     FetchClaims func(ctx context.Context, token *oauth2.Token) (*identity.FederatedClaims, error)
 }
 
-// NewProviders builds the list of configured upstream providers.
+// NewProviders builds the list of configured upstream providers from config.
 func NewProviders(ctx context.Context, cfg Config) ([]*Provider, error) {
     var providers []*Provider
 
@@ -583,11 +745,12 @@ func NewProviders(ctx context.Context, cfg Config) ([]*Provider, error) {
 }
 ```
 
-`provider_google.go` and `provider_github.go` contain the extracted Google and GitHub factory functions from `login/upstream.go`, each returning `*Provider`. The `FetchClaims` functions return `*identity.FederatedClaims` directly (instead of the old `*UpstreamClaims`), eliminating a mapping step.
+`provider_google.go` and `provider_github.go` contain the extracted factory functions from `login/upstream.go`. Each returns `*Provider` with a `FetchClaims` function that maps provider-specific responses directly to `*identity.FederatedClaims`.
 
 ### 4.3 HTTP Handler -- `internal/authn/handler.go`
 
 ```go
+// internal/authn/handler.go
 package authn
 
 import (
@@ -604,21 +767,25 @@ import (
     "github.com/barn0w1/hss-science/server/services/accounts/internal/pkg/crypto"
 )
 
-// AuthRequestQuerier is the narrow interface needed by the handler to validate
-// auth request existence and complete the login. This is temporarily satisfied
-// by the existing repo.AuthRequestRepository until Iteration 2 extracts it
-// into internal/oidc.
+// AuthRequestQuerier is the narrow interface the handler needs to interact
+// with auth requests. It intentionally exposes only GetByID (for validation)
+// and CompleteLogin (to finalize the flow). The full auth request lifecycle
+// is owned by the oidcprovider (temporarily) and will move to internal/oidc
+// in Iteration 2.
 type AuthRequestQuerier interface {
     GetByID(ctx context.Context, id string) (AuthRequestInfo, error)
     CompleteLogin(ctx context.Context, id, userID string, authTime time.Time, amr []string) error
 }
 
-// AuthRequestInfo is a minimal read-only view of an auth request.
-// This avoids importing model.AuthRequest directly into authn.
+// AuthRequestInfo is a minimal read-only view of an auth request exposed to authn.
+// It contains only what the handler needs, avoiding direct knowledge of model.AuthRequest.
 type AuthRequestInfo struct {
     ID string
 }
 
+// Handler is the HTTP adapter for the federated login flow.
+// It contains zero domain logic -- all identity decisions are delegated
+// to identity.Service.
 type Handler struct {
     providers   []*Provider
     providerMap map[string]*Provider
@@ -657,12 +824,12 @@ func NewHandler(
 ```
 
 **Key changes from current `login.Handler`:**
-1. **`userRepo` replaced by `identity.Service`**: The handler calls `identitySvc.FindOrCreateByFederatedLogin()` instead of doing the lookup/create itself.
-2. **`authReqRepo` replaced by `AuthRequestQuerier` interface**: A narrow, authn-local interface that only requires `GetByID` and `CompleteLogin`. The existing `repo.AuthRequestRepository` satisfies this via a thin adapter (see Section 6).
-3. **Crypto delegated to `pkg/crypto`**: `encryptState`/`decryptState` call `crypto.Encrypt`/`crypto.Decrypt` and handle JSON marshaling locally.
-4. **No domain logic**: `findOrCreateUser` is gone. The handler is a pure HTTP adapter.
+1. `userRepo userFinder` replaced by `identitySvc identity.Service` -- handler calls the service, never the repo.
+2. `authReqRepo authRequestCompleter` replaced by `AuthRequestQuerier` -- a purposefully narrow interface owned by the authn module.
+3. `encryptState`/`decryptState` delegate to `crypto.Encrypt`/`Decrypt`; the handler handles only JSON marshaling.
+4. `findOrCreateUser` is gone. `FederatedCallback` calls `identitySvc.FindOrCreateByFederatedLogin` directly.
 
-The handler methods (`SelectProvider`, `FederatedRedirect`, `FederatedCallback`) remain structurally identical but with the above dependency changes. The `FederatedCallback` method body becomes:
+The `FederatedCallback` method:
 
 ```go
 func (h *Handler) FederatedCallback(w http.ResponseWriter, r *http.Request) {
@@ -693,7 +860,7 @@ func (h *Handler) FederatedCallback(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // Provider returns identity.FederatedClaims directly.
+    // FetchClaims returns *identity.FederatedClaims directly. No mapping step.
     claims, err := provider.FetchClaims(r.Context(), token)
     if err != nil {
         h.logger.Error("user info retrieval failed", "provider", state.Provider, "error", err)
@@ -701,7 +868,8 @@ func (h *Handler) FederatedCallback(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // Delegate to identity service -- no domain logic in the handler.
+    // Delegate entirely to identity service. The handler has no knowledge of
+    // user creation, claims storage, or what "finding" a user means.
     user, err := h.identitySvc.FindOrCreateByFederatedLogin(r.Context(), state.Provider, *claims)
     if err != nil {
         h.logger.Error("find or create user failed", "error", err)
@@ -721,7 +889,7 @@ func (h *Handler) FederatedCallback(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-### 4.4 State Encryption -- simplified
+### 4.4 State Encryption
 
 ```go
 type federatedState struct {
@@ -755,38 +923,174 @@ func (h *Handler) decryptState(encoded string) (federatedState, error) {
 
 ## 5. Database Schema Changes
 
-**No schema changes for the `users` and `federated_identities` tables.** The database schema is fine; the problem was that Go domain types had `db:` tags. The new architecture uses internal `Row` structs in the postgres adapter layer for scanning, and pure domain types above that. The SQL in `001_initial.sql` stays as-is.
+The schema for `users` and `federated_identities` is reengineered to match the new domain model. The change is substantive:
 
-The `model/user.go` and `model/federated_identity.go` files are deleted because their types are replaced by `identity.User` and `identity.FederatedIdentity` in the domain layer, and `postgres.userRow` in the persistence layer.
+- **`users`** is stripped to a minimal anchor: just `id` and `created_at`. All profile data moves out.
+- **`federated_identities`** grows to carry the full set of IdP-provided profile claims, `last_login_at`, and `updated_at` for tracking claim freshness.
+
+### 5.1 Decision: ULID Primary Keys
+
+New tables use application-generated **ULIDs** (Universally Unique Lexicographically Sortable Identifiers) instead of database-generated UUIDs. ULIDs are:
+- **Time-sortable:** The 48-bit timestamp prefix means rows are naturally ordered by insertion time in index scans.
+- **Application-generated:** No round-trip to the database is needed to obtain an ID before insertion.
+- **URL-safe:** 26-character Crockford Base32, no hyphens.
+- **Stored as `TEXT`** in PostgreSQL (no native ULID type needed; the text representation is 26 chars).
+
+The legacy tables (`auth_requests`, `clients`, `tokens`, `refresh_tokens`) keep their existing UUID PK types for now and are untouched until Iteration 2. However, their foreign-key columns that reference `users.id` must change type from `UUID` to `TEXT` to match the new PK type. The existing UUID string values are valid `TEXT` values, so this is purely mechanical.
+
+The Go dependency to add: `github.com/oklog/ulid/v2`.
+
+### 5.2 New `001_initial.sql`
+
+```sql
+-- Identity domain: the stable user anchor.
+-- No profile data lives here -- all IdP-provided claims are on federated_identities.
+CREATE TABLE users (
+    id          TEXT PRIMARY KEY,                   -- application-generated ULID
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Identity domain: one record per (user, upstream provider) pair.
+-- Carries all profile claims as last reported by that provider.
+-- Refreshed on every successful federated login.
+CREATE TABLE federated_identities (
+    id               TEXT PRIMARY KEY,              -- application-generated ULID
+    user_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider         TEXT NOT NULL,                 -- e.g. "google", "github"
+    provider_subject TEXT NOT NULL,                 -- provider's own user ID
+
+    -- Profile claims sourced from this provider. Refreshed on every login.
+    email            TEXT        NOT NULL DEFAULT '',
+    email_verified   BOOLEAN     NOT NULL DEFAULT false,
+    display_name     TEXT        NOT NULL DEFAULT '',
+    given_name       TEXT        NOT NULL DEFAULT '',
+    family_name      TEXT        NOT NULL DEFAULT '',
+    picture_url      TEXT        NOT NULL DEFAULT '',
+
+    last_login_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    UNIQUE(provider, provider_subject)
+);
+
+CREATE INDEX federated_identities_user_id_last_login_idx
+    ON federated_identities (user_id, last_login_at DESC);
+
+-- OIDC domain: registered relying-party clients.
+-- Unchanged from previous schema.
+CREATE TABLE clients (
+    id                          TEXT PRIMARY KEY,
+    secret_hash                 TEXT        NOT NULL DEFAULT '',
+    redirect_uris               TEXT[]      NOT NULL,
+    post_logout_redirect_uris   TEXT[]      NOT NULL DEFAULT '{}',
+    application_type            TEXT        NOT NULL DEFAULT 'web',
+    auth_method                 TEXT        NOT NULL DEFAULT 'client_secret_basic',
+    response_types              TEXT[]      NOT NULL,
+    grant_types                 TEXT[]      NOT NULL,
+    access_token_type           TEXT        NOT NULL DEFAULT 'jwt',
+    id_token_lifetime_seconds   INTEGER     NOT NULL DEFAULT 3600,
+    clock_skew_seconds          INTEGER     NOT NULL DEFAULT 0,
+    id_token_userinfo_assertion BOOLEAN     NOT NULL DEFAULT false,
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- OIDC domain: in-flight authorization requests.
+-- user_id changed from UUID to TEXT to match the new users.id type.
+CREATE TABLE auth_requests (
+    id                    TEXT        PRIMARY KEY,  -- kept as text (was UUID)
+    client_id             TEXT        NOT NULL,
+    redirect_uri          TEXT        NOT NULL,
+    state                 TEXT,
+    nonce                 TEXT,
+    scopes                TEXT[],
+    response_type         TEXT        NOT NULL,
+    response_mode         TEXT,
+    code_challenge        TEXT,
+    code_challenge_method TEXT,
+    prompt                TEXT[],
+    max_age               INTEGER,
+    login_hint            TEXT,
+    user_id               TEXT,                     -- FK type changed UUID -> TEXT
+    auth_time             TIMESTAMPTZ,
+    amr                   TEXT[],
+    is_done               BOOLEAN     NOT NULL DEFAULT false,
+    code                  TEXT,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX auth_requests_code_idx ON auth_requests (code) WHERE code IS NOT NULL;
+
+-- OIDC domain: issued access tokens.
+-- Unchanged from previous schema (subject is a string, not a FK).
+CREATE TABLE tokens (
+    id               TEXT        PRIMARY KEY,       -- kept as text (was UUID)
+    client_id        TEXT        NOT NULL,
+    subject          TEXT        NOT NULL,
+    audience         TEXT[],
+    scopes           TEXT[],
+    expiration       TIMESTAMPTZ NOT NULL,
+    refresh_token_id TEXT,                          -- FK type changed UUID -> TEXT
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- OIDC domain: refresh tokens.
+-- user_id changed from UUID to TEXT to match the new users.id type.
+CREATE TABLE refresh_tokens (
+    id               TEXT        PRIMARY KEY,       -- kept as text (was UUID)
+    token            TEXT        NOT NULL UNIQUE,
+    client_id        TEXT        NOT NULL,
+    user_id          TEXT        NOT NULL REFERENCES users(id),  -- type changed UUID -> TEXT
+    audience         TEXT[],
+    scopes           TEXT[],
+    auth_time        TIMESTAMPTZ NOT NULL,
+    amr              TEXT[],
+    access_token_id  TEXT,                          -- type changed UUID -> TEXT
+    expiration       TIMESTAMPTZ NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+### 5.3 Schema Change Summary
+
+| Table | Column | Old type | New type | Reason |
+|---|---|---|---|---|
+| `users` | `id` | `UUID DEFAULT gen_random_uuid()` | `TEXT` (ULID) | Application-generated ULID |
+| `users` | `email` … `updated_at` | All present | **Removed** | Profile data moved to `federated_identities` |
+| `federated_identities` | `id` | `UUID` | `TEXT` (ULID) | Application-generated ULID |
+| `federated_identities` | `user_id` | `UUID` | `TEXT` | Matches new `users.id` type |
+| `federated_identities` | `email`, `email_verified`, etc. | Not present | **Added** | Profile claims now owned here |
+| `federated_identities` | `last_login_at`, `updated_at` | Not present | **Added** | Refresh tracking |
+| `auth_requests` | `id` | `UUID` | `TEXT` | Consistency (stored as text anyway) |
+| `auth_requests` | `user_id` | `UUID` | `TEXT` | Matches new `users.id` type |
+| `tokens` | `id`, `refresh_token_id` | `UUID` | `TEXT` | Consistency |
+| `refresh_tokens` | `id`, `access_token_id`, `user_id` | `UUID` | `TEXT` | Matches new `users.id` type |
+
+### 5.4 Impact on Legacy Repos (Iteration 1, in-scope)
+
+`repo/authrequest.go` and `repo/token.go` treat `user_id` as a `*string` / `string` in their scan targets and bind parameters, so the `UUID -> TEXT` type change requires **no code changes** in those files. The schema changes are purely at the DDL level.
 
 ---
 
 ## 6. Bridging the Legacy oidcprovider
 
-The `oidcprovider.Storage` god-object currently depends on a `UserReader` interface that returns `*model.User`. After Iteration 1, the identity domain owns the `User` type. We need a bridge.
+The `oidcprovider.Storage` god-object is left structurally intact in this iteration, but its user-access dependency is replaced with `identity.Service`.
 
 ### 6.1 Replace `oidcprovider.UserReader` with `identity.Service`
 
-The current `UserReader` interface in `oidcprovider/storage.go`:
-
-```go
-// CURRENT
-type UserReader interface {
-    GetByID(ctx context.Context, id string) (*model.User, error)
-    FindByFederatedIdentity(ctx context.Context, provider, providerSubject string) (*model.User, error)
-    CreateWithFederatedIdentity(ctx context.Context, u *model.User, fi *model.FederatedIdentity) error
-}
-```
-
-Is replaced by depending on `identity.Service` directly:
+The current `UserReader` interface in `oidcprovider/storage.go` is deleted. `Storage` instead depends on `identity.Service`:
 
 ```go
 // NEW -- in oidcprovider/storage.go
-import "github.com/barn0w1/hss-science/server/services/accounts/internal/identity"
+import (
+    "github.com/barn0w1/hss-science/server/services/accounts/internal/identity"
+    "github.com/barn0w1/hss-science/server/services/accounts/internal/pkg/domerr"
+)
 
 type Storage struct {
     db                   *sqlx.DB
-    identitySvc          identity.Service   // replaces userRepo UserReader
+    identitySvc          identity.Service   // replaces the old UserReader interface
     clientRepo           ClientReader
     authReqRepo          AuthRequestStore
     tokenRepo            TokenStore
@@ -797,11 +1101,13 @@ type Storage struct {
 }
 ```
 
-The methods that used `s.userRepo.GetByID` now call `s.identitySvc.GetUser`:
+### 6.2 Updated `setUserinfo` and `setIntrospectionUserinfo`
+
+Because profile data no longer lives on `identity.User`, the OIDC bridge must call `GetUserWithClaims` to obtain a view with the profile fields. The `UserWithClaims` read model was designed precisely for this use case.
 
 ```go
 func (s *Storage) setUserinfo(ctx context.Context, userinfo *oidc.UserInfo, userID string, scopes []string) error {
-    user, err := s.identitySvc.GetUser(ctx, userID)
+    userClaims, err := s.identitySvc.GetUserWithClaims(ctx, userID)
     if err != nil {
         if domerr.Is(err, domerr.ErrNotFound) {
             return oidc.ErrInvalidRequest().WithDescription("user not found")
@@ -812,31 +1118,83 @@ func (s *Storage) setUserinfo(ctx context.Context, userinfo *oidc.UserInfo, user
     for _, scope := range scopes {
         switch scope {
         case oidc.ScopeOpenID:
-            userinfo.Subject = user.ID
+            userinfo.Subject = userClaims.UserID
         case oidc.ScopeProfile:
-            userinfo.Name = user.Name
-            userinfo.GivenName = user.GivenName
-            userinfo.FamilyName = user.FamilyName
-            userinfo.Picture = user.Picture
-            userinfo.UpdatedAt = oidc.FromTime(user.UpdatedAt)
+            userinfo.Name = userClaims.Name
+            userinfo.GivenName = userClaims.GivenName
+            userinfo.FamilyName = userClaims.FamilyName
+            userinfo.Picture = userClaims.Picture
+            // UpdatedAt reflects when the IdP last reported a change to
+            // the user's profile -- semantically correct for this claim.
+            userinfo.UpdatedAt = oidc.FromTime(userClaims.ClaimsUpdatedAt)
         case oidc.ScopeEmail:
-            userinfo.Email = user.Email
-            userinfo.EmailVerified = oidc.Bool(user.EmailVerified)
+            userinfo.Email = userClaims.Email
+            userinfo.EmailVerified = oidc.Bool(userClaims.EmailVerified)
         }
+    }
+    return nil
+}
+
+func (s *Storage) setIntrospectionUserinfo(introspection *oidc.IntrospectionResponse, userClaims *identity.UserWithClaims, scopes []string) {
+    for _, scope := range scopes {
+        switch scope {
+        case oidc.ScopeOpenID:
+            introspection.Subject = userClaims.UserID
+        case oidc.ScopeProfile:
+            introspection.Name = userClaims.Name
+            introspection.GivenName = userClaims.GivenName
+            introspection.FamilyName = userClaims.FamilyName
+            introspection.Picture = userClaims.Picture
+            introspection.UpdatedAt = oidc.FromTime(userClaims.ClaimsUpdatedAt)
+        case oidc.ScopeEmail:
+            introspection.Email = userClaims.Email
+            introspection.EmailVerified = oidc.Bool(userClaims.EmailVerified)
+        }
+    }
+}
+```
+
+`SetIntrospectionFromToken` is updated to call `GetUserWithClaims` first, then pass the result to `setIntrospectionUserinfo`:
+
+```go
+func (s *Storage) SetIntrospectionFromToken(ctx context.Context, introspection *oidc.IntrospectionResponse, tokenID, subject, clientID string) error {
+    token, err := s.tokenRepo.GetByID(ctx, tokenID)
+    if err != nil {
+        if errors.Is(err, sql.ErrNoRows) {
+            introspection.Active = false
+            return nil
+        }
+        return err
+    }
+
+    introspection.Active = true
+    introspection.Subject = token.Subject
+    introspection.ClientID = token.ClientID
+    introspection.Scope = oidc.SpaceDelimitedArray(token.Scopes)
+    introspection.Audience = token.Audience
+    introspection.Expiration = oidc.FromTime(token.Expiration)
+    introspection.IssuedAt = oidc.FromTime(token.CreatedAt)
+    introspection.TokenType = oidc.BearerToken
+
+    userClaims, err := s.identitySvc.GetUserWithClaims(ctx, token.Subject)
+    if err != nil && !domerr.Is(err, domerr.ErrNotFound) {
+        return err
+    }
+    if userClaims != nil {
+        s.setIntrospectionUserinfo(introspection, userClaims, token.Scopes)
     }
     return nil
 }
 ```
 
-**This is a clean cut:** The `oidcprovider` package no longer imports `model.User` or `model.FederatedIdentity`. It imports `identity.User` from the domain layer. The only `model.*` types it still uses are `model.AuthRequest`, `model.Client`, `model.Token`, `model.RefreshToken` -- all of which stay until Iteration 2.
+**This is a clean cut:** The `oidcprovider` package no longer imports `model.User`, `model.FederatedIdentity`, or any user repo. Its only user-related import is `identity.Service` and `identity.UserWithClaims`.
 
-### 6.2 AuthRequestQuerier Adapter for authn
+### 6.3 AuthRequestQuerier Adapter for authn
 
-The `authn.AuthRequestQuerier` interface needs to be satisfied by the existing `repo.AuthRequestRepository`. Since `authn` must not import `model.AuthRequest`, we create a thin adapter in `main.go` wiring:
+`authn.Handler` needs `GetByID` and `CompleteLogin` without importing `model.AuthRequest`. A thin adapter in `main.go` bridges `repo.AuthRequestRepository` to `authn.AuthRequestQuerier`:
 
 ```go
-// In main.go, a small adapter struct that bridges repo.AuthRequestRepository
-// to the authn.AuthRequestQuerier interface.
+// In main.go -- purely wiring glue; deleted in Iteration 2.
 type authReqAdapter struct {
     repo *repo.AuthRequestRepository
 }
@@ -854,13 +1212,9 @@ func (a *authReqAdapter) CompleteLogin(ctx context.Context, id, userID string, a
 }
 ```
 
-This adapter lives in `main.go` because it's pure wiring glue -- it bridges two modules that shouldn't know about each other. It will be deleted in Iteration 2 when `internal/oidc` absorbs auth request management.
-
 ---
 
 ## 7. Migration of main.go Wiring
-
-The new `main.go` wiring replaces the old dependency graph:
 
 ```go
 func main() {
@@ -889,7 +1243,7 @@ func main() {
     authReqRepo := repo.NewAuthRequestRepository(db)
     tokenRepo   := repo.NewTokenRepository(db)
 
-    // --- OIDC provider (adapted to use identity.Service) ---
+    // --- OIDC provider (storage adapted to use identity.Service) ---
     signingKey := oidcprovider.NewSigningKey(cfg.SigningKey)
     publicKey  := oidcprovider.NewPublicKey(cfg.SigningKey)
 
@@ -920,7 +1274,7 @@ func main() {
         os.Exit(1)
     }
 
-    authReqBridge := &authReqAdapter{repo: authReqRepo} // temporary bridge
+    authReqBridge := &authReqAdapter{repo: authReqRepo} // temporary bridge, removed in Iteration 2
 
     loginHandler := authn.NewHandler(
         upstreamProviders,
@@ -931,7 +1285,7 @@ func main() {
         logger,
     )
 
-    // --- Routing (unchanged structure) ---
+    // Routing (structure unchanged from current main.go)
     router := chi.NewRouter()
     router.Use(middleware.Recoverer)
 
@@ -943,20 +1297,35 @@ func main() {
         r.Get("/callback", loginHandler.FederatedCallback)
     })
 
-    // ... healthz, readyz, logged-out, provider mount -- identical to current ...
+    router.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+    router.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
+        if err := db.PingContext(r.Context()); err != nil {
+            http.Error(w, "not ready", http.StatusServiceUnavailable)
+            return
+        }
+        w.WriteHeader(http.StatusOK)
+    })
+    router.Get("/logged-out", func(w http.ResponseWriter, _ *http.Request) {
+        _, _ = w.Write([]byte("You have been signed out."))
+    })
+
+    router.Mount("/", provider)
+
+    srv := &http.Server{ /* same timeouts as current */ }
+    // ... graceful shutdown identical to current main.go ...
 }
 ```
 
-### What's imported from where
+### Import table
 
-| Package alias | Import path | New/Changed? |
+| Package alias | Import path | Status |
 |---|---|---|
 | `identity` | `.../internal/identity` | New |
 | `identitypg` | `.../internal/identity/postgres` | New |
 | `authn` | `.../internal/authn` | New |
-| `repo` | `.../repo` | Unchanged (minus user repo) |
-| `oidcprovider` | `.../oidcprovider` | Adapted (new Storage constructor signature) |
-| `config` | `.../config` | Adapted |
+| `repo` | `.../repo` | Unchanged (auth, client, token only) |
+| `oidcprovider` | `.../oidcprovider` | Adapted (new Storage constructor) |
+| `config` | `.../config` | Unchanged |
 
 ---
 
@@ -968,25 +1337,24 @@ func main() {
 |---|---|---|
 | `internal/pkg/domerr` | `errors_test.go` | `errors.Is` chaining with wrapped domain errors |
 | `internal/pkg/crypto` | `aes_test.go` | Encrypt/Decrypt round-trip, wrong key, short ciphertext, invalid base64 |
-| `internal/identity` | `service_test.go` | `FindOrCreateByFederatedLogin` with a mock `Repository`: existing user path, new user path, repo error propagation |
-| `internal/identity` | `domain_test.go` | Any domain validation if added later |
-| `internal/authn` | `handler_test.go` | All existing handler tests from `login/handler_test.go`, adapted to use mock `identity.Service` and mock `AuthRequestQuerier` |
+| `internal/identity` | `service_test.go` | All three service methods with a mock `Repository`: existing user path (confirm claims update is called), new user path, error propagation, `GetUserWithClaims` delegation |
+| `internal/authn` | `handler_test.go` | All handler tests from `login/handler_test.go`, adapted to inject mock `identity.Service` and mock `AuthRequestQuerier` |
 
 ### 8.2 Integration Tests (testcontainers PostgreSQL)
 
 | Package | Test File | What's tested |
 |---|---|---|
-| `internal/identity/postgres` | `user_repo_test.go` | All user repo operations against real PostgreSQL: Create+GetByID, FindByFederatedIdentity, CreateWithFederatedIdentity, not-found returns `domerr.ErrNotFound` |
-| `oidcprovider` | `storage_test.go` | Adapted to construct `identity.NewService(identitypg.NewUserRepository(db))` instead of raw `repo.NewUserRepository(db)` |
+| `internal/identity/postgres` | `user_repo_test.go` | Full repo contract: `GetByID` (found / not-found → `domerr.ErrNotFound`), `FindByFederatedIdentity` (found / not-found → nil,nil), `CreateWithFederatedIdentity`, `UpdateFederatedIdentityClaims` (claims refresh verified by subsequent `GetUserWithClaims`), `GetUserWithClaims` (most-recent FI selected when multiple exist) |
+| `oidcprovider` | `storage_test.go` | Adapted to construct the service chain: `identity.NewService(identitypg.NewUserRepository(db))` injected as `identitySvc` |
 
 ### 8.3 Deleted / Moved Tests
 
-- `repo/repo_test.go`: User-related tests (TestUserRepository_*) move to `internal/identity/postgres/user_repo_test.go`. Client, AuthRequest, and Token tests stay.
-- `login/handler_test.go`: Moves entirely to `internal/authn/handler_test.go`. Tests are adapted to mock `identity.Service` instead of using nil `userRepo`.
+- `repo/repo_test.go`: All `TestUserRepository_*` tests move to `internal/identity/postgres/user_repo_test.go`.
+- `login/handler_test.go`: Moves entirely to `internal/authn/handler_test.go`, adapted to mock `identity.Service`.
 
-### 8.4 Test Container Consolidation
+### 8.4 testhelper/testdb.go Update
 
-Both `repo/repo_test.go` and `oidcprovider/storage_test.go` currently spin up separate PostgreSQL containers. After this iteration, `internal/identity/postgres/` also needs one. We should consolidate by having each test suite use `testhelper.RunMigrations` with its own testcontainers setup, which is unchanged. The two-container problem is deferred to a future infrastructure improvement (shared test binary or build-tag-gated shared setup).
+`CleanTables` has a hardcoded table list. The new column layout doesn't change the table names, but the order must respect the new FK relationships (no change needed -- `federated_identities` already comes before `users` in the delete order). No functional change required. The `updated_at` trigger on `users` is removed since the table no longer has that column; no trigger update needed.
 
 ---
 
@@ -994,47 +1362,63 @@ Both `repo/repo_test.go` and `oidcprovider/storage_test.go` currently spin up se
 
 ### Iteration 2: internal/oidc Domain
 
-**Scope:** Extract everything the zitadel `op.Storage` interface needs into `internal/oidc/`.
+**Scope:** Extract everything the zitadel `op.Storage` interface needs into `internal/oidc/`, completing the dismantling of the god-object.
 
-#### 9.1 AuthRequest Management
+#### 9.1 AuthRequest Domain
 
-- Move `model.AuthRequest` into `internal/oidc/domain.go` (or a sub-domain like `authflow`).
+- Create `internal/oidc/domain.go` with `AuthRequest` as a proper domain type (no `db:` tags).
 - Move `repo/authrequest.go` into `internal/oidc/postgres/authrequest_repo.go`.
-- Extract the 30-minute TTL from the SQL `activeFilter` into a configurable domain constant.
-- Create an `oidc.AuthRequestService` that owns creation, code-saving, completion, and deletion.
-- The `authn` module's `AuthRequestQuerier` interface will be satisfied by `oidc.AuthRequestService` instead of the `authReqAdapter` bridge.
-- Delete the `authReqAdapter` from `main.go`.
+- Create `internal/oidc/authrequest_svc.go` implementing an `AuthRequestService`.
+- Extract the hardcoded 30-minute TTL from `repo/authrequest.go`'s `activeFilter` SQL into a configurable domain constant on the service, not in SQL.
+- The `authn.AuthRequestQuerier` interface will be satisfied by `oidc.AuthRequestService` directly. The `authReqAdapter` bridge in `main.go` is deleted.
+- Move `oidcprovider/authrequest.go` type adapter into `internal/oidc/adapter/authrequest.go`.
 
-#### 9.2 Client Management
+#### 9.2 Client Domain
 
-- Move `model.Client` into `internal/oidc/domain.go`.
+- Create `model.Client` equivalent in `internal/oidc/domain.go`.
 - Move `repo/client.go` into `internal/oidc/postgres/client_repo.go`.
-- Move bcrypt secret verification from `oidcprovider.Storage.AuthorizeClientIDSecret` into an `oidc.ClientService`.
-- Move the string-to-enum mapping (ApplicationType, AuthMethod, etc.) from `oidcprovider/client.go` adapter into the domain or a dedicated mapper.
+- Create `internal/oidc/client_svc.go`. Bcrypt client-secret verification moves from `oidcprovider.Storage.AuthorizeClientIDSecret` into `ClientService.AuthorizeSecret`.
+- Move the string-to-enum conversion logic (ApplicationType, AuthMethod, etc.) from `oidcprovider/client.go` into a mapper in the domain layer.
+- Move `oidcprovider/client.go` adapter into `internal/oidc/adapter/client.go`.
 
-#### 9.3 Token Management
+#### 9.3 Token Domain
 
-- Move `model.Token` and `model.RefreshToken` into `internal/oidc/domain.go`.
+- Create `Token` and `RefreshToken` types in `internal/oidc/domain.go`.
 - Move `repo/token.go` into `internal/oidc/postgres/token_repo.go`.
-- Create an `oidc.TokenService` that owns creation, refresh, revocation, and introspection.
+- Create `internal/oidc/token_svc.go` owning creation, refresh, revocation, introspection.
+- Move `oidcprovider/refreshtoken.go` adapter into `internal/oidc/adapter/refreshtoken.go`.
 
 #### 9.4 Dismantling the Storage God-Object
 
-Once all domain services exist, `oidcprovider/storage.go` becomes a pure **compositor** -- a thin struct that holds references to `identity.Service`, `oidc.AuthRequestService`, `oidc.ClientService`, `oidc.TokenService`, and delegates each `op.Storage` method to the appropriate service. Each method becomes a 1-3 line delegation. The `NewStorage` constructor takes service interfaces instead of repos.
+Once all three domain services exist, `oidcprovider/storage.go` becomes a pure **compositor**:
+
+```go
+// internal/oidc/adapter/storage.go
+type StorageAdapter struct {
+    identity identity.Service
+    authreq  AuthRequestService
+    client   ClientService
+    token    TokenService
+    keys     KeyProvider
+}
+```
+
+Every `op.Storage` method becomes a 1-3 line delegation to the appropriate service. The 400-line `storage.go` becomes ~120 lines of pure plumbing.
 
 #### 9.5 Key Management
 
-- Move `oidcprovider/keys.go` to `internal/oidc/keys/` or `internal/pkg/crypto/`.
-- Add key rotation support: store multiple keys in the database, return all active keys in `KeySet()`, sign with the newest key.
+- Move `oidcprovider/keys.go` to `internal/oidc/adapter/keys.go` or `internal/pkg/crypto/`.
+- Add database-backed key rotation: a `signing_keys` table, `KeySet()` returns all non-expired keys, new key activated by config or a management endpoint.
 
 ### Iteration 3: Cleanup and Polish
 
-- Delete the empty `model/`, `repo/`, `login/` packages entirely.
-- Delete the `old` config fields that were absorbed into module-specific configs.
-- Unify test infrastructure into a single shared testcontainers setup.
-- Add OpenTelemetry tracing spans to key operations.
-- Add structured request-ID logging middleware.
-- Consider CSRF protection on the provider selection form.
+- Delete the now-empty `model/` and `repo/` packages.
+- Remove the last legacy imports from `main.go`.
+- Unify the testcontainers setup across packages (single shared `TestMain` or build-tag gating).
+- Add OpenTelemetry tracing spans to key operations (identity service methods, repo calls, upstream provider calls).
+- Add a request-ID logging middleware.
+- Consider CSRF token protection on the provider selection form (issue: the encrypted state parameter on the callback protects the authentication completion, but the initial provider selection POST is unguarded).
+- Harden the GitHub provider to fetch primary/verified email from `/user/emails` endpoint when `/user` returns an empty email.
 
 ### Target End-State Directory Tree (after all iterations)
 
@@ -1046,10 +1430,12 @@ services/accounts/
   internal/
     pkg/
       domerr/
+        errors.go
       crypto/
+        aes.go
     identity/
-      domain.go
-      ports.go
+      domain.go         (User, FederatedIdentity, FederatedClaims, UserWithClaims)
+      ports.go          (Repository, Service interfaces)
       service.go
       postgres/
         user_repo.go
@@ -1061,17 +1447,17 @@ services/accounts/
       handler.go
     oidc/
       domain.go         (AuthRequest, Client, Token, RefreshToken)
-      ports.go          (service + repo interfaces)
+      ports.go          (AuthRequestService, ClientService, TokenService + their repo interfaces)
       authrequest_svc.go
       client_svc.go
       token_svc.go
       adapter/
-        storage.go      (thin op.Storage compositor)
-        authrequest.go  (op.AuthRequest adapter)
-        client.go       (op.Client adapter)
+        storage.go      (thin op.Storage compositor delegating to domain services)
+        authrequest.go  (op.AuthRequest adapter wrapping oidc.AuthRequest)
+        client.go       (op.Client adapter wrapping oidc.Client)
         refreshtoken.go (op.RefreshTokenRequest adapter)
-        keys.go
-        provider.go
+        keys.go         (key management)
+        provider.go     (OIDC provider construction)
       postgres/
         authrequest_repo.go
         client_repo.go
@@ -1090,63 +1476,69 @@ services/accounts/
 
 ## 10. Implementation Order
 
-The implementation should proceed in this exact order, with each step producing a compilable, test-passing codebase:
+Each step must produce a compilable, test-passing codebase before the next begins.
 
-### Step 1: Create `internal/pkg/domerr`
+### Step 1: Add ULID dependency
+- Add `github.com/oklog/ulid/v2` to `go.mod`: `go get github.com/oklog/ulid/v2`.
+- No code changes yet.
+
+### Step 2: Reengineer the database schema
+- Rewrite `migrations/001_initial.sql` to the new schema from Section 5.
+- Update `testhelper/testdb.go` `CleanTables` if table names changed (they haven't, but verify).
+- Verify the migration runs cleanly against a fresh PostgreSQL instance.
+
+### Step 3: Create `internal/pkg/domerr`
 - Create `internal/pkg/domerr/errors.go` with sentinel errors.
 - Create `internal/pkg/domerr/errors_test.go`.
-- No existing code changes. Just adding new files.
+- No existing code changes.
 
-### Step 2: Create `internal/pkg/crypto`
+### Step 4: Create `internal/pkg/crypto`
 - Create `internal/pkg/crypto/aes.go` and `aes_test.go`.
-- These are standalone functions. No existing code changes yet.
-- Verify tests pass in isolation.
+- Standalone package, no existing code changes.
+- Verify tests pass.
 
-### Step 3: Create `internal/identity` domain + service
-- Create `internal/identity/domain.go` (User, FederatedIdentity, FederatedClaims).
-- Create `internal/identity/ports.go` (Repository interface, Service interface).
-- Create `internal/identity/service.go` (identityService implementing Service).
-- Create `internal/identity/service_test.go` with mock Repository.
+### Step 5: Create `internal/identity` domain + service
+- Create `internal/identity/domain.go` (User, FederatedIdentity, FederatedClaims, UserWithClaims).
+- Create `internal/identity/ports.go` (Repository and Service interfaces).
+- Create `internal/identity/service.go` (identityService with updated FindOrCreate logic including claims refresh).
+- Create `internal/identity/service_test.go` with a mock Repository, covering: existing user path verifies `UpdateFederatedIdentityClaims` is called; new user path; `GetUserWithClaims` delegation; error propagation.
 
-### Step 4: Create `internal/identity/postgres` adapter
-- Create `internal/identity/postgres/user_repo.go` (port of `repo/user.go` targeting domain types).
-- Create `internal/identity/postgres/user_repo_test.go` (port of user-related tests from `repo/repo_test.go`).
+### Step 6: Create `internal/identity/postgres` adapter
+- Create `internal/identity/postgres/user_repo.go` implementing the new `Repository` interface against the reengineered schema.
+- Create `internal/identity/postgres/user_repo_test.go` covering all five repository methods against a real PostgreSQL testcontainer.
 - Verify integration tests pass.
 
-### Step 5: Create `internal/authn`
+### Step 7: Create `internal/authn`
 - Create `internal/authn/config.go`, `provider.go`, `provider_google.go`, `provider_github.go`.
-- Create `internal/authn/handler.go` with the new Handler depending on `identity.Service`.
-- Create `internal/authn/handler_test.go`.
-- This does NOT yet touch any existing file.
+- Create `internal/authn/handler.go` with the reengineered Handler.
+- Create `internal/authn/handler_test.go` (ported and adapted from `login/handler_test.go`).
+- No existing files are touched in this step.
 
-### Step 6: Adapt `oidcprovider/storage.go` to use `identity.Service`
-- Replace the `UserReader` interface with `identity.Service` in Storage struct.
+### Step 8: Adapt `oidcprovider/storage.go` to use `identity.Service`
+- Delete the `UserReader` interface declaration.
+- Replace the `userRepo UserReader` field with `identitySvc identity.Service` on `Storage`.
 - Update `NewStorage` constructor signature.
-- Update all methods that called `s.userRepo.GetByID` to call `s.identitySvc.GetUser`.
-- Update `setUserinfo`, `setIntrospectionUserinfo`, `SetIntrospectionFromToken` to work with `identity.User`.
-- Update `oidcprovider/storage_test.go` to construct the service chain.
-- Remove the `UserReader` interface declaration.
+- Rewrite `setUserinfo` and `setIntrospectionUserinfo` to call `GetUserWithClaims`.
+- Rewrite `SetIntrospectionFromToken` to use the new call pattern.
+- Update `oidcprovider/storage_test.go` to construct the full service chain.
 
-### Step 7: Rewire `main.go`
-- Change imports to use `internal/identity`, `internal/identity/postgres`, `internal/authn`.
-- Add the `authReqAdapter` bridge struct.
-- Remove the old `repo.NewUserRepository` call and `login.NewHandler`/`login.NewUpstreamProviders` calls.
-- Remove imports of `login` and the user-repo portion of `repo`.
+### Step 9: Rewire `main.go`
+- Update imports: add `internal/identity`, `internal/identity/postgres`, `internal/authn`.
+- Add `authReqAdapter` bridge struct.
+- Replace `repo.NewUserRepository` + `login.NewHandler`/`login.NewUpstreamProviders` with new module constructors.
+- Remove imports of `login` and the user-repo parts of `repo`.
 
-### Step 8: Delete old code
-- Delete `login/` directory entirely.
+### Step 10: Delete obsolete code
+- Delete `login/` directory.
 - Delete `model/user.go` and `model/federated_identity.go`.
-- Remove user-related tests from `repo/repo_test.go`.
-- Remove user-related code from `repo/user.go` (delete the file entirely since it only has user code).
+- Remove all `TestUserRepository_*` tests from `repo/repo_test.go`.
+- Delete `repo/user.go`.
+- Verify `model/` contains only `authrequest.go`, `client.go`, `token.go`.
+- Verify `repo/` contains only `authrequest.go`, `client.go`, `token.go`, `repo_test.go`.
 
-### Step 9: Adapt `config/config.go`
-- Keep the upstream IdP fields in config.Config for now (they're still needed to populate `authn.Config`). Removing them is a cosmetic change that can happen in Iteration 3 if desired.
-- No functional change required; the top-level config populates `authn.Config` in main.go.
-
-### Step 10: Final verification
+### Step 11: Final verification
 - Run full test suite: `go test ./services/accounts/...`
 - Run linter: `golangci-lint run ./services/accounts/...`
-- Verify no import cycles.
-- Verify `model/` only contains `authrequest.go`, `client.go`, `token.go`.
-- Verify `repo/` only contains `authrequest.go`, `client.go`, `token.go`, `repo_test.go`.
-- Verify `login/` is gone.
+- Verify no import cycles: `go build ./services/accounts/...`
+- Confirm `login/` is gone and `model/user.go`, `model/federated_identity.go` are gone.
+- Confirm `oidcprovider/storage.go` has no import of `model.User` or `model.FederatedIdentity`.
