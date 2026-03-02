@@ -1,4 +1,4 @@
-package login
+package authn
 
 import (
 	"context"
@@ -22,7 +22,7 @@ func testHandler(t *testing.T) *Handler {
 		t.Fatal(err)
 	}
 
-	providers := []*UpstreamProvider{
+	providers := []*Provider{
 		{
 			Name:        "test",
 			DisplayName: "Test Provider",
@@ -39,7 +39,7 @@ func testHandler(t *testing.T) *Handler {
 		},
 	}
 
-	pm := make(map[string]*UpstreamProvider, len(providers))
+	pm := make(map[string]*Provider, len(providers))
 	for _, p := range providers {
 		pm[p.Name] = p
 	}
@@ -50,8 +50,8 @@ func testHandler(t *testing.T) *Handler {
 	return &Handler{
 		providers:   providers,
 		providerMap: pm,
-		userRepo:    nil,
-		authReqRepo: nil,
+		identitySvc: nil,
+		authReqs:    nil,
 		cryptoKey:   key,
 		callbackURL: func(_ context.Context, id string) string {
 			return "http://localhost/authorize/callback?id=" + id

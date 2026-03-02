@@ -16,7 +16,9 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/op"
 
 	"github.com/barn0w1/hss-science/server/services/accounts/config"
-	"github.com/barn0w1/hss-science/server/services/accounts/login"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/authn"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/identity"
+	identitypg "github.com/barn0w1/hss-science/server/services/accounts/internal/identity/postgres"
 	"github.com/barn0w1/hss-science/server/services/accounts/oidcprovider"
 	"github.com/barn0w1/hss-science/server/services/accounts/repo"
 )
@@ -38,7 +40,8 @@ func main() {
 	}
 	defer func() { _ = db.Close() }()
 
-	userRepo := repo.NewUserRepository(db)
+	identitySvc := identity.NewService(identitypg.NewUserRepository(db))
+
 	clientRepo := repo.NewClientRepository(db)
 	authReqRepo := repo.NewAuthRequestRepository(db)
 	tokenRepo := repo.NewTokenRepository(db)
@@ -47,7 +50,7 @@ func main() {
 	publicKey := oidcprovider.NewPublicKey(cfg.SigningKey)
 
 	storage := oidcprovider.NewStorage(
-		db, userRepo, clientRepo, authReqRepo, tokenRepo,
+		db, identitySvc, clientRepo, authReqRepo, tokenRepo,
 		signingKey, publicKey,
 		time.Duration(cfg.AccessTokenLifetimeMinutes)*time.Minute,
 		time.Duration(cfg.RefreshTokenLifetimeDays)*24*time.Hour,
@@ -59,16 +62,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	upstreamProviders, err := login.NewUpstreamProviders(context.Background(), cfg)
+	upstreamProviders, err := authn.NewProviders(context.Background(), authn.Config{
+		IssuerURL:          cfg.Issuer,
+		GoogleClientID:     cfg.GoogleClientID,
+		GoogleClientSecret: cfg.GoogleClientSecret,
+		GitHubClientID:     cfg.GitHubClientID,
+		GitHubClientSecret: cfg.GitHubClientSecret,
+	})
 	if err != nil {
 		logger.Error("failed to initialize upstream providers", "error", err)
 		os.Exit(1)
 	}
 
-	loginHandler := login.NewHandler(
+	loginHandler := authn.NewHandler(
 		upstreamProviders,
-		userRepo,
-		authReqRepo,
+		identitySvc,
+		&authReqAdapter{repo: authReqRepo},
 		cfg.CryptoKey,
 		op.AuthCallbackURL(provider),
 		logger,
@@ -131,4 +140,20 @@ func main() {
 		os.Exit(1)
 	}
 	logger.Info("server stopped")
+}
+
+type authReqAdapter struct {
+	repo *repo.AuthRequestRepository
+}
+
+func (a *authReqAdapter) GetByID(ctx context.Context, id string) (authn.AuthRequestInfo, error) {
+	ar, err := a.repo.GetByID(ctx, id)
+	if err != nil {
+		return authn.AuthRequestInfo{}, err
+	}
+	return authn.AuthRequestInfo{ID: ar.ID}, nil
+}
+
+func (a *authReqAdapter) CompleteLogin(ctx context.Context, id, userID string, authTime time.Time, amr []string) error {
+	return a.repo.CompleteLogin(ctx, id, userID, authTime, amr)
 }

@@ -14,14 +14,10 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/op"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/identity"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/pkg/domerr"
 	"github.com/barn0w1/hss-science/server/services/accounts/model"
 )
-
-type UserReader interface {
-	GetByID(ctx context.Context, id string) (*model.User, error)
-	FindByFederatedIdentity(ctx context.Context, provider, providerSubject string) (*model.User, error)
-	CreateWithFederatedIdentity(ctx context.Context, u *model.User, fi *model.FederatedIdentity) error
-}
 
 type ClientReader interface {
 	GetByID(ctx context.Context, clientID string) (*model.Client, error)
@@ -49,7 +45,7 @@ type TokenStore interface {
 
 type Storage struct {
 	db                   *sqlx.DB
-	userRepo             UserReader
+	identitySvc          identity.Service
 	clientRepo           ClientReader
 	authReqRepo          AuthRequestStore
 	tokenRepo            TokenStore
@@ -61,7 +57,7 @@ type Storage struct {
 
 func NewStorage(
 	db *sqlx.DB,
-	userRepo UserReader,
+	identitySvc identity.Service,
 	clientRepo ClientReader,
 	authReqRepo AuthRequestStore,
 	tokenRepo TokenStore,
@@ -72,7 +68,7 @@ func NewStorage(
 ) *Storage {
 	return &Storage{
 		db:                   db,
-		userRepo:             userRepo,
+		identitySvc:          identitySvc,
 		clientRepo:           clientRepo,
 		authReqRepo:          authReqRepo,
 		tokenRepo:            tokenRepo,
@@ -309,8 +305,8 @@ func (s *Storage) SetIntrospectionFromToken(ctx context.Context, introspection *
 	introspection.IssuedAt = oidc.FromTime(token.CreatedAt)
 	introspection.TokenType = oidc.BearerToken
 
-	user, err := s.userRepo.GetByID(ctx, token.Subject)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	user, err := s.identitySvc.GetUser(ctx, token.Subject)
+	if err != nil && !domerr.Is(err, domerr.ErrNotFound) {
 		return err
 	}
 	if user != nil {
@@ -354,9 +350,9 @@ func (s *Storage) ClientCredentialsTokenRequest(_ context.Context, clientID stri
 // --- helpers ---
 
 func (s *Storage) setUserinfo(ctx context.Context, userinfo *oidc.UserInfo, userID string, scopes []string) error {
-	user, err := s.userRepo.GetByID(ctx, userID)
+	user, err := s.identitySvc.GetUser(ctx, userID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if domerr.Is(err, domerr.ErrNotFound) {
 			return oidc.ErrInvalidRequest().WithDescription("user not found")
 		}
 		return err
@@ -371,7 +367,7 @@ func (s *Storage) setUserinfo(ctx context.Context, userinfo *oidc.UserInfo, user
 			userinfo.GivenName = user.GivenName
 			userinfo.FamilyName = user.FamilyName
 			userinfo.Picture = user.Picture
-			userinfo.UpdatedAt = oidc.FromTime(user.UpdatedAt)
+			userinfo.UpdatedAt = oidc.FromTime(user.CreatedAt)
 		case oidc.ScopeEmail:
 			userinfo.Email = user.Email
 			userinfo.EmailVerified = oidc.Bool(user.EmailVerified)
@@ -380,7 +376,7 @@ func (s *Storage) setUserinfo(ctx context.Context, userinfo *oidc.UserInfo, user
 	return nil
 }
 
-func (s *Storage) setIntrospectionUserinfo(introspection *oidc.IntrospectionResponse, user *model.User, scopes []string) {
+func (s *Storage) setIntrospectionUserinfo(introspection *oidc.IntrospectionResponse, user *identity.User, scopes []string) {
 	for _, scope := range scopes {
 		switch scope {
 		case oidc.ScopeOpenID:
@@ -390,7 +386,7 @@ func (s *Storage) setIntrospectionUserinfo(introspection *oidc.IntrospectionResp
 			introspection.GivenName = user.GivenName
 			introspection.FamilyName = user.FamilyName
 			introspection.Picture = user.Picture
-			introspection.UpdatedAt = oidc.FromTime(user.UpdatedAt)
+			introspection.UpdatedAt = oidc.FromTime(user.CreatedAt)
 		case oidc.ScopeEmail:
 			introspection.Email = user.Email
 			introspection.EmailVerified = oidc.Bool(user.EmailVerified)

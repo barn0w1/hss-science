@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	"github.com/oklog/ulid/v2"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -19,6 +20,8 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/op"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/identity"
+	identitypg "github.com/barn0w1/hss-science/server/services/accounts/internal/identity/postgres"
 	"github.com/barn0w1/hss-science/server/services/accounts/model"
 	"github.com/barn0w1/hss-science/server/services/accounts/repo"
 	"github.com/barn0w1/hss-science/server/services/accounts/testhelper"
@@ -70,7 +73,7 @@ func newTestStorage(t *testing.T) *Storage {
 	pk := NewPublicKey(key)
 	return NewStorage(
 		storageTestDB,
-		repo.NewUserRepository(storageTestDB),
+		identity.NewService(identitypg.NewUserRepository(storageTestDB)),
 		repo.NewClientRepository(storageTestDB),
 		repo.NewAuthRequestRepository(storageTestDB),
 		repo.NewTokenRepository(storageTestDB),
@@ -100,20 +103,18 @@ func seedTestClient(t *testing.T, clientID, secret string) {
 	}
 }
 
-func seedTestUser(t *testing.T) *model.User {
+type testUser struct {
+	ID string
+}
+
+func seedTestUser(t *testing.T) *testUser {
 	t.Helper()
-	user := &model.User{
-		ID:            uuid.New().String(),
-		Email:         "test@example.com",
-		EmailVerified: true,
-		Name:          "Test User",
-		GivenName:     "Test",
-		FamilyName:    "User",
-		Picture:       "https://example.com/pic.jpg",
+	user := &testUser{
+		ID: ulid.Make().String(),
 	}
 	_, err := storageTestDB.Exec(
 		`INSERT INTO users (id, email, email_verified, name, given_name, family_name, picture) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-		user.ID, user.Email, user.EmailVerified, user.Name, user.GivenName, user.FamilyName, user.Picture,
+		user.ID, "test@example.com", true, "Test User", "Test", "User", "https://example.com/pic.jpg",
 	)
 	if err != nil {
 		t.Fatalf("seed user: %v", err)

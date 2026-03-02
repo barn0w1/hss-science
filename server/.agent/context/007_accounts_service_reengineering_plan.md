@@ -1525,3 +1525,19 @@ Each step must produce a compilable, test-passing codebase before the next begin
 - Confirm `login/` is gone and `model/user.go`, `model/federated_identity.go` are gone.
 - Confirm `oidcprovider/storage.go` has no import of `model.User` or `model.FederatedIdentity`.
 - Confirm `oidcprovider/storage.go` calls `identitySvc.GetUser()`, not any `GetUserWithClaims` variant.
+
+---
+
+## 11. Implementation Checklist
+
+- [x] **Step 1:** `go get github.com/oklog/ulid/v2`
+- [x] **Step 2:** Rewrite `migrations/001_initial.sql` to new schema
+- [x] **Step 3:** Create `internal/pkg/domerr/errors.go` + `errors_test.go`
+- [x] **Step 4:** Create `internal/pkg/crypto/aes.go` + `aes_test.go`
+- [x] **Step 5:** Create `internal/identity/domain.go`, `ports.go`, `service.go`, `service_test.go`
+- [x] **Step 6:** Create `internal/identity/postgres/user_repo.go` + `user_repo_test.go`
+- [x] **Step 7:** Create `internal/authn/config.go`, `provider.go`, `provider_google.go`, `provider_github.go`, `handler.go`, `handler_test.go`
+- [x] **Step 8:** Adapt `oidcprovider/storage.go` + `storage_test.go` (replace `UserReader` with `identity.Service`)
+- [x] **Step 9:** Rewire `main.go` (new imports, `authReqAdapter` bridge, remove old `login`/`repo.UserRepository` usage)
+- [x] **Step 10:** Delete `login/`, `model/user.go`, `model/federated_identity.go`, `repo/user.go`; remove user tests from `repo/repo_test.go`
+- [x] **Step 11:** Final verification (`go build`, `go test`, `golangci-lint run`)

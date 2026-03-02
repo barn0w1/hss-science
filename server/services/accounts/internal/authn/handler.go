@@ -1,11 +1,7 @@
-package login
+package authn
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -16,24 +12,24 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 
-	"github.com/barn0w1/hss-science/server/services/accounts/model"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/identity"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/pkg/crypto"
 )
 
-type userFinder interface {
-	FindByFederatedIdentity(ctx context.Context, provider, providerSubject string) (*model.User, error)
-	CreateWithFederatedIdentity(ctx context.Context, u *model.User, fi *model.FederatedIdentity) error
-}
-
-type authRequestCompleter interface {
-	GetByID(ctx context.Context, id string) (*model.AuthRequest, error)
+type AuthRequestQuerier interface {
+	GetByID(ctx context.Context, id string) (AuthRequestInfo, error)
 	CompleteLogin(ctx context.Context, id, userID string, authTime time.Time, amr []string) error
 }
 
+type AuthRequestInfo struct {
+	ID string
+}
+
 type Handler struct {
-	providers   []*UpstreamProvider
-	providerMap map[string]*UpstreamProvider
-	userRepo    userFinder
-	authReqRepo authRequestCompleter
+	providers   []*Provider
+	providerMap map[string]*Provider
+	identitySvc identity.Service
+	authReqs    AuthRequestQuerier
 	cryptoKey   [32]byte
 	callbackURL func(context.Context, string) string
 	tmpl        *template.Template
@@ -41,25 +37,23 @@ type Handler struct {
 }
 
 func NewHandler(
-	providers []*UpstreamProvider,
-	userRepo userFinder,
-	authReqRepo authRequestCompleter,
+	providers []*Provider,
+	identitySvc identity.Service,
+	authReqs AuthRequestQuerier,
 	cryptoKey [32]byte,
 	callbackURL func(context.Context, string) string,
 	logger *slog.Logger,
 ) *Handler {
-	pm := make(map[string]*UpstreamProvider, len(providers))
+	pm := make(map[string]*Provider, len(providers))
 	for _, p := range providers {
 		pm[p.Name] = p
 	}
-
 	tmpl := template.Must(template.New("select_provider").Parse(selectProviderHTML))
-
 	return &Handler{
 		providers:   providers,
 		providerMap: pm,
-		userRepo:    userRepo,
-		authReqRepo: authReqRepo,
+		identitySvc: identitySvc,
+		authReqs:    authReqs,
 		cryptoKey:   cryptoKey,
 		callbackURL: callbackURL,
 		tmpl:        tmpl,
@@ -69,7 +63,7 @@ func NewHandler(
 
 type selectProviderData struct {
 	AuthRequestID string
-	Providers     []*UpstreamProvider
+	Providers     []*Provider
 }
 
 func (h *Handler) SelectProvider(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +73,7 @@ func (h *Handler) SelectProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := h.authReqRepo.GetByID(r.Context(), authRequestID)
+	_, err := h.authReqs.GetByID(r.Context(), authRequestID)
 	if err != nil {
 		h.logger.Error("auth request not found", "id", authRequestID, "error", err)
 		http.Error(w, "invalid auth request", http.StatusBadRequest)
@@ -165,14 +159,14 @@ func (h *Handler) FederatedCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, err := provider.UserInfoFunc(r.Context(), token)
+	claims, err := provider.FetchClaims(r.Context(), token)
 	if err != nil {
 		h.logger.Error("user info retrieval failed", "provider", state.Provider, "error", err)
 		http.Error(w, "authentication failed", http.StatusInternalServerError)
 		return
 	}
 
-	user, err := h.findOrCreateUser(r.Context(), state.Provider, claims)
+	user, err := h.identitySvc.FindOrCreateByFederatedLogin(r.Context(), state.Provider, *claims)
 	if err != nil {
 		h.logger.Error("find or create user failed", "error", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -180,7 +174,7 @@ func (h *Handler) FederatedCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now().UTC()
-	if err := h.authReqRepo.CompleteLogin(r.Context(), state.AuthRequestID, user.ID, now, []string{"federated"}); err != nil {
+	if err := h.authReqs.CompleteLogin(r.Context(), state.AuthRequestID, user.ID, now, []string{"federated"}); err != nil {
 		h.logger.Error("complete login failed", "error", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -190,80 +184,19 @@ func (h *Handler) FederatedCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, callbackURL, http.StatusFound)
 }
 
-func (h *Handler) findOrCreateUser(ctx context.Context, provider string, claims *UpstreamClaims) (*model.User, error) {
-	existing, err := h.userRepo.FindByFederatedIdentity(ctx, provider, claims.Subject)
-	if err != nil {
-		return nil, err
-	}
-	if existing != nil {
-		return existing, nil
-	}
-
-	userID := uuid.New().String()
-	user := &model.User{
-		ID:            userID,
-		Email:         claims.Email,
-		EmailVerified: claims.EmailVerified,
-		Name:          claims.Name,
-		GivenName:     claims.GivenName,
-		FamilyName:    claims.FamilyName,
-		Picture:       claims.Picture,
-	}
-	fi := &model.FederatedIdentity{
-		ID:              uuid.New().String(),
-		UserID:          userID,
-		Provider:        provider,
-		ProviderSubject: claims.Subject,
-	}
-	if err := h.userRepo.CreateWithFederatedIdentity(ctx, user, fi); err != nil {
-		return nil, err
-	}
-	return user, nil
-}
-
 func (h *Handler) encryptState(state federatedState) (string, error) {
 	plaintext, err := json.Marshal(state)
 	if err != nil {
 		return "", err
 	}
-	block, err := aes.NewCipher(h.cryptoKey[:])
-	if err != nil {
-		return "", err
-	}
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := rand.Read(nonce); err != nil {
-		return "", err
-	}
-	ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
-	return base64.URLEncoding.EncodeToString(ciphertext), nil
+	return crypto.Encrypt(h.cryptoKey, plaintext)
 }
 
-func (h *Handler) decryptState(encrypted string) (federatedState, error) {
+func (h *Handler) decryptState(encoded string) (federatedState, error) {
 	var state federatedState
-	ciphertext, err := base64.URLEncoding.DecodeString(encrypted)
-	if err != nil {
-		return state, fmt.Errorf("base64 decode: %w", err)
-	}
-	block, err := aes.NewCipher(h.cryptoKey[:])
+	plaintext, err := crypto.Decrypt(h.cryptoKey, encoded)
 	if err != nil {
 		return state, err
-	}
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return state, err
-	}
-	nonceSize := gcm.NonceSize()
-	if len(ciphertext) < nonceSize {
-		return state, fmt.Errorf("ciphertext too short")
-	}
-	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
-	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
-	if err != nil {
-		return state, fmt.Errorf("decrypt: %w", err)
 	}
 	if err := json.Unmarshal(plaintext, &state); err != nil {
 		return state, fmt.Errorf("unmarshal state: %w", err)
