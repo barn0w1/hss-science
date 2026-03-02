@@ -40,7 +40,7 @@ services/accounts/
         aes_test.go               (new -- extracted from login/handler_test.go)
 
     identity/
-      domain.go                   (new -- reengineered domain types: User, FederatedIdentity, UserWithClaims)
+      domain.go                   (new -- reengineered domain types: User, FederatedIdentity)
       domain_test.go              (new)
       service.go                  (new -- application service / use cases)
       service_test.go             (new)
@@ -102,7 +102,10 @@ services/accounts/
 - **`internal/` is inside `services/accounts/`**, not at the server root. This keeps the modular-monolith boundaries within the service while allowing future services to have their own `internal/` trees.
 - **The `model/` and `repo/` packages partially survive this iteration** (auth requests, clients, tokens). They will be dismantled in Iteration 2 when `internal/oidc` is created.
 - **The `login/` package is deleted entirely**. Its contents are split between `internal/authn/` (HTTP handlers, upstream providers) and `internal/identity/` (FindOrCreate use case).
-- **The `users` and `federated_identities` tables are fully reengineered** with a new schema reflecting the correct domain ownership of profile data (see Section 5).
+- **The `users` and `federated_identities` tables are fully reengineered** with a new schema reflecting a strict 1:1 relationship and correct ownership of profile data (see Section 5).
+- **Strict 1:1 User↔FederatedIdentity relationship**. The system does not support linking multiple providers to one user in this iteration. One user, one provider link.
+- **`User` is the stable canonical identity** -- it holds all profile fields set at creation from IdP claims and is never overwritten. This makes it the single source of truth for profile data within our system.
+- **`FederatedIdentity` is the live sync record** -- it mirrors the raw upstream provider claims and is updated on every successful login, acting as a real-time snapshot of what the IdP currently reports.
 
 ---
 
@@ -209,7 +212,12 @@ func Decrypt(key [32]byte, encoded string) ([]byte, error) {
 
 ## 3. internal/identity -- Identity Domain
 
-This is the core of Iteration 1. The key reengineering insight is that profile fields (`Email`, `EmailVerified`, `Name`, `Picture`, etc.) are **claims provided by the upstream identity provider** -- they belong to `FederatedIdentity`, not to `User`. The `User` aggregate is merely a stable, internal anchor; the proof that an entity exists in our system. All profile data is derived from its associated federated identities.
+This is the core of Iteration 1. The reengineering insight is that there are two distinct concerns:
+
+1. **Canonical system identity** (`User`) -- what *we* know about a person in our system. Stable,  authoritative, and simple. Profile data is recorded from the first login and kept as-is.
+2. **Live upstream snapshot** (`FederatedIdentity`) -- what the IdP *currently* reports for this person. Refreshed on every login to track changes the user may have made upstream (email verification, avatar change, etc.).
+
+These are complementary, not competing. The `User` is what downstream systems (OIDC tokens, auth requests) reference. The `FederatedIdentity` is an operational record for auditing and upstream sync. Keeping them separate, with a strict 1:1 relationship for simplicity, gives us the best of both: a stable identity we can rely on, and a fresh upstream snapshot we can inspect.
 
 ### 3.1 Domain Types -- `internal/identity/domain.go`
 
@@ -219,31 +227,55 @@ package identity
 
 import "time"
 
+// User is the canonical system identity for a person who has authenticated
+// at least once. Profile fields (Email, Name, etc.) are populated at first
+// login from the upstream IdP claims and are NEVER overwritten afterward.
+// This ensures our system has a stable, consistent identity that does not
+// drift with every upstream change.
+//
+// A User has exactly one FederatedIdentity (strict 1:1 relationship).
+// Multi-provider linking is not supported in this iteration.
 type User struct {
-    ID        string    // ULID, application-generated
-    CreatedAt time.Time
+    ID            string    // ULID, application-generated
+    Email         string    // set at creation from IdP claims; stable
+    EmailVerified bool      // set at creation; stable
+    Name          string    // full display name; set at creation; stable
+    GivenName     string    // set at creation; stable
+    FamilyName    string    // set at creation; stable
+    Picture       string    // set at creation; stable
+    CreatedAt     time.Time
 }
 
+// FederatedIdentity links a User to a specific upstream identity provider
+// and acts as a live mirror of the upstream claims. Its ProviderXxx fields
+// are updated on EVERY successful login to reflect what the IdP currently
+// reports. This allows the system to track upstream state (e.g., whether
+// the user has verified their email with Google) without destabilising the
+// canonical User record.
 type FederatedIdentity struct {
     ID              string    // ULID, application-generated
-    UserID          string
+    UserID          string    // UNIQUE FK -- enforces 1:1 with User
     Provider        string    // e.g. "google", "github"
-    ProviderSubject string    // the upstream provider's user ID for this subject
+    ProviderSubject string    // the upstream provider's own user ID
 
-    // Profile claims sourced from the upstream provider.
-    // These are refreshed on every successful login.
-    Email         string
-    EmailVerified bool
-    DisplayName   string    // maps to OIDC standard "name" claim
-    GivenName     string
-    FamilyName    string
-    PictureURL    string
+    // Raw upstream claims -- refreshed on every successful login.
+    ProviderEmail         string
+    ProviderEmailVerified bool
+    ProviderDisplayName   string // maps to OIDC standard "name" claim
+    ProviderGivenName     string
+    ProviderFamilyName    string
+    ProviderPictureURL    string
 
     LastLoginAt time.Time // updated on every successful federated login
     CreatedAt   time.Time
-    UpdatedAt   time.Time // updated whenever profile claims are refreshed
+    UpdatedAt   time.Time // updated whenever provider claims are refreshed
 }
 
+// FederatedClaims is the set of claims obtained from an upstream identity
+// provider during federated authentication. It is transient -- NOT persisted
+// directly. It is used as input to the FindOrCreateByFederatedLogin use case,
+// which maps the claims onto a User (first login) or a FederatedIdentity
+// update (subsequent logins).
 type FederatedClaims struct {
     Subject       string
     Email         string
@@ -253,38 +285,17 @@ type FederatedClaims struct {
     FamilyName    string
     Picture       string
 }
-
-type UserWithClaims struct {
-    UserID          string
-    Email           string
-    EmailVerified   bool
-    Name            string
-    GivenName       string
-    FamilyName      string
-    Picture         string
-    ClaimsUpdatedAt time.Time // federated_identity.updated_at of the primary record
-}
 ```
 
-> **[NOTE FOR CLAUDE: REENGINEERING - SIMPLIFICATION & RULES]**
->
-> I want to simplify the architecture significantly. Please rewrite the plan based on these strict rules:
->
-> 1.  **Strict 1:1 Relationship**: A `User` has exactly one `FederatedIdentity`. The system does not support linking multiple providers to one user for now.
-> 2.  **User Struct**: This is the canonical system identity. It **MUST** store all profile fields directly (`Email`, `EmailVerified`, `Name`, `Picture`, `GivenName`, `FamilyName`).
->     - **Mutability Rule**: The `User` record is created ONCE (populated from claims). On subsequent logins, **DO NOT overwrite** the `User` fields with upstream data. The user's profile in our system is stable and should not change just because the provider changed.
-> 3.  **FederatedIdentity Struct**: This acts as the link and raw data record. It **MUST** store the raw claims from the provider (`ProviderEmail`, `ProviderName`, `ProviderPicture`, etc.).
->     - **Sync Rule**: This record **MUST** be updated on *every* successful login to keep the upstream state fresh (e.g., to track if they verified their email on Google).
-> 4.  **UserWithClaims**: **DELETE** this struct. It is redundant since `User` holds the data needed for OIDC tokens.
+**Why `User` holds profile fields (set once, never overwritten):**
+- Our system needs a stable identity to reference in OIDC tokens, auth requests, and future features. A user's email/name in our system should not silently change just because they renamed their Google account.
+- Profile data is established at the moment the user first authenticates with us -- at that point we have the most up-to-date, user-consented data. We record it once.
+- If a user's profile needs to be updated in our system, that becomes an explicit system action (Iteration 3+), not a side-effect of login.
 
-**Why `User` has no profile fields:**
-- Email, name, and picture come from the IdP -- they are that provider's assertion, not our own. A user's Google profile and GitHub profile may differ; neither is definitively "our" data.
-- If we copied profile data onto `User`, we'd face the question of which provider's fields win, and when to re-sync them. Keeping them on `FederatedIdentity` sidesteps this entirely.
-- The core `User.ID` is what all other parts of the system (OIDC tokens, auth requests) reference. Its immutability and stability are what matter.
-
-**Why `UserWithClaims` as a read model:**
-- The OIDC layer needs a unified, flat view of a user's claims to populate `userinfo` and introspection responses. Rather than the OIDC layer knowing how to navigate `FederatedIdentity` records, the identity service provides a pre-aggregated read model.
-- When a user has multiple federated identities, the most recently logged-in one is used as the primary claim source (ordered by `last_login_at DESC`). This is a clear, stable policy.
+**Why `FederatedIdentity` holds raw provider claims (updated every login):**
+- We want to track the current upstream state for operational purposes: has Google now verified the email? Has the user changed their avatar? This data should stay current.
+- Prefixing fields with `Provider` makes it unambiguous that these values come from the upstream IdP, not from our system.
+- The 1:1 constraint keeps the model simple. Each `User` has exactly one `FederatedIdentity`, eliminating all "which provider wins?" questions.
 
 ### 3.2 Ports -- `internal/identity/ports.go`
 
@@ -312,49 +323,40 @@ type Repository interface {
     // outcome -- not an error.
     FindByFederatedIdentity(ctx context.Context, provider, providerSubject string) (*User, error)
 
-    // CreateWithFederatedIdentity atomically creates a new User and their
-    // initial FederatedIdentity in a single transaction.
+    // CreateWithFederatedIdentity atomically creates a new User (with all
+    // profile fields populated from claims) and their initial FederatedIdentity
+    // in a single transaction.
     CreateWithFederatedIdentity(ctx context.Context, user *User, fi *FederatedIdentity) error
 
-    // UpdateFederatedIdentityClaims refreshes the profile claims on an existing
-    // FederatedIdentity record for the given provider and subject, and records
-    // the login timestamp. Called on every successful federated login where
-    // the user already exists.
+    // UpdateFederatedIdentityClaims refreshes the raw provider claims on an
+    // existing FederatedIdentity record and records the login timestamp.
+    // Called on every successful federated login where the user already exists.
+    // The User record is NEVER touched by this method.
     UpdateFederatedIdentityClaims(
         ctx context.Context,
         provider, providerSubject string,
         claims FederatedClaims,
         lastLoginAt time.Time,
     ) error
-
-    // GetUserWithClaims returns the user's ID combined with their most recent
-    // federated identity's profile claims (latest by last_login_at).
-    // Returns domerr.ErrNotFound if the user does not exist.
-    GetUserWithClaims(ctx context.Context, userID string) (*UserWithClaims, error)
 }
 
 // Service defines the application-level use cases for the identity domain.
 // It is the "driving port" (primary port) -- the contract that external modules
 // (authn, oidcprovider) depend on.
 type Service interface {
-    // GetUser retrieves a user's stable identity by ID.
+    // GetUser retrieves a user's full identity (including stable profile fields) by ID.
     // Returns domerr.ErrNotFound if the user does not exist.
     GetUser(ctx context.Context, userID string) (*User, error)
 
-    // GetUserWithClaims retrieves a user with their aggregated profile claims,
-    // sourced from the most recently used federated identity.
-    // Returns domerr.ErrNotFound if the user does not exist.
-    // Used by the OIDC layer to populate userinfo/introspection responses.
-    GetUserWithClaims(ctx context.Context, userID string) (*UserWithClaims, error)
-
     // FindOrCreateByFederatedLogin is the primary login use case.
     //
-    // For an existing user: the FederatedIdentity is updated with the
-    // fresh claims from the upstream provider (e.g., if the user's email or
-    // picture changed). The User record itself is NOT modified.
+    // For a new user: a User is created with profile fields populated from
+    // the provided claims, and their initial FederatedIdentity is created
+    // atomically. The User's profile is fixed at this point.
     //
-    // For a new user: a User and their initial FederatedIdentity are
-    // created atomically from the provided claims.
+    // For an existing user: the FederatedIdentity is updated with the
+    // fresh raw claims from the upstream provider. The User record itself
+    // is NEVER modified -- it remains a stable anchor.
     //
     // Returns the User (existing or newly created) in both cases.
     FindOrCreateByFederatedLogin(ctx context.Context, provider string, claims FederatedClaims) (*User, error)
@@ -397,14 +399,6 @@ func (s *identityService) GetUser(ctx context.Context, userID string) (*User, er
     return user, nil
 }
 
-func (s *identityService) GetUserWithClaims(ctx context.Context, userID string) (*UserWithClaims, error) {
-    uwc, err := s.repo.GetUserWithClaims(ctx, userID)
-    if err != nil {
-        return nil, fmt.Errorf("identity.GetUserWithClaims(%s): %w", userID, err)
-    }
-    return uwc, nil
-}
-
 func (s *identityService) FindOrCreateByFederatedLogin(
     ctx context.Context,
     provider string,
@@ -416,10 +410,10 @@ func (s *identityService) FindOrCreateByFederatedLogin(
     }
 
     if existing != nil {
-        // User exists. Refresh the FederatedIdentity record with the latest
-        // claims from the upstream provider (email changes, picture updates, etc.).
-        // We intentionally never modify the User record itself -- the User is a
-        // stable internal anchor. Only IdP-sourced data on FederatedIdentity changes.
+        // User exists. Refresh only the FederatedIdentity record with the latest
+        // raw claims from the upstream provider. The User record itself is NEVER
+        // modified -- it is the stable canonical identity we established at
+        // first login.
         now := time.Now().UTC()
         if err := s.repo.UpdateFederatedIdentityClaims(ctx, provider, claims.Subject, claims, now); err != nil {
             return nil, fmt.Errorf("identity.FindOrCreate: update claims: %w", err)
@@ -427,26 +421,33 @@ func (s *identityService) FindOrCreateByFederatedLogin(
         return existing, nil
     }
 
-    // New user: create User + FederatedIdentity atomically.
+    // New user: create User (with profile fields from claims) + FederatedIdentity
+    // (with raw provider claims) atomically.
     now := time.Now().UTC()
     user := &User{
-        ID:        newID(),
-        CreatedAt: now,
+        ID:            newID(),
+        Email:         claims.Email,
+        EmailVerified: claims.EmailVerified,
+        Name:          claims.Name,
+        GivenName:     claims.GivenName,
+        FamilyName:    claims.FamilyName,
+        Picture:       claims.Picture,
+        CreatedAt:     now,
     }
     fi := &FederatedIdentity{
-        ID:              newID(),
-        UserID:          user.ID,
-        Provider:        provider,
-        ProviderSubject: claims.Subject,
-        Email:           claims.Email,
-        EmailVerified:   claims.EmailVerified,
-        DisplayName:     claims.Name,
-        GivenName:       claims.GivenName,
-        FamilyName:      claims.FamilyName,
-        PictureURL:      claims.Picture,
-        LastLoginAt:     now,
-        CreatedAt:       now,
-        UpdatedAt:       now,
+        ID:                    newID(),
+        UserID:                user.ID,
+        Provider:              provider,
+        ProviderSubject:       claims.Subject,
+        ProviderEmail:         claims.Email,
+        ProviderEmailVerified: claims.EmailVerified,
+        ProviderDisplayName:   claims.Name,
+        ProviderGivenName:     claims.GivenName,
+        ProviderFamilyName:    claims.FamilyName,
+        ProviderPictureURL:    claims.Picture,
+        LastLoginAt:           now,
+        CreatedAt:             now,
+        UpdatedAt:             now,
     }
     if err := s.repo.CreateWithFederatedIdentity(ctx, user, fi); err != nil {
         return nil, fmt.Errorf("identity.FindOrCreate: create: %w", err)
@@ -463,7 +464,7 @@ func newID() string {
 
 **What moved here from `login/handler.go`:** The `findOrCreateUser` logic (lines 193-222) is now a proper application service method. The handler has zero domain logic.
 
-**Key change from the original plan:** The existing-user path now calls `UpdateFederatedIdentityClaims` before returning. This ensures every successful login refreshes the profile data from the upstream provider -- email, verified status, display name, picture -- while the `User` record remains untouched.
+**Key distinction from the simple "copy-fields" approach:** On first login, profile fields are written to `User` AND mirrored as raw provider claims on `FederatedIdentity`. On every subsequent login, ONLY the `FederatedIdentity` provider claims are updated; the `User` record is left completely untouched. This means `User.Email` is the profile as we recorded it, and `FederatedIdentity.ProviderEmail` is what the IdP says today -- two clearly separated concerns.
 
 ### 3.4 PostgreSQL Adapter -- `internal/identity/postgres/user_repo.go`
 
@@ -497,41 +498,50 @@ func NewUserRepository(db *sqlx.DB) *UserRepository {
 // userRow and federatedIdentityRow are database-specific scan targets.
 // Domain types carry NO `db:` tags; all schema coupling lives here at the boundary.
 type userRow struct {
-    ID        string    `db:"id"`
-    CreatedAt time.Time `db:"created_at"`
+    ID            string    `db:"id"`
+    Email         string    `db:"email"`
+    EmailVerified bool      `db:"email_verified"`
+    Name          string    `db:"name"`
+    GivenName     string    `db:"given_name"`
+    FamilyName    string    `db:"family_name"`
+    Picture       string    `db:"picture"`
+    CreatedAt     time.Time `db:"created_at"`
 }
 
 type federatedIdentityRow struct {
-    ID              string    `db:"id"`
-    UserID          string    `db:"user_id"`
-    Provider        string    `db:"provider"`
-    ProviderSubject string    `db:"provider_subject"`
-    Email           string    `db:"email"`
-    EmailVerified   bool      `db:"email_verified"`
-    DisplayName     string    `db:"display_name"`
-    GivenName       string    `db:"given_name"`
-    FamilyName      string    `db:"family_name"`
-    PictureURL      string    `db:"picture_url"`
-    LastLoginAt     time.Time `db:"last_login_at"`
-    CreatedAt       time.Time `db:"created_at"`
-    UpdatedAt       time.Time `db:"updated_at"`
+    ID                    string    `db:"id"`
+    UserID                string    `db:"user_id"`
+    Provider              string    `db:"provider"`
+    ProviderSubject       string    `db:"provider_subject"`
+    ProviderEmail         string    `db:"provider_email"`
+    ProviderEmailVerified bool      `db:"provider_email_verified"`
+    ProviderDisplayName   string    `db:"provider_display_name"`
+    ProviderGivenName     string    `db:"provider_given_name"`
+    ProviderFamilyName    string    `db:"provider_family_name"`
+    ProviderPictureURL    string    `db:"provider_picture_url"`
+    LastLoginAt           time.Time `db:"last_login_at"`
+    CreatedAt             time.Time `db:"created_at"`
+    UpdatedAt             time.Time `db:"updated_at"`
 }
 
-type userWithClaimsRow struct {
-    UserID          string    `db:"user_id"`
-    Email           string    `db:"email"`
-    EmailVerified   bool      `db:"email_verified"`
-    DisplayName     string    `db:"display_name"`
-    GivenName       string    `db:"given_name"`
-    FamilyName      string    `db:"family_name"`
-    PictureURL      string    `db:"picture_url"`
-    ClaimsUpdatedAt time.Time `db:"claims_updated_at"`
+func toUser(row userRow) *identity.User {
+    return &identity.User{
+        ID:            row.ID,
+        Email:         row.Email,
+        EmailVerified: row.EmailVerified,
+        Name:          row.Name,
+        GivenName:     row.GivenName,
+        FamilyName:    row.FamilyName,
+        Picture:       row.Picture,
+        CreatedAt:     row.CreatedAt,
+    }
 }
 
 func (r *UserRepository) GetByID(ctx context.Context, id string) (*identity.User, error) {
     var row userRow
     err := r.db.QueryRowxContext(ctx,
-        `SELECT id, created_at FROM users WHERE id = $1`, id,
+        `SELECT id, email, email_verified, name, given_name, family_name, picture, created_at
+         FROM users WHERE id = $1`, id,
     ).StructScan(&row)
     if errors.Is(err, sql.ErrNoRows) {
         return nil, domerr.ErrNotFound
@@ -539,13 +549,13 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*identity.User
     if err != nil {
         return nil, err
     }
-    return &identity.User{ID: row.ID, CreatedAt: row.CreatedAt}, nil
+    return toUser(row), nil
 }
 
 func (r *UserRepository) FindByFederatedIdentity(ctx context.Context, provider, providerSubject string) (*identity.User, error) {
     var row userRow
     err := r.db.QueryRowxContext(ctx,
-        `SELECT u.id, u.created_at
+        `SELECT u.id, u.email, u.email_verified, u.name, u.given_name, u.family_name, u.picture, u.created_at
          FROM users u
          JOIN federated_identities fi ON fi.user_id = u.id
          WHERE fi.provider = $1 AND fi.provider_subject = $2`,
@@ -557,7 +567,7 @@ func (r *UserRepository) FindByFederatedIdentity(ctx context.Context, provider, 
     if err != nil {
         return nil, err
     }
-    return &identity.User{ID: row.ID, CreatedAt: row.CreatedAt}, nil
+    return toUser(row), nil
 }
 
 func (r *UserRepository) CreateWithFederatedIdentity(
@@ -572,8 +582,10 @@ func (r *UserRepository) CreateWithFederatedIdentity(
     defer func() { _ = tx.Rollback() }()
 
     _, err = tx.ExecContext(ctx,
-        `INSERT INTO users (id, created_at) VALUES ($1, $2)`,
-        user.ID, user.CreatedAt,
+        `INSERT INTO users (id, email, email_verified, name, given_name, family_name, picture, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        user.ID, user.Email, user.EmailVerified, user.Name,
+        user.GivenName, user.FamilyName, user.Picture, user.CreatedAt,
     )
     if err != nil {
         return err
@@ -582,11 +594,13 @@ func (r *UserRepository) CreateWithFederatedIdentity(
     _, err = tx.ExecContext(ctx,
         `INSERT INTO federated_identities
             (id, user_id, provider, provider_subject,
-             email, email_verified, display_name, given_name, family_name, picture_url,
+             provider_email, provider_email_verified,
+             provider_display_name, provider_given_name, provider_family_name, provider_picture_url,
              last_login_at, created_at, updated_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
         fi.ID, fi.UserID, fi.Provider, fi.ProviderSubject,
-        fi.Email, fi.EmailVerified, fi.DisplayName, fi.GivenName, fi.FamilyName, fi.PictureURL,
+        fi.ProviderEmail, fi.ProviderEmailVerified,
+        fi.ProviderDisplayName, fi.ProviderGivenName, fi.ProviderFamilyName, fi.ProviderPictureURL,
         fi.LastLoginAt, fi.CreatedAt, fi.UpdatedAt,
     )
     if err != nil {
@@ -604,14 +618,14 @@ func (r *UserRepository) UpdateFederatedIdentityClaims(
 ) error {
     _, err := r.db.ExecContext(ctx,
         `UPDATE federated_identities
-         SET email           = $1,
-             email_verified  = $2,
-             display_name    = $3,
-             given_name      = $4,
-             family_name     = $5,
-             picture_url     = $6,
-             last_login_at   = $7,
-             updated_at      = now()
+         SET provider_email           = $1,
+             provider_email_verified  = $2,
+             provider_display_name    = $3,
+             provider_given_name      = $4,
+             provider_family_name     = $5,
+             provider_picture_url     = $6,
+             last_login_at            = $7,
+             updated_at               = now()
          WHERE provider = $8 AND provider_subject = $9`,
         claims.Email, claims.EmailVerified, claims.Name,
         claims.GivenName, claims.FamilyName, claims.Picture,
@@ -619,54 +633,13 @@ func (r *UserRepository) UpdateFederatedIdentityClaims(
     )
     return err
 }
-
-func (r *UserRepository) GetUserWithClaims(ctx context.Context, userID string) (*identity.UserWithClaims, error) {
-    // Selects the user's stable ID combined with the profile claims from the
-    // federated identity most recently used to log in. When a user has multiple
-    // federated identities (e.g., Google + GitHub), the most recently active
-    // one is treated as the primary claims source.
-    var row userWithClaimsRow
-    err := r.db.QueryRowxContext(ctx,
-        `SELECT
-             u.id              AS user_id,
-             fi.email          AS email,
-             fi.email_verified AS email_verified,
-             fi.display_name   AS display_name,
-             fi.given_name     AS given_name,
-             fi.family_name    AS family_name,
-             fi.picture_url    AS picture_url,
-             fi.updated_at     AS claims_updated_at
-         FROM users u
-         JOIN federated_identities fi ON fi.user_id = u.id
-         WHERE u.id = $1
-         ORDER BY fi.last_login_at DESC
-         LIMIT 1`,
-        userID,
-    ).StructScan(&row)
-    if errors.Is(err, sql.ErrNoRows) {
-        return nil, domerr.ErrNotFound
-    }
-    if err != nil {
-        return nil, err
-    }
-    return &identity.UserWithClaims{
-        UserID:          row.UserID,
-        Email:           row.Email,
-        EmailVerified:   row.EmailVerified,
-        Name:            row.DisplayName,
-        GivenName:       row.GivenName,
-        FamilyName:      row.FamilyName,
-        Picture:         row.PictureURL,
-        ClaimsUpdatedAt: row.ClaimsUpdatedAt,
-    }, nil
-}
 ```
 
 **Key differences from the old `repo/user.go`:**
-- `userRow` only maps `id` and `created_at` -- no profile fields.
-- `federatedIdentityRow` carries all the profile columns that used to live on `userRow`.
-- `UpdateFederatedIdentityClaims` is a new method that refreshes profile data on every login.
-- `GetUserWithClaims` joins `users` + latest `federated_identities` record by `last_login_at`.
+- `userRow` now carries all profile fields (`email`, `email_verified`, `name`, etc.) -- these are stable system-owned values.
+- `federatedIdentityRow` uses `provider_` prefixed column names, making it unambiguous that these are raw upstream values.
+- `UpdateFederatedIdentityClaims` updates ONLY the `federated_identities` table -- the `users` table is never touched after creation.
+- No `GetUserWithClaims` method -- it is not needed because all profile data lives directly on `User`.
 - All `sql.ErrNoRows` responses are translated to `domerr.ErrNotFound` at this boundary.
 
 ---
@@ -923,10 +896,10 @@ func (h *Handler) decryptState(encoded string) (federatedState, error) {
 
 ## 5. Database Schema Changes
 
-The schema for `users` and `federated_identities` is reengineered to match the new domain model. The change is substantive:
+The schema for `users` and `federated_identities` is reengineered to match the new domain model:
 
-- **`users`** is stripped to a minimal anchor: just `id` and `created_at`. All profile data moves out.
-- **`federated_identities`** grows to carry the full set of IdP-provided profile claims, `last_login_at`, and `updated_at` for tracking claim freshness.
+- **`users`** carries all canonical profile fields alongside `id` and `created_at`. These are populated at creation and never updated. No `updated_at` column -- the profile is immutable by design.
+- **`federated_identities`** stores the raw upstream provider claims using `provider_`-prefixed column names, making it unambiguous that these values come from the IdP, not our system. A `UNIQUE(user_id)` constraint enforces the strict 1:1 relationship at the database level.
 
 ### 5.1 Decision: ULID Primary Keys
 
@@ -943,39 +916,45 @@ The Go dependency to add: `github.com/oklog/ulid/v2`.
 ### 5.2 New `001_initial.sql`
 
 ```sql
--- Identity domain: the stable user anchor.
--- No profile data lives here -- all IdP-provided claims are on federated_identities.
+-- Identity domain: the canonical user identity.
+-- Profile fields are set at first login from IdP claims and never updated.
+-- No updated_at column -- the record is immutable after INSERT.
 CREATE TABLE users (
-    id          TEXT PRIMARY KEY,                   -- application-generated ULID
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    id             TEXT PRIMARY KEY,                   -- application-generated ULID
+    email          TEXT        NOT NULL DEFAULT '',
+    email_verified BOOLEAN     NOT NULL DEFAULT false,
+    name           TEXT        NOT NULL DEFAULT '',
+    given_name     TEXT        NOT NULL DEFAULT '',
+    family_name    TEXT        NOT NULL DEFAULT '',
+    picture        TEXT        NOT NULL DEFAULT '',
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Identity domain: one record per (user, upstream provider) pair.
--- Carries all profile claims as last reported by that provider.
+-- Identity domain: live upstream snapshot, one record per user (1:1).
+-- provider_* columns mirror the raw claims as last reported by the IdP.
 -- Refreshed on every successful federated login.
+-- UNIQUE(user_id) enforces the strict 1:1 relationship with users.
 CREATE TABLE federated_identities (
     id               TEXT PRIMARY KEY,              -- application-generated ULID
     user_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     provider         TEXT NOT NULL,                 -- e.g. "google", "github"
     provider_subject TEXT NOT NULL,                 -- provider's own user ID
 
-    -- Profile claims sourced from this provider. Refreshed on every login.
-    email            TEXT        NOT NULL DEFAULT '',
-    email_verified   BOOLEAN     NOT NULL DEFAULT false,
-    display_name     TEXT        NOT NULL DEFAULT '',
-    given_name       TEXT        NOT NULL DEFAULT '',
-    family_name      TEXT        NOT NULL DEFAULT '',
-    picture_url      TEXT        NOT NULL DEFAULT '',
+    -- Raw upstream claims sourced from this provider. Refreshed on every login.
+    provider_email           TEXT    NOT NULL DEFAULT '',
+    provider_email_verified  BOOLEAN NOT NULL DEFAULT false,
+    provider_display_name    TEXT    NOT NULL DEFAULT '',
+    provider_given_name      TEXT    NOT NULL DEFAULT '',
+    provider_family_name     TEXT    NOT NULL DEFAULT '',
+    provider_picture_url     TEXT    NOT NULL DEFAULT '',
 
     last_login_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-    UNIQUE(provider, provider_subject)
+    UNIQUE(provider, provider_subject),
+    UNIQUE(user_id)  -- enforces strict 1:1 relationship with users
 );
-
-CREATE INDEX federated_identities_user_id_last_login_idx
-    ON federated_identities (user_id, last_login_at DESC);
 
 -- OIDC domain: registered relying-party clients.
 -- Unchanged from previous schema.
@@ -1057,11 +1036,13 @@ CREATE TABLE refresh_tokens (
 | Table | Column | Old type | New type | Reason |
 |---|---|---|---|---|
 | `users` | `id` | `UUID DEFAULT gen_random_uuid()` | `TEXT` (ULID) | Application-generated ULID |
-| `users` | `email` … `updated_at` | All present | **Removed** | Profile data moved to `federated_identities` |
+| `users` | `email`, `email_verified`, `name`, `given_name`, `family_name`, `picture` | Present (mutable) | Present (immutable at creation) | Stable canonical profile owned by our system |
+| `users` | `updated_at` | Present | **Removed** | Profile never changes; no update tracking needed |
 | `federated_identities` | `id` | `UUID` | `TEXT` (ULID) | Application-generated ULID |
 | `federated_identities` | `user_id` | `UUID` | `TEXT` | Matches new `users.id` type |
-| `federated_identities` | `email`, `email_verified`, etc. | Not present | **Added** | Profile claims now owned here |
-| `federated_identities` | `last_login_at`, `updated_at` | Not present | **Added** | Refresh tracking |
+| `federated_identities` | (no profile cols) | Not present | `provider_email`, `provider_email_verified`, `provider_display_name`, `provider_given_name`, `provider_family_name`, `provider_picture_url` | Raw upstream claims stored with clear `provider_` prefix |
+| `federated_identities` | `last_login_at`, `updated_at` | Not present | **Added** | Login and refresh tracking |
+| `federated_identities` | UNIQUE(user_id) | Not present | **Added** | Enforces 1:1 relationship at DB level |
 | `auth_requests` | `id` | `UUID` | `TEXT` | Consistency (stored as text anyway) |
 | `auth_requests` | `user_id` | `UUID` | `TEXT` | Matches new `users.id` type |
 | `tokens` | `id`, `refresh_token_id` | `UUID` | `TEXT` | Consistency |
@@ -1103,11 +1084,11 @@ type Storage struct {
 
 ### 6.2 Updated `setUserinfo` and `setIntrospectionUserinfo`
 
-Because profile data no longer lives on `identity.User`, the OIDC bridge must call `GetUserWithClaims` to obtain a view with the profile fields. The `UserWithClaims` read model was designed precisely for this use case.
+Because `User` now carries all profile fields directly, the OIDC bridge simply calls `GetUser` and reads from the returned struct. No join, no read model, no aggregation -- just a direct lookup.
 
 ```go
 func (s *Storage) setUserinfo(ctx context.Context, userinfo *oidc.UserInfo, userID string, scopes []string) error {
-    userClaims, err := s.identitySvc.GetUserWithClaims(ctx, userID)
+    user, err := s.identitySvc.GetUser(ctx, userID)
     if err != nil {
         if domerr.Is(err, domerr.ErrNotFound) {
             return oidc.ErrInvalidRequest().WithDescription("user not found")
@@ -1118,43 +1099,43 @@ func (s *Storage) setUserinfo(ctx context.Context, userinfo *oidc.UserInfo, user
     for _, scope := range scopes {
         switch scope {
         case oidc.ScopeOpenID:
-            userinfo.Subject = userClaims.UserID
+            userinfo.Subject = user.ID
         case oidc.ScopeProfile:
-            userinfo.Name = userClaims.Name
-            userinfo.GivenName = userClaims.GivenName
-            userinfo.FamilyName = userClaims.FamilyName
-            userinfo.Picture = userClaims.Picture
-            // UpdatedAt reflects when the IdP last reported a change to
-            // the user's profile -- semantically correct for this claim.
-            userinfo.UpdatedAt = oidc.FromTime(userClaims.ClaimsUpdatedAt)
+            userinfo.Name = user.Name
+            userinfo.GivenName = user.GivenName
+            userinfo.FamilyName = user.FamilyName
+            userinfo.Picture = user.Picture
+            // Profile is immutable after creation; updated_at == created_at is
+            // semantically accurate and avoids a misleading "last changed" claim.
+            userinfo.UpdatedAt = oidc.FromTime(user.CreatedAt)
         case oidc.ScopeEmail:
-            userinfo.Email = userClaims.Email
-            userinfo.EmailVerified = oidc.Bool(userClaims.EmailVerified)
+            userinfo.Email = user.Email
+            userinfo.EmailVerified = oidc.Bool(user.EmailVerified)
         }
     }
     return nil
 }
 
-func (s *Storage) setIntrospectionUserinfo(introspection *oidc.IntrospectionResponse, userClaims *identity.UserWithClaims, scopes []string) {
+func (s *Storage) setIntrospectionUserinfo(introspection *oidc.IntrospectionResponse, user *identity.User, scopes []string) {
     for _, scope := range scopes {
         switch scope {
         case oidc.ScopeOpenID:
-            introspection.Subject = userClaims.UserID
+            introspection.Subject = user.ID
         case oidc.ScopeProfile:
-            introspection.Name = userClaims.Name
-            introspection.GivenName = userClaims.GivenName
-            introspection.FamilyName = userClaims.FamilyName
-            introspection.Picture = userClaims.Picture
-            introspection.UpdatedAt = oidc.FromTime(userClaims.ClaimsUpdatedAt)
+            introspection.Name = user.Name
+            introspection.GivenName = user.GivenName
+            introspection.FamilyName = user.FamilyName
+            introspection.Picture = user.Picture
+            introspection.UpdatedAt = oidc.FromTime(user.CreatedAt)
         case oidc.ScopeEmail:
-            introspection.Email = userClaims.Email
-            introspection.EmailVerified = oidc.Bool(userClaims.EmailVerified)
+            introspection.Email = user.Email
+            introspection.EmailVerified = oidc.Bool(user.EmailVerified)
         }
     }
 }
 ```
 
-`SetIntrospectionFromToken` is updated to call `GetUserWithClaims` first, then pass the result to `setIntrospectionUserinfo`:
+`SetIntrospectionFromToken` is updated to call `GetUser` first, then pass the result to `setIntrospectionUserinfo`:
 
 ```go
 func (s *Storage) SetIntrospectionFromToken(ctx context.Context, introspection *oidc.IntrospectionResponse, tokenID, subject, clientID string) error {
@@ -1176,18 +1157,18 @@ func (s *Storage) SetIntrospectionFromToken(ctx context.Context, introspection *
     introspection.IssuedAt = oidc.FromTime(token.CreatedAt)
     introspection.TokenType = oidc.BearerToken
 
-    userClaims, err := s.identitySvc.GetUserWithClaims(ctx, token.Subject)
+    user, err := s.identitySvc.GetUser(ctx, token.Subject)
     if err != nil && !domerr.Is(err, domerr.ErrNotFound) {
         return err
     }
-    if userClaims != nil {
-        s.setIntrospectionUserinfo(introspection, userClaims, token.Scopes)
+    if user != nil {
+        s.setIntrospectionUserinfo(introspection, user, token.Scopes)
     }
     return nil
 }
 ```
 
-**This is a clean cut:** The `oidcprovider` package no longer imports `model.User`, `model.FederatedIdentity`, or any user repo. Its only user-related import is `identity.Service` and `identity.UserWithClaims`.
+**This is a clean cut:** The `oidcprovider` package no longer imports `model.User`, `model.FederatedIdentity`, or any user repo. Its only user-related import is `identity.Service` and `identity.User`. The OIDC bridge is noticeably simpler than before -- one `GetUser` call, read fields directly.
 
 ### 6.3 AuthRequestQuerier Adapter for authn
 
@@ -1337,14 +1318,14 @@ func main() {
 |---|---|---|
 | `internal/pkg/domerr` | `errors_test.go` | `errors.Is` chaining with wrapped domain errors |
 | `internal/pkg/crypto` | `aes_test.go` | Encrypt/Decrypt round-trip, wrong key, short ciphertext, invalid base64 |
-| `internal/identity` | `service_test.go` | All three service methods with a mock `Repository`: existing user path (confirm claims update is called), new user path, error propagation, `GetUserWithClaims` delegation |
+| `internal/identity` | `service_test.go` | All service methods with a mock `Repository`: (1) existing user path -- verifies `UpdateFederatedIdentityClaims` IS called AND `User` record is NOT modified; (2) new user path -- verifies `User` is populated with claims fields and FI gets `Provider`-prefixed fields; (3) `GetUser` delegation; (4) error propagation |
 | `internal/authn` | `handler_test.go` | All handler tests from `login/handler_test.go`, adapted to inject mock `identity.Service` and mock `AuthRequestQuerier` |
 
 ### 8.2 Integration Tests (testcontainers PostgreSQL)
 
 | Package | Test File | What's tested |
 |---|---|---|
-| `internal/identity/postgres` | `user_repo_test.go` | Full repo contract: `GetByID` (found / not-found → `domerr.ErrNotFound`), `FindByFederatedIdentity` (found / not-found → nil,nil), `CreateWithFederatedIdentity`, `UpdateFederatedIdentityClaims` (claims refresh verified by subsequent `GetUserWithClaims`), `GetUserWithClaims` (most-recent FI selected when multiple exist) |
+| `internal/identity/postgres` | `user_repo_test.go` | Full repo contract: `GetByID` (found with all profile fields / not-found → `domerr.ErrNotFound`), `FindByFederatedIdentity` (found / not-found → nil,nil), `CreateWithFederatedIdentity` (verifies User profile cols AND FI `provider_*` cols are written), `UpdateFederatedIdentityClaims` (verifies `provider_*` cols change AND `users` row is unchanged), UNIQUE(user_id) constraint prevents a second FI for the same user |
 | `oidcprovider` | `storage_test.go` | Adapted to construct the service chain: `identity.NewService(identitypg.NewUserRepository(db))` injected as `identitySvc` |
 
 ### 8.3 Deleted / Moved Tests
@@ -1354,7 +1335,7 @@ func main() {
 
 ### 8.4 testhelper/testdb.go Update
 
-`CleanTables` has a hardcoded table list. The new column layout doesn't change the table names, but the order must respect the new FK relationships (no change needed -- `federated_identities` already comes before `users` in the delete order). No functional change required. The `updated_at` trigger on `users` is removed since the table no longer has that column; no trigger update needed.
+`CleanTables` has a hardcoded table list. The new column layout doesn't change the table names, but the FK `UNIQUE(user_id)` on `federated_identities` means deletes must still clear `federated_identities` before `users` (which is already the case). No functional change required. The `updated_at` trigger on `users` is removed since the table no longer has that column; no trigger update needed.
 
 ---
 
@@ -1419,6 +1400,7 @@ Every `op.Storage` method becomes a 1-3 line delegation to the appropriate servi
 - Add a request-ID logging middleware.
 - Consider CSRF token protection on the provider selection form (issue: the encrypted state parameter on the callback protects the authentication completion, but the initial provider selection POST is unguarded).
 - Harden the GitHub provider to fetch primary/verified email from `/user/emails` endpoint when `/user` returns an empty email.
+- Consider whether to add a user profile update flow (explicit user action) that updates `User` profile fields and mirrors them back to `FederatedIdentity.ProviderXxx` -- the separation of concerns established in Iteration 1 makes this a clean, explicit feature.
 
 ### Target End-State Directory Tree (after all iterations)
 
@@ -1434,7 +1416,7 @@ services/accounts/
       crypto/
         aes.go
     identity/
-      domain.go         (User, FederatedIdentity, FederatedClaims, UserWithClaims)
+      domain.go         (User, FederatedIdentity, FederatedClaims)
       ports.go          (Repository, Service interfaces)
       service.go
       postgres/
@@ -1498,14 +1480,14 @@ Each step must produce a compilable, test-passing codebase before the next begin
 - Verify tests pass.
 
 ### Step 5: Create `internal/identity` domain + service
-- Create `internal/identity/domain.go` (User, FederatedIdentity, FederatedClaims, UserWithClaims).
-- Create `internal/identity/ports.go` (Repository and Service interfaces).
-- Create `internal/identity/service.go` (identityService with updated FindOrCreate logic including claims refresh).
-- Create `internal/identity/service_test.go` with a mock Repository, covering: existing user path verifies `UpdateFederatedIdentityClaims` is called; new user path; `GetUserWithClaims` delegation; error propagation.
+- Create `internal/identity/domain.go` (User with profile fields, FederatedIdentity with `Provider`-prefixed fields, FederatedClaims).
+- Create `internal/identity/ports.go` (Repository and Service interfaces -- no `GetUserWithClaims`).
+- Create `internal/identity/service.go` (identityService with FindOrCreate logic: new user populates User from claims; existing user only updates FI).
+- Create `internal/identity/service_test.go` with a mock Repository, covering: (a) existing user path -- `UpdateFederatedIdentityClaims` called, `GetByID`/`CreateWithFederatedIdentity` NOT called; (b) new user path -- `User` populated with claims fields; (c) `GetUser` delegation; (d) error propagation.
 
 ### Step 6: Create `internal/identity/postgres` adapter
 - Create `internal/identity/postgres/user_repo.go` implementing the new `Repository` interface against the reengineered schema.
-- Create `internal/identity/postgres/user_repo_test.go` covering all five repository methods against a real PostgreSQL testcontainer.
+- Create `internal/identity/postgres/user_repo_test.go` covering all four repository methods against a real PostgreSQL testcontainer, including a test that `UpdateFederatedIdentityClaims` does NOT change the `users` row and a test that the `UNIQUE(user_id)` constraint prevents duplicate FI records.
 - Verify integration tests pass.
 
 ### Step 7: Create `internal/authn`
@@ -1518,7 +1500,7 @@ Each step must produce a compilable, test-passing codebase before the next begin
 - Delete the `UserReader` interface declaration.
 - Replace the `userRepo UserReader` field with `identitySvc identity.Service` on `Storage`.
 - Update `NewStorage` constructor signature.
-- Rewrite `setUserinfo` and `setIntrospectionUserinfo` to call `GetUserWithClaims`.
+- Rewrite `setUserinfo` and `setIntrospectionUserinfo` to call `GetUser` and read fields directly from `*identity.User`.
 - Rewrite `SetIntrospectionFromToken` to use the new call pattern.
 - Update `oidcprovider/storage_test.go` to construct the full service chain.
 
@@ -1542,3 +1524,4 @@ Each step must produce a compilable, test-passing codebase before the next begin
 - Verify no import cycles: `go build ./services/accounts/...`
 - Confirm `login/` is gone and `model/user.go`, `model/federated_identity.go` are gone.
 - Confirm `oidcprovider/storage.go` has no import of `model.User` or `model.FederatedIdentity`.
+- Confirm `oidcprovider/storage.go` calls `identitySvc.GetUser()`, not any `GetUserWithClaims` variant.
