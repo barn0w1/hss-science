@@ -1,5 +1,7 @@
 # Accounts Service Refactoring Plan -- Iteration 1
 
+> User Annotaion: Rename the document and approach to "Reengineering" rather than "Refactoring".
+
 **Scope:** Extract `internal/pkg`, `internal/identity`, and `internal/authn` from the current flat structure.
 **Out of Scope:** `internal/oidc` domain, dismantling `oidcprovider.Storage`, token management. See [Future Roadmap](#9-future-roadmap).
 
@@ -211,6 +213,13 @@ func Decrypt(key [32]byte, encoded string) ([]byte, error) {
 This is the core of Iteration 1. It defines the User aggregate, the FederatedIdentity value object, the repository port, the application service, and the PostgreSQL adapter.
 
 ### 3.1 Domain Types -- `internal/identity/domain.go`
+
+> User Annotation:    A `User` is inherently tied to a `FederatedIdentity`. Properties like `EmailVerified`, `Email`, `Picture`, etc., actually belong to the upstream Identity Provider, not our core User identity. 
+> Remove `EmailVerified` (and potentially other IdP-specific profile data) from the base `User` struct.
+> Re-design the domain models so that the `User` aggregate correctly derives or holds this information via its associated `FederatedIdentity` or a dedicated profile entity.
+> Show exactly how the OIDC `setUserinfo` method will still be able to retrieve the `email_verified` claim if it's removed from the base User struct.
+
+> User Annotation: the DB schema MUST change. Section 5 must not say "No schema changes". You must explicitly write the new `CREATE TABLE` SQL statements for the `users` and `federated_identities` tables reflecting this reengineered domain model. Consider using ULID instead of UUID for new primary keys.
 
 ```go
 package identity
@@ -499,6 +508,9 @@ func (r *UserRepository) CreateWithFederatedIdentity(ctx context.Context, user *
 - Returns `domerr.ErrNotFound` instead of raw `sql.ErrNoRows`. The domain error translation happens at the persistence boundary.
 - Uses an internal `userRow` struct with `db:` tags for scanning, then converts to the pure domain `identity.User` via `toDomain()`.
 - `FindByFederatedIdentity` preserves the `(nil, nil)` convention for not-found.
+
+> User Annotation:    In `FindOrCreateByFederatedLogin`, if `existing != nil`, you are currently ignoring the newly fetched `FederatedClaims`. While we absolutely MUST NOT blindly overwrite the internal `User`'s core profile (like their customized name or picture), we MUST update the `FederatedIdentity` record with the latest claims from the upstream provider (e.g., if their Google email changed or verified status changed). 
+> Update the logic and repository interfaces to support updating the `FederatedIdentity` with the latest claims upon every successful login.
 
 ---
 
