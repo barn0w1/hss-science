@@ -1,20 +1,20 @@
-package repo
+package postgres
 
 import (
 	"context"
-	"database/sql"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	"github.com/oklog/ulid/v2"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/barn0w1/hss-science/server/services/accounts/model"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/oidc"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/pkg/domerr"
 	"github.com/barn0w1/hss-science/server/services/accounts/testhelper"
 )
 
@@ -24,7 +24,7 @@ func TestMain(m *testing.M) {
 	ctx := context.Background()
 
 	pgC, err := postgres.Run(ctx, "postgres:16-alpine",
-		postgres.WithDatabase("accounts_test"),
+		postgres.WithDatabase("oidc_repo_test"),
 		postgres.WithUsername("test"),
 		postgres.WithPassword("test"),
 		testcontainers.WithWaitStrategy(
@@ -91,8 +91,8 @@ func TestClientRepository_GetByID_NotFound(t *testing.T) {
 	testhelper.CleanTables(t, testDB)
 	repo := NewClientRepository(testDB)
 	_, err := repo.GetByID(context.Background(), "nonexistent")
-	if err != sql.ErrNoRows {
-		t.Errorf("expected sql.ErrNoRows, got %v", err)
+	if !domerr.Is(err, domerr.ErrNotFound) {
+		t.Errorf("expected domerr.ErrNotFound, got %v", err)
 	}
 }
 
@@ -101,8 +101,8 @@ func TestAuthRequestRepository_CRUD(t *testing.T) {
 	repo := NewAuthRequestRepository(testDB)
 	ctx := context.Background()
 
-	ar := &model.AuthRequest{
-		ID:           uuid.New().String(),
+	ar := &oidc.AuthRequest{
+		ID:           ulid.Make().String(),
 		ClientID:     "test-client",
 		RedirectURI:  "https://app.example.com/callback",
 		State:        "state-1",
@@ -137,7 +137,7 @@ func TestAuthRequestRepository_CRUD(t *testing.T) {
 		t.Errorf("expected ID %s, got %s", ar.ID, byCode.ID)
 	}
 
-	userID := uuid.New().String()
+	userID := ulid.Make().String()
 	now := time.Now().UTC()
 	if err := repo.CompleteLogin(ctx, ar.ID, userID, now, []string{"federated"}); err != nil {
 		t.Fatalf("CompleteLogin: %v", err)
@@ -158,8 +158,8 @@ func TestAuthRequestRepository_CRUD(t *testing.T) {
 		t.Fatalf("Delete: %v", err)
 	}
 	_, err = repo.GetByID(ctx, ar.ID)
-	if err != sql.ErrNoRows {
-		t.Errorf("expected sql.ErrNoRows after delete, got %v", err)
+	if !domerr.Is(err, domerr.ErrNotFound) {
+		t.Errorf("expected domerr.ErrNotFound after delete, got %v", err)
 	}
 }
 
@@ -168,16 +168,21 @@ func TestTokenRepository_CreateAccess(t *testing.T) {
 	repo := NewTokenRepository(testDB)
 	ctx := context.Background()
 
+	tokenID := ulid.Make().String()
 	exp := time.Now().UTC().Add(15 * time.Minute)
-	id, err := repo.CreateAccess(ctx, "test-client", "user-1", []string{"test-client"}, []string{"openid"}, exp)
-	if err != nil {
+	access := &oidc.Token{
+		ID:         tokenID,
+		ClientID:   "test-client",
+		Subject:    "user-1",
+		Audience:   []string{"test-client"},
+		Scopes:     []string{"openid"},
+		Expiration: exp,
+	}
+	if err := repo.CreateAccess(ctx, access); err != nil {
 		t.Fatalf("CreateAccess: %v", err)
 	}
-	if id == "" {
-		t.Fatal("expected non-empty token ID")
-	}
 
-	tok, err := repo.GetByID(ctx, id)
+	tok, err := repo.GetByID(ctx, tokenID)
 	if err != nil {
 		t.Fatalf("GetByID: %v", err)
 	}
@@ -193,7 +198,7 @@ func TestTokenRepository_CreateAccessAndRefresh(t *testing.T) {
 	testhelper.CleanTables(t, testDB)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := ulid.Make().String()
 	_, err := testDB.ExecContext(ctx,
 		`INSERT INTO users (id, email) VALUES ($1, $2)`, userID, "user@example.com")
 	if err != nil {
@@ -205,18 +210,37 @@ func TestTokenRepository_CreateAccessAndRefresh(t *testing.T) {
 	refreshExp := time.Now().UTC().Add(7 * 24 * time.Hour)
 	authTime := time.Now().UTC()
 
-	accessID, refreshToken, err := repo.CreateAccessAndRefresh(ctx,
-		"test-client", userID, []string{"test-client"}, []string{"openid", "email"},
-		accessExp, refreshExp, authTime, []string{"federated"}, "",
-	)
-	if err != nil {
-		t.Fatalf("CreateAccessAndRefresh: %v", err)
+	accessID := ulid.Make().String()
+	refreshID := ulid.Make().String()
+	refreshTokenValue := ulid.Make().String()
+
+	access := &oidc.Token{
+		ID:             accessID,
+		ClientID:       "test-client",
+		Subject:        userID,
+		Audience:       []string{"test-client"},
+		Scopes:         []string{"openid", "email"},
+		Expiration:     accessExp,
+		RefreshTokenID: refreshID,
 	}
-	if accessID == "" || refreshToken == "" {
-		t.Fatal("expected non-empty IDs")
+	refresh := &oidc.RefreshToken{
+		ID:            refreshID,
+		Token:         refreshTokenValue,
+		ClientID:      "test-client",
+		UserID:        userID,
+		Audience:      []string{"test-client"},
+		Scopes:        []string{"openid", "email"},
+		AuthTime:      authTime,
+		AMR:           []string{"federated"},
+		AccessTokenID: accessID,
+		Expiration:    refreshExp,
 	}
 
-	rt, err := repo.GetRefreshToken(ctx, refreshToken)
+	if err := repo.CreateAccessAndRefresh(ctx, access, refresh, ""); err != nil {
+		t.Fatalf("CreateAccessAndRefresh: %v", err)
+	}
+
+	rt, err := repo.GetRefreshToken(ctx, refreshTokenValue)
 	if err != nil {
 		t.Fatalf("GetRefreshToken: %v", err)
 	}
@@ -227,7 +251,7 @@ func TestTokenRepository_CreateAccessAndRefresh(t *testing.T) {
 		t.Errorf("expected user %s, got %s", userID, rt.UserID)
 	}
 
-	rtUserID, rtID, err := repo.GetRefreshInfo(ctx, refreshToken)
+	rtUserID, rtID, err := repo.GetRefreshInfo(ctx, refreshTokenValue)
 	if err != nil {
 		t.Fatalf("GetRefreshInfo: %v", err)
 	}
@@ -238,22 +262,39 @@ func TestTokenRepository_CreateAccessAndRefresh(t *testing.T) {
 		t.Error("expected non-empty refresh token ID")
 	}
 
-	accessID2, refreshToken2, err := repo.CreateAccessAndRefresh(ctx,
-		"test-client", userID, []string{"test-client"}, []string{"openid"},
-		accessExp, refreshExp, authTime, []string{"federated"}, refreshToken,
-	)
-	if err != nil {
-		t.Fatalf("CreateAccessAndRefresh (rotation): %v", err)
+	// Rotation: create new tokens, delete old refresh
+	accessID2 := ulid.Make().String()
+	refreshID2 := ulid.Make().String()
+	refreshTokenValue2 := ulid.Make().String()
+
+	access2 := &oidc.Token{
+		ID:             accessID2,
+		ClientID:       "test-client",
+		Subject:        userID,
+		Audience:       []string{"test-client"},
+		Scopes:         []string{"openid"},
+		Expiration:     accessExp,
+		RefreshTokenID: refreshID2,
 	}
-	if accessID2 == "" || refreshToken2 == "" {
-		t.Fatal("expected non-empty IDs after rotation")
-	}
-	if refreshToken2 == refreshToken {
-		t.Error("expected new refresh token after rotation")
+	refresh2 := &oidc.RefreshToken{
+		ID:            refreshID2,
+		Token:         refreshTokenValue2,
+		ClientID:      "test-client",
+		UserID:        userID,
+		Audience:      []string{"test-client"},
+		Scopes:        []string{"openid"},
+		AuthTime:      authTime,
+		AMR:           []string{"federated"},
+		AccessTokenID: accessID2,
+		Expiration:    refreshExp,
 	}
 
-	_, err = repo.GetRefreshToken(ctx, refreshToken)
-	if err != sql.ErrNoRows {
+	if err := repo.CreateAccessAndRefresh(ctx, access2, refresh2, refreshTokenValue); err != nil {
+		t.Fatalf("CreateAccessAndRefresh (rotation): %v", err)
+	}
+
+	_, err = repo.GetRefreshToken(ctx, refreshTokenValue)
+	if !domerr.Is(err, domerr.ErrNotFound) {
 		t.Errorf("expected old refresh token to be deleted, got %v", err)
 	}
 }
@@ -263,18 +304,26 @@ func TestTokenRepository_Revoke(t *testing.T) {
 	repo := NewTokenRepository(testDB)
 	ctx := context.Background()
 
+	tokenID := ulid.Make().String()
 	exp := time.Now().UTC().Add(15 * time.Minute)
-	id, err := repo.CreateAccess(ctx, "test-client", "user-1", []string{"test-client"}, []string{"openid"}, exp)
-	if err != nil {
+	access := &oidc.Token{
+		ID:         tokenID,
+		ClientID:   "test-client",
+		Subject:    "user-1",
+		Audience:   []string{"test-client"},
+		Scopes:     []string{"openid"},
+		Expiration: exp,
+	}
+	if err := repo.CreateAccess(ctx, access); err != nil {
 		t.Fatalf("CreateAccess: %v", err)
 	}
 
-	if err := repo.Revoke(ctx, id); err != nil {
+	if err := repo.Revoke(ctx, tokenID); err != nil {
 		t.Fatalf("Revoke: %v", err)
 	}
 
-	_, err = repo.GetByID(ctx, id)
-	if err != sql.ErrNoRows {
+	_, err := repo.GetByID(ctx, tokenID)
+	if !domerr.Is(err, domerr.ErrNotFound) {
 		t.Errorf("expected token to be revoked, got %v", err)
 	}
 }
@@ -283,7 +332,7 @@ func TestTokenRepository_DeleteByUserAndClient(t *testing.T) {
 	testhelper.CleanTables(t, testDB)
 	ctx := context.Background()
 
-	userID := uuid.New().String()
+	userID := ulid.Make().String()
 	_, err := testDB.ExecContext(ctx,
 		`INSERT INTO users (id, email) VALUES ($1, $2)`, userID, "user@example.com")
 	if err != nil {
@@ -295,11 +344,33 @@ func TestTokenRepository_DeleteByUserAndClient(t *testing.T) {
 	refreshExp := time.Now().UTC().Add(7 * 24 * time.Hour)
 	authTime := time.Now().UTC()
 
-	accessID, refreshToken, err := repo.CreateAccessAndRefresh(ctx,
-		"test-client", userID, []string{"test-client"}, []string{"openid"},
-		exp, refreshExp, authTime, []string{"federated"}, "",
-	)
-	if err != nil {
+	accessID := ulid.Make().String()
+	refreshID := ulid.Make().String()
+	refreshTokenValue := ulid.Make().String()
+
+	access := &oidc.Token{
+		ID:             accessID,
+		ClientID:       "test-client",
+		Subject:        userID,
+		Audience:       []string{"test-client"},
+		Scopes:         []string{"openid"},
+		Expiration:     exp,
+		RefreshTokenID: refreshID,
+	}
+	refresh := &oidc.RefreshToken{
+		ID:            refreshID,
+		Token:         refreshTokenValue,
+		ClientID:      "test-client",
+		UserID:        userID,
+		Audience:      []string{"test-client"},
+		Scopes:        []string{"openid"},
+		AuthTime:      authTime,
+		AMR:           []string{"federated"},
+		AccessTokenID: accessID,
+		Expiration:    refreshExp,
+	}
+
+	if err := repo.CreateAccessAndRefresh(ctx, access, refresh, ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -308,11 +379,11 @@ func TestTokenRepository_DeleteByUserAndClient(t *testing.T) {
 	}
 
 	_, err = repo.GetByID(ctx, accessID)
-	if err != sql.ErrNoRows {
+	if !domerr.Is(err, domerr.ErrNotFound) {
 		t.Errorf("expected access token deleted, got %v", err)
 	}
-	_, err = repo.GetRefreshToken(ctx, refreshToken)
-	if err != sql.ErrNoRows {
+	_, err = repo.GetRefreshToken(ctx, refreshTokenValue)
+	if !domerr.Is(err, domerr.ErrNotFound) {
 		t.Errorf("expected refresh token deleted, got %v", err)
 	}
 }

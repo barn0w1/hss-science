@@ -1,4 +1,4 @@
-package oidcprovider
+package adapter
 
 import (
 	"log/slog"
@@ -7,7 +7,7 @@ import (
 	"golang.org/x/text/language"
 )
 
-func NewProvider(issuer string, cryptoKey [32]byte, storage *Storage, logger *slog.Logger) (*op.Provider, error) {
+func NewProvider(issuer string, cryptoKey [32]byte, storage op.Storage, logger *slog.Logger) (*op.Provider, error) {
 	config := &op.Config{
 		CryptoKey:                cryptoKey,
 		DefaultLogoutRedirectURI: "/logged-out",

@@ -1,4 +1,4 @@
-package oidcprovider
+package adapter
 
 import (
 	"crypto/rsa"
@@ -9,13 +9,11 @@ import (
 	jose "github.com/go-jose/go-jose/v4"
 )
 
-// SigningKeyWithID wraps a jose.SigningKey with a derived key ID to satisfy the op.SigningKey interface.
 type SigningKeyWithID struct {
 	signingKey jose.SigningKey
 	id         string
 }
 
-// NewSigningKey creates a signing key with a derived ID from the RSA private key.
 func NewSigningKey(key *rsa.PrivateKey) *SigningKeyWithID {
 	return &SigningKeyWithID{
 		signingKey: jose.SigningKey{
@@ -38,13 +36,11 @@ func (k *SigningKeyWithID) ID() string {
 	return k.id
 }
 
-// PublicKeyWithID wraps a jose.JSONWebKey with a derived key ID to satisfy the op.Key interface.
 type PublicKeyWithID struct {
 	jwk jose.JSONWebKey
 	id  string
 }
 
-// NewPublicKey creates a public key with a derived ID from the RSA private key's public part.
 func NewPublicKey(key *rsa.PrivateKey) *PublicKeyWithID {
 	return &PublicKeyWithID{
 		jwk: jose.JSONWebKey{

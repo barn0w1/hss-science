@@ -218,6 +218,9 @@ func TestLoad_TokenLifetimeDefaults(t *testing.T) {
 	if cfg.RefreshTokenLifetimeDays != 7 {
 		t.Errorf("expected default 7, got %d", cfg.RefreshTokenLifetimeDays)
 	}
+	if cfg.AuthRequestTTLMinutes != 30 {
+		t.Errorf("expected default 30, got %d", cfg.AuthRequestTTLMinutes)
+	}
 }
 
 func TestLoad_TokenLifetimeCustom(t *testing.T) {
@@ -275,5 +278,57 @@ func TestLoad_RefreshTokenLifetimeOutOfRange(t *testing.T) {
 	_, err := Load()
 	if err == nil {
 		t.Fatal("expected error for out-of-range REFRESH_TOKEN_LIFETIME_DAYS")
+	}
+}
+
+func TestLoad_AuthRequestTTLDefault(t *testing.T) {
+	pemKey := generateTestKey(t)
+	setRequiredEnv(t, pemKey)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AuthRequestTTLMinutes != 30 {
+		t.Errorf("expected default 30, got %d", cfg.AuthRequestTTLMinutes)
+	}
+}
+
+func TestLoad_AuthRequestTTLCustom(t *testing.T) {
+	pemKey := generateTestKey(t)
+	setRequiredEnv(t, pemKey)
+	t.Setenv("AUTH_REQUEST_TTL_MINUTES", "10")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AuthRequestTTLMinutes != 10 {
+		t.Errorf("expected 10, got %d", cfg.AuthRequestTTLMinutes)
+	}
+}
+
+func TestLoad_AuthRequestTTLZeroFallsBackToDefault(t *testing.T) {
+	pemKey := generateTestKey(t)
+	setRequiredEnv(t, pemKey)
+	t.Setenv("AUTH_REQUEST_TTL_MINUTES", "0")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AuthRequestTTLMinutes != 30 {
+		t.Errorf("expected default 30 for zero, got %d", cfg.AuthRequestTTLMinutes)
+	}
+}
+
+func TestLoad_AuthRequestTTLOutOfRange(t *testing.T) {
+	pemKey := generateTestKey(t)
+	setRequiredEnv(t, pemKey)
+	t.Setenv("AUTH_REQUEST_TTL_MINUTES", "120")
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected error for out-of-range AUTH_REQUEST_TTL_MINUTES")
 	}
 }

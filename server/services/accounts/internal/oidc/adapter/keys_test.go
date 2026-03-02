@@ -1,4 +1,4 @@
-package oidcprovider
+package adapter
 
 import (
 	"crypto/rand"

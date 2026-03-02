@@ -964,171 +964,171 @@ Each item is small enough to verify independently. "Compiles" means `go build ./
 
 ### Step 1: Add `internal/oidc/domain.go`
 
-- [ ] Create `internal/oidc/domain.go` with exactly 4 structs: `AuthRequest`, `Client`, `Token`, `RefreshToken`
-- [ ] Zero imports except `"time"`
-- [ ] No `db:` tags on any field
-- [ ] **Verify:** `go build ./services/accounts/...` compiles (no other files changed)
+- [x] Create `internal/oidc/domain.go` with exactly 4 structs: `AuthRequest`, `Client`, `Token`, `RefreshToken`
+- [x] Zero imports except `"time"`
+- [x] No `db:` tags on any field
+- [x] **Verify:** `go build ./services/accounts/...` compiles (no other files changed)
 
 ### Step 2: Add `internal/oidc/ports.go`
 
-- [ ] Create `internal/oidc/ports.go` with exactly 6 interfaces: `AuthRequestRepository`, `ClientRepository`, `TokenRepository`, `AuthRequestService`, `ClientService`, `TokenService`
-- [ ] All signatures match Section 4.2 exactly
-- [ ] Import only `"context"` and `"time"` — no other packages
-- [ ] **Verify:** `go build ./services/accounts/...` compiles
+- [x] Create `internal/oidc/ports.go` with exactly 6 interfaces: `AuthRequestRepository`, `ClientRepository`, `TokenRepository`, `AuthRequestService`, `ClientService`, `TokenService`
+- [x] All signatures match Section 4.2 exactly
+- [x] Import only `"context"` and `"time"` — no other packages
+- [x] **Verify:** `go build ./services/accounts/...` compiles
 
 ### Step 3: Create `internal/oidc/postgres/authrequest_repo.go`
 
-- [ ] Create `authrequest_repo.go` with `AuthRequestRepository` struct, `authRequestRow` scan target
-- [ ] `GetByID` query: `WHERE id = $1` — **no time filter** (TTL moves to service)
-- [ ] `GetByCode` query: `WHERE code = $1` — **no time filter**
-- [ ] All nullable columns (`user_id`, `auth_time`, `code`, `max_age`) scanned as pointers
-- [ ] `sql.ErrNoRows` → `domerr.ErrNotFound` in `GetByID` and `GetByCode`
-- [ ] Compile-time check: `var _ oidc.AuthRequestRepository = (*AuthRequestRepository)(nil)`
-- [ ] **Verify:** `go build ./services/accounts/...` compiles
+- [x] Create `authrequest_repo.go` with `AuthRequestRepository` struct, `authRequestRow` scan target
+- [x] `GetByID` query: `WHERE id = $1` — **no time filter** (TTL moves to service)
+- [x] `GetByCode` query: `WHERE code = $1` — **no time filter**
+- [x] All nullable columns (`user_id`, `auth_time`, `code`, `max_age`) scanned as pointers
+- [x] `sql.ErrNoRows` → `domerr.ErrNotFound` in `GetByID` and `GetByCode`
+- [x] Compile-time check: `var _ oidc.AuthRequestRepository = (*AuthRequestRepository)(nil)`
+- [x] **Verify:** `go build ./services/accounts/...` compiles
 
 ### Step 4: Create `internal/oidc/postgres/client_repo.go`
 
-- [ ] Create `client_repo.go` with `ClientRepository` struct, `clientRow` scan target
-- [ ] All array columns scanned as `pq.StringArray`
-- [ ] `sql.ErrNoRows` → `domerr.ErrNotFound` in `GetByID`
-- [ ] Compile-time check: `var _ oidc.ClientRepository = (*ClientRepository)(nil)`
-- [ ] **Verify:** `go build ./services/accounts/...` compiles
+- [x] Create `client_repo.go` with `ClientRepository` struct, `clientRow` scan target
+- [x] All array columns scanned as `pq.StringArray`
+- [x] `sql.ErrNoRows` → `domerr.ErrNotFound` in `GetByID`
+- [x] Compile-time check: `var _ oidc.ClientRepository = (*ClientRepository)(nil)`
+- [x] **Verify:** `go build ./services/accounts/...` compiles
 
 ### Step 5: Create `internal/oidc/postgres/token_repo.go`
 
-- [ ] Create `token_repo.go` with `TokenRepository` struct, `tokenRow` and `refreshTokenRow` scan targets
-- [ ] `CreateAccess` receives a fully-formed `*Token` (ID already set by service)
-- [ ] `CreateAccessAndRefresh` runs the 3-step transaction (Section 4.5): DELETE old, INSERT token, INSERT refresh_token
-- [ ] `GetByID` query retains `AND expiration > now()` — **keep in SQL**
-- [ ] `GetRefreshToken` query retains `AND expiration > now()` — **keep in SQL**
-- [ ] `GetRefreshInfo` query retains `AND expiration > now()` — **keep in SQL**
-- [ ] Nullable columns (`refresh_token_id`, `access_token_id`) scanned as `*string`
-- [ ] `sql.ErrNoRows` → `domerr.ErrNotFound` in `GetByID`, `GetRefreshToken`, `GetRefreshInfo`
-- [ ] Compile-time check: `var _ oidc.TokenRepository = (*TokenRepository)(nil)`
-- [ ] **Verify:** `go build ./services/accounts/...` compiles
+- [x] Create `token_repo.go` with `TokenRepository` struct, `tokenRow` and `refreshTokenRow` scan targets
+- [x] `CreateAccess` receives a fully-formed `*Token` (ID already set by service)
+- [x] `CreateAccessAndRefresh` runs the 3-step transaction (Section 4.5): DELETE old, INSERT token, INSERT refresh_token
+- [x] `GetByID` query retains `AND expiration > now()` — **keep in SQL**
+- [x] `GetRefreshToken` query retains `AND expiration > now()` — **keep in SQL**
+- [x] `GetRefreshInfo` query retains `AND expiration > now()` — **keep in SQL**
+- [x] Nullable columns (`refresh_token_id`, `access_token_id`) scanned as `*string`
+- [x] `sql.ErrNoRows` → `domerr.ErrNotFound` in `GetByID`, `GetRefreshToken`, `GetRefreshInfo`
+- [x] Compile-time check: `var _ oidc.TokenRepository = (*TokenRepository)(nil)`
+- [x] **Verify:** `go build ./services/accounts/...` compiles
 
 ### Step 6: Create `internal/oidc/postgres/repo_test.go`
 
-- [ ] Copy `repo/repo_test.go`'s `TestMain`, change imports to `oidcpg`/`oidcdom`
-- [ ] `TestClientRepository_GetByID`: assert `domerr.ErrNotFound` (not `sql.ErrNoRows`) for not-found case
-- [ ] `TestAuthRequestRepository_CRUD`: use `*oidcdom.AuthRequest`; verify GetByID after 31-min-old record returns `domerr.ErrNotFound` (or skip TTL test and leave it to service test)
-- [ ] `TestTokenRepository_*`: use `*oidcdom.Token`/`*oidcdom.RefreshToken`; IDs set by test harness (can be `ulid.Make().String()`)
-- [ ] **Verify:** `go test ./services/accounts/internal/oidc/postgres/...` passes
+- [x] Copy `repo/repo_test.go`'s `TestMain`, change imports to `oidcpg`/`oidcdom`
+- [x] `TestClientRepository_GetByID`: assert `domerr.ErrNotFound` (not `sql.ErrNoRows`) for not-found case
+- [x] `TestAuthRequestRepository_CRUD`: use `*oidcdom.AuthRequest`; verify GetByID after 31-min-old record returns `domerr.ErrNotFound` (or skip TTL test and leave it to service test)
+- [x] `TestTokenRepository_*`: use `*oidcdom.Token`/`*oidcdom.RefreshToken`; IDs set by test harness (can be `ulid.Make().String()`)
+- [x] **Verify:** `go test ./services/accounts/internal/oidc/postgres/...` passes
 
 ### Step 7: Create `internal/oidc/authrequest_svc.go`
 
-- [ ] `NewAuthRequestService(repo AuthRequestRepository, authRequestTTL time.Duration) AuthRequestService`
-- [ ] `Create`: sets no ID (caller provides it); calls `repo.Create(ctx, ar)`
-- [ ] `GetByID`: calls `repo.GetByID`; if `time.Now().After(ar.CreatedAt.Add(ttl))` → return `domerr.ErrNotFound`
-- [ ] `GetByCode`: same TTL check as `GetByID`
-- [ ] `SaveCode`, `CompleteLogin`, `Delete`: pure delegation to repo
-- [ ] Compile-time check: `var _ AuthRequestService = (*authRequestService)(nil)`
+- [x] `NewAuthRequestService(repo AuthRequestRepository, authRequestTTL time.Duration) AuthRequestService`
+- [x] `Create`: sets no ID (caller provides it); calls `repo.Create(ctx, ar)`
+- [x] `GetByID`: calls `repo.GetByID`; if `time.Now().After(ar.CreatedAt.Add(ttl))` → return `domerr.ErrNotFound`
+- [x] `GetByCode`: same TTL check as `GetByID`
+- [x] `SaveCode`, `CompleteLogin`, `Delete`: pure delegation to repo
+- [x] Compile-time check: `var _ AuthRequestService = (*authRequestService)(nil)`
 
 ### Step 8: Create `internal/oidc/authrequest_svc_test.go`
 
-- [ ] Unit tests with mock `AuthRequestRepository` (no DB)
-- [ ] Test: `GetByID` returns `domerr.ErrNotFound` when `CreatedAt + TTL` is in the past
-- [ ] Test: `GetByID` returns record when TTL not yet expired
-- [ ] Test: `GetByCode` same two cases
-- [ ] Test: `Create` delegates to repo unchanged
-- [ ] Test: `CompleteLogin` delegates unchanged
-- [ ] **Verify:** `go test ./services/accounts/internal/oidc/...` passes
+- [x] Unit tests with mock `AuthRequestRepository` (no DB)
+- [x] Test: `GetByID` returns `domerr.ErrNotFound` when `CreatedAt + TTL` is in the past
+- [x] Test: `GetByID` returns record when TTL not yet expired
+- [x] Test: `GetByCode` same two cases
+- [x] Test: `Create` delegates to repo unchanged
+- [x] Test: `CompleteLogin` delegates unchanged
+- [x] **Verify:** `go test ./services/accounts/internal/oidc/...` passes
 
 ### Step 9: Create `internal/oidc/client_svc.go`
 
-- [ ] `NewClientService(repo ClientRepository) ClientService`
-- [ ] `GetByID`: delegates; error passes through (repo already sets `domerr.ErrNotFound`)
-- [ ] `AuthorizeSecret`: calls `GetByID`, then `bcrypt.CompareHashAndPassword`; returns `domerr.ErrUnauthorized` on mismatch
-- [ ] `ClientCredentials`: calls `GetByID` once, then bcrypt; returns `domerr.ErrUnauthorized` on mismatch
-- [ ] Compile-time check: `var _ ClientService = (*clientService)(nil)`
+- [x] `NewClientService(repo ClientRepository) ClientService`
+- [x] `GetByID`: delegates; error passes through (repo already sets `domerr.ErrNotFound`)
+- [x] `AuthorizeSecret`: calls `GetByID`, then `bcrypt.CompareHashAndPassword`; returns `domerr.ErrUnauthorized` on mismatch
+- [x] `ClientCredentials`: calls `GetByID` once, then bcrypt; returns `domerr.ErrUnauthorized` on mismatch
+- [x] Compile-time check: `var _ ClientService = (*clientService)(nil)`
 
 ### Step 10: Create `internal/oidc/client_svc_test.go`
 
-- [ ] Unit tests with mock `ClientRepository`
-- [ ] Test: `ClientCredentials` correct secret returns `*Client`
-- [ ] Test: `ClientCredentials` wrong secret returns `domerr.ErrUnauthorized`
-- [ ] Test: `ClientCredentials` no client returns `domerr.ErrNotFound`
-- [ ] Test: `AuthorizeSecret` same three cases
-- [ ] **Verify:** `go test ./services/accounts/internal/oidc/...` passes
+- [x] Unit tests with mock `ClientRepository`
+- [x] Test: `ClientCredentials` correct secret returns `*Client`
+- [x] Test: `ClientCredentials` wrong secret returns `domerr.ErrUnauthorized`
+- [x] Test: `ClientCredentials` no client returns `domerr.ErrNotFound`
+- [x] Test: `AuthorizeSecret` same three cases
+- [x] **Verify:** `go test ./services/accounts/internal/oidc/...` passes
 
 ### Step 11: Create `internal/oidc/token_svc.go`
 
-- [ ] `NewTokenService(repo TokenRepository) TokenService`
-- [ ] `CreateAccess`: generates `id = ulid.Make().String()`; constructs `*Token`; calls `repo.CreateAccess(ctx, token)`;  returns `id`
-- [ ] `CreateAccessAndRefresh`: generates 3 IDs (`accessID`, `refreshID`, `refreshTokenValue`); constructs `*Token` and `*RefreshToken`; calls `repo.CreateAccessAndRefresh(ctx, access, refresh, currentRefreshToken)`; returns `(accessID, refreshTokenValue, nil)`
-- [ ] `GetByID`, `GetRefreshToken`, `GetRefreshInfo`: pure delegation
-- [ ] `DeleteByUserAndClient`, `Revoke`, `RevokeRefreshToken`: pure delegation
-- [ ] Compile-time check: `var _ TokenService = (*tokenService)(nil)`
+- [x] `NewTokenService(repo TokenRepository) TokenService`
+- [x] `CreateAccess`: generates `id = ulid.Make().String()`; constructs `*Token`; calls `repo.CreateAccess(ctx, token)`;  returns `id`
+- [x] `CreateAccessAndRefresh`: generates 3 IDs (`accessID`, `refreshID`, `refreshTokenValue`); constructs `*Token` and `*RefreshToken`; calls `repo.CreateAccessAndRefresh(ctx, access, refresh, currentRefreshToken)`; returns `(accessID, refreshTokenValue, nil)`
+- [x] `GetByID`, `GetRefreshToken`, `GetRefreshInfo`: pure delegation
+- [x] `DeleteByUserAndClient`, `Revoke`, `RevokeRefreshToken`: pure delegation
+- [x] Compile-time check: `var _ TokenService = (*tokenService)(nil)`
 
 ### Step 12: Create `internal/oidc/token_svc_test.go`
 
-- [ ] Unit tests with mock `TokenRepository`
-- [ ] Test: `CreateAccess` returns non-empty ULID
-- [ ] Test: `CreateAccessAndRefresh` returns two non-empty IDs; calls `repo.CreateAccessAndRefresh` with correct cross-references
-- [ ] Test: error propagation for all methods
-- [ ] **Verify:** `go test ./services/accounts/internal/oidc/...` passes
+- [x] Unit tests with mock `TokenRepository`
+- [x] Test: `CreateAccess` returns non-empty ULID
+- [x] Test: `CreateAccessAndRefresh` returns two non-empty IDs; calls `repo.CreateAccessAndRefresh` with correct cross-references
+- [x] Test: error propagation for all methods
+- [x] **Verify:** `go test ./services/accounts/internal/oidc/...` passes
 
 ### Step 13: Move adapter files from `oidcprovider/`
 
-- [ ] Create `internal/oidc/adapter/authrequest.go` — copy `oidcprovider/authrequest.go`, change `*model.AuthRequest` → `*oidcdom.AuthRequest`, field accesses now use struct fields (e.g., `a.domain.ID` not `a.model.ID`)
-- [ ] Create `internal/oidc/adapter/client.go` — same for `*model.Client` → `*oidcdom.Client`
-- [ ] Create `internal/oidc/adapter/refreshtoken.go` — same for `*model.RefreshToken` → `*oidcdom.RefreshToken`
-- [ ] Create `internal/oidc/adapter/keys.go` — copy `oidcprovider/keys.go` unchanged
-- [ ] Create `internal/oidc/adapter/provider.go` — copy `oidcprovider/provider.go`; change `storage *Storage` → `storage op.Storage` in `NewProvider` signature
-- [ ] Move/adapt corresponding `_test.go` files
-- [ ] **Verify:** `go build ./services/accounts/...` compiles (adapter package exists; still not wired in)
+- [x] Create `internal/oidc/adapter/authrequest.go` — copy `oidcprovider/authrequest.go`, change `*model.AuthRequest` → `*oidcdom.AuthRequest`, field accesses now use struct fields (e.g., `a.domain.ID` not `a.model.ID`)
+- [x] Create `internal/oidc/adapter/client.go` — same for `*model.Client` → `*oidcdom.Client`
+- [x] Create `internal/oidc/adapter/refreshtoken.go` — same for `*model.RefreshToken` → `*oidcdom.RefreshToken`
+- [x] Create `internal/oidc/adapter/keys.go` — copy `oidcprovider/keys.go` unchanged
+- [x] Create `internal/oidc/adapter/provider.go` — copy `oidcprovider/provider.go`; change `storage *Storage` → `storage op.Storage` in `NewProvider` signature
+- [x] Move/adapt corresponding `_test.go` files
+- [x] **Verify:** `go build ./services/accounts/...` compiles (adapter package exists; still not wired in)
 
 ### Step 14: Create `internal/oidc/adapter/storage.go`
 
-- [ ] `StorageAdapter` struct with 9 fields (Section 4.7)
-- [ ] `NewStorageAdapter(...)` constructor
-- [ ] Implement all methods per the delegation table in Section 4.7
-- [ ] Error translations per Section 4.8 (use `domerr.Is`, not `errors.Is(err, domerr.ErrNotFound)`)
-- [ ] `clientIDFromRequest`, `extractAuthTimeAMR`, `promptToStrings`, `clampMaxAge` as private helpers
-- [ ] `clientCredentialsTokenRequest` private struct with 3 getters
-- [ ] Compile-time check: `var _ op.Storage = (*StorageAdapter)(nil)`
-- [ ] **Verify:** `go build ./services/accounts/...` compiles
+- [x] `StorageAdapter` struct with 9 fields (Section 4.7)
+- [x] `NewStorageAdapter(...)` constructor
+- [x] Implement all methods per the delegation table in Section 4.7
+- [x] Error translations per Section 4.8 (use `domerr.Is`, not `errors.Is(err, domerr.ErrNotFound)`)
+- [x] `clientIDFromRequest`, `extractAuthTimeAMR`, `promptToStrings`, `clampMaxAge` as private helpers
+- [x] `clientCredentialsTokenRequest` private struct with 3 getters
+- [x] Compile-time check: `var _ op.Storage = (*StorageAdapter)(nil)`
+- [x] **Verify:** `go build ./services/accounts/...` compiles
 
 ### Step 15: Move `oidcprovider/storage_test.go` → `internal/oidc/adapter/storage_test.go`
 
-- [ ] Update `TestMain` from `storageTestDB` package var to the new package
-- [ ] Change `newTestStorage` → `newTestAdapter` per Section 4.10
-- [ ] Change all `&AuthRequest{model: &model.AuthRequest{...}}` → `&AuthRequest{domain: &oidcdom.AuthRequest{...}}`
-- [ ] **Verify:** `go test ./services/accounts/internal/oidc/adapter/...` passes (all 20 tests)
+- [x] Update `TestMain` from `storageTestDB` package var to the new package
+- [x] Change `newTestStorage` → `newTestAdapter` per Section 4.10
+- [x] Change all `&AuthRequest{model: &model.AuthRequest{...}}` → `&AuthRequest{domain: &oidcdom.AuthRequest{...}}`
+- [x] **Verify:** `go test ./services/accounts/internal/oidc/adapter/...` passes (all 20 tests)
 
 ### Step 16: Add `AuthRequestTTLMinutes` to `config.Config`
 
-- [ ] Add `AuthRequestTTLMinutes int` field to `config.Config`
-- [ ] In `config.Load()`: `cfg.AuthRequestTTLMinutes = getEnvInt("AUTH_REQUEST_TTL_MINUTES", 30)` with range validation `1–60`
-- [ ] Update `.env.example` with `AUTH_REQUEST_TTL_MINUTES=30`
-- [ ] **Verify:** `go test ./services/accounts/config/...` passes
+- [x] Add `AuthRequestTTLMinutes int` field to `config.Config`
+- [x] In `config.Load()`: `cfg.AuthRequestTTLMinutes = getEnvInt("AUTH_REQUEST_TTL_MINUTES", 30)` with range validation `1–60`
+- [x] Update `.env.example` with `AUTH_REQUEST_TTL_MINUTES=30`
+- [x] **Verify:** `go test ./services/accounts/config/...` passes
 
 ### Step 17: Rewire `main.go` (atomic switch)
 
-- [ ] Remove imports: `oidcprovider`, all of `repo`
-- [ ] Add imports: `oidcadapter`, `oidcdom`, `oidcpg`
-- [ ] Build new repos, services, adapter per Section 4.9
-- [ ] Replace `authReqAdapter` bridge struct with `authReqBridge` wrapping `oidcdom.AuthRequestService`
-- [ ] Call `oidcadapter.NewProvider(...)` (not `oidcprovider.NewProvider`)
-- [ ] **Verify:** `go build ./services/accounts/...` compiles
+- [x] Remove imports: `oidcprovider`, all of `repo`
+- [x] Add imports: `oidcadapter`, `oidcdom`, `oidcpg`
+- [x] Build new repos, services, adapter per Section 4.9
+- [x] Replace `authReqAdapter` bridge struct with `authReqBridge` wrapping `oidcdom.AuthRequestService`
+- [x] Call `oidcadapter.NewProvider(...)` (not `oidcprovider.NewProvider`)
+- [x] **Verify:** `go build ./services/accounts/...` compiles
 
 ### Step 18: Delete legacy packages
 
-- [ ] Delete `model/` directory (3 files: `authrequest.go`, `client.go`, `token.go`)
-- [ ] Delete `repo/` directory (4 files: `authrequest.go`, `client.go`, `token.go`, `repo_test.go`)
-- [ ] Delete `oidcprovider/` directory (9 files)
-- [ ] **Verify:** `go build ./services/accounts/...` compiles
+- [x] Delete `model/` directory (3 files: `authrequest.go`, `client.go`, `token.go`)
+- [x] Delete `repo/` directory (4 files: `authrequest.go`, `client.go`, `token.go`, `repo_test.go`)
+- [x] Delete `oidcprovider/` directory (9 files)
+- [x] **Verify:** `go build ./services/accounts/...` compiles
 
 ### Step 19: Final verification
 
-- [ ] `go build ./services/accounts/...` — clean
-- [ ] `go vet ./services/accounts/...` — clean
-- [ ] `go test ./services/accounts/...` — all pass
-- [ ] `golangci-lint run ./services/accounts/...` — 0 issues
-- [ ] Confirm no `db:` tags outside `internal/*/postgres/` packages
-- [ ] Confirm no imports of `model`, `repo`, or `oidcprovider` anywhere
-- [ ] Confirm `main.go` imports only `internal/`, `config/`, standard library, and third-party packages
-- [ ] Confirm `authReqBridge` wraps `oidcdom.AuthRequestService` (not a legacy repo)
+- [x] `go build ./services/accounts/...` — clean
+- [x] `go vet ./services/accounts/...` — clean
+- [x] `go test ./services/accounts/...` — all pass
+- [x] `golangci-lint run ./services/accounts/...` — 0 issues
+- [x] Confirm no `db:` tags outside `internal/*/postgres/` packages
+- [x] Confirm no imports of `model`, `repo`, or `oidcprovider` anywhere
+- [x] Confirm `main.go` imports only `internal/`, `config/`, standard library, and third-party packages
+- [x] Confirm `authReqBridge` wraps `oidcdom.AuthRequestService` (not a legacy repo)
 
 ---
 

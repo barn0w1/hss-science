@@ -1,4 +1,4 @@
-package oidcprovider
+package adapter
 
 import (
 	"context"
@@ -22,8 +22,8 @@ import (
 
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/identity"
 	identitypg "github.com/barn0w1/hss-science/server/services/accounts/internal/identity/postgres"
-	"github.com/barn0w1/hss-science/server/services/accounts/model"
-	"github.com/barn0w1/hss-science/server/services/accounts/repo"
+	oidcdom "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc"
+	oidcpg "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc/postgres"
 	"github.com/barn0w1/hss-science/server/services/accounts/testhelper"
 )
 
@@ -63,7 +63,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func newTestStorage(t *testing.T) *Storage {
+func newTestAdapter(t *testing.T) *StorageAdapter {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -71,16 +71,17 @@ func newTestStorage(t *testing.T) *Storage {
 	}
 	sk := NewSigningKey(key)
 	pk := NewPublicKey(key)
-	return NewStorage(
-		storageTestDB,
-		identity.NewService(identitypg.NewUserRepository(storageTestDB)),
-		repo.NewClientRepository(storageTestDB),
-		repo.NewAuthRequestRepository(storageTestDB),
-		repo.NewTokenRepository(storageTestDB),
-		sk, pk,
-		15*time.Minute,
-		7*24*time.Hour,
-	)
+
+	authReqRepo := oidcpg.NewAuthRequestRepository(storageTestDB)
+	clientRepo := oidcpg.NewClientRepository(storageTestDB)
+	tokenRepo := oidcpg.NewTokenRepository(storageTestDB)
+	authReqSvc := oidcdom.NewAuthRequestService(authReqRepo, 30*time.Minute)
+	clientSvc := oidcdom.NewClientService(clientRepo)
+	tokenSvc := oidcdom.NewTokenService(tokenRepo)
+	identitySvc := identity.NewService(identitypg.NewUserRepository(storageTestDB))
+
+	return NewStorageAdapter(identitySvc, authReqSvc, clientSvc, tokenSvc,
+		sk, pk, 15*time.Minute, 7*24*time.Hour, storageTestDB.PingContext)
 }
 
 func seedTestClient(t *testing.T, clientID, secret string) {
@@ -124,7 +125,7 @@ func seedTestUser(t *testing.T) *testUser {
 
 func TestStorage_CreateAuthRequest(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	ctx := context.Background()
 
 	authReq := &oidc.AuthRequest{
@@ -150,7 +151,7 @@ func TestStorage_CreateAuthRequest(t *testing.T) {
 
 func TestStorage_AuthRequestByID(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	ctx := context.Background()
 
 	authReq := &oidc.AuthRequest{
@@ -175,7 +176,7 @@ func TestStorage_AuthRequestByID(t *testing.T) {
 
 func TestStorage_AuthRequestByID_NotFound(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	_, err := s.AuthRequestByID(context.Background(), uuid.New().String())
 	if err == nil {
 		t.Fatal("expected error for non-existent auth request")
@@ -184,7 +185,7 @@ func TestStorage_AuthRequestByID_NotFound(t *testing.T) {
 
 func TestStorage_SaveAuthCode_AuthRequestByCode(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	ctx := context.Background()
 
 	authReq := &oidc.AuthRequest{
@@ -214,7 +215,7 @@ func TestStorage_SaveAuthCode_AuthRequestByCode(t *testing.T) {
 
 func TestStorage_DeleteAuthRequest(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	ctx := context.Background()
 
 	authReq := &oidc.AuthRequest{
@@ -240,7 +241,7 @@ func TestStorage_DeleteAuthRequest(t *testing.T) {
 
 func TestStorage_GetClientByClientID(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	ctx := context.Background()
 	seedTestClient(t, "my-client", "secret123")
 
@@ -255,7 +256,7 @@ func TestStorage_GetClientByClientID(t *testing.T) {
 
 func TestStorage_GetClientByClientID_NotFound(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	_, err := s.GetClientByClientID(context.Background(), "nonexistent")
 	if err == nil {
 		t.Fatal("expected error for non-existent client")
@@ -264,7 +265,7 @@ func TestStorage_GetClientByClientID_NotFound(t *testing.T) {
 
 func TestStorage_AuthorizeClientIDSecret(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	ctx := context.Background()
 	seedTestClient(t, "my-client", "secret123")
 
@@ -279,10 +280,10 @@ func TestStorage_AuthorizeClientIDSecret(t *testing.T) {
 
 func TestStorage_CreateAccessToken(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	ctx := context.Background()
 
-	ar := &AuthRequest{model: &model.AuthRequest{
+	ar := &AuthRequest{domain: &oidcdom.AuthRequest{
 		ClientID: "test-client",
 		UserID:   uuid.New().String(),
 		Scopes:   []string{"openid"},
@@ -302,11 +303,11 @@ func TestStorage_CreateAccessToken(t *testing.T) {
 
 func TestStorage_CreateAccessAndRefreshTokens(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	ctx := context.Background()
 	user := seedTestUser(t)
 
-	ar := &AuthRequest{model: &model.AuthRequest{
+	ar := &AuthRequest{domain: &oidcdom.AuthRequest{
 		ClientID: "test-client",
 		UserID:   user.ID,
 		Scopes:   []string{"openid", "offline_access"},
@@ -328,11 +329,11 @@ func TestStorage_CreateAccessAndRefreshTokens(t *testing.T) {
 
 func TestStorage_TokenRequestByRefreshToken(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	ctx := context.Background()
 	user := seedTestUser(t)
 
-	ar := &AuthRequest{model: &model.AuthRequest{
+	ar := &AuthRequest{domain: &oidcdom.AuthRequest{
 		ClientID: "test-client",
 		UserID:   user.ID,
 		Scopes:   []string{"openid"},
@@ -356,7 +357,7 @@ func TestStorage_TokenRequestByRefreshToken(t *testing.T) {
 
 func TestStorage_TokenRequestByRefreshToken_NotFound(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	_, err := s.TokenRequestByRefreshToken(context.Background(), "nonexistent")
 	if !errors.Is(err, op.ErrInvalidRefreshToken) {
 		t.Errorf("expected ErrInvalidRefreshToken, got %v", err)
@@ -365,10 +366,10 @@ func TestStorage_TokenRequestByRefreshToken_NotFound(t *testing.T) {
 
 func TestStorage_RevokeToken(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	ctx := context.Background()
 
-	ar := &AuthRequest{model: &model.AuthRequest{
+	ar := &AuthRequest{domain: &oidcdom.AuthRequest{
 		ClientID: "test-client",
 		UserID:   uuid.New().String(),
 		Scopes:   []string{"openid"},
@@ -385,11 +386,11 @@ func TestStorage_RevokeToken(t *testing.T) {
 
 func TestStorage_TerminateSession(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	ctx := context.Background()
 	user := seedTestUser(t)
 
-	ar := &AuthRequest{model: &model.AuthRequest{
+	ar := &AuthRequest{domain: &oidcdom.AuthRequest{
 		ClientID: "test-client",
 		UserID:   user.ID,
 		Scopes:   []string{"openid"},
@@ -409,7 +410,7 @@ func TestStorage_TerminateSession(t *testing.T) {
 
 func TestStorage_SetUserinfoFromScopes(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	ctx := context.Background()
 	user := seedTestUser(t)
 
@@ -435,7 +436,7 @@ func TestStorage_SetUserinfoFromScopes(t *testing.T) {
 
 func TestStorage_SetUserinfoFromScopes_NotFound(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	userinfo := &oidc.UserInfo{}
 	err := s.SetUserinfoFromScopes(context.Background(), userinfo, uuid.New().String(), "test-client", []string{oidc.ScopeOpenID})
 	if err == nil {
@@ -445,11 +446,11 @@ func TestStorage_SetUserinfoFromScopes_NotFound(t *testing.T) {
 
 func TestStorage_SetIntrospectionFromToken(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	ctx := context.Background()
 	user := seedTestUser(t)
 
-	ar := &AuthRequest{model: &model.AuthRequest{
+	ar := &AuthRequest{domain: &oidcdom.AuthRequest{
 		ClientID: "test-client",
 		UserID:   user.ID,
 		Scopes:   []string{oidc.ScopeOpenID, oidc.ScopeEmail, oidc.ScopeProfile},
@@ -474,7 +475,7 @@ func TestStorage_SetIntrospectionFromToken(t *testing.T) {
 
 func TestStorage_SetIntrospectionFromToken_NotFound(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	introspection := &oidc.IntrospectionResponse{}
 	err := s.SetIntrospectionFromToken(context.Background(), introspection, uuid.New().String(), "user-1", "test-client")
 	if err != nil {
@@ -487,7 +488,7 @@ func TestStorage_SetIntrospectionFromToken_NotFound(t *testing.T) {
 
 func TestStorage_SigningKey(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	key, err := s.SigningKey(context.Background())
 	if err != nil {
 		t.Fatalf("SigningKey: %v", err)
@@ -499,7 +500,7 @@ func TestStorage_SigningKey(t *testing.T) {
 
 func TestStorage_KeySet(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	keys, err := s.KeySet(context.Background())
 	if err != nil {
 		t.Fatalf("KeySet: %v", err)
@@ -511,14 +512,14 @@ func TestStorage_KeySet(t *testing.T) {
 
 func TestStorage_Health(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	if err := s.Health(context.Background()); err != nil {
 		t.Fatalf("Health: %v", err)
 	}
 }
 
 func TestStorage_GetPrivateClaimsFromScopes(t *testing.T) {
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	claims, err := s.GetPrivateClaimsFromScopes(context.Background(), "", "", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -529,7 +530,7 @@ func TestStorage_GetPrivateClaimsFromScopes(t *testing.T) {
 }
 
 func TestStorage_GetKeyByIDAndClientID(t *testing.T) {
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	_, err := s.GetKeyByIDAndClientID(context.Background(), "kid", "client")
 	if err == nil {
 		t.Fatal("expected error for unsupported jwt profile grant")
@@ -537,7 +538,7 @@ func TestStorage_GetKeyByIDAndClientID(t *testing.T) {
 }
 
 func TestStorage_ValidateJWTProfileScopes(t *testing.T) {
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	_, err := s.ValidateJWTProfileScopes(context.Background(), "user", []string{"openid"})
 	if err == nil {
 		t.Fatal("expected error for unsupported jwt profile grant")
@@ -546,11 +547,11 @@ func TestStorage_ValidateJWTProfileScopes(t *testing.T) {
 
 func TestStorage_GetRefreshTokenInfo(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	ctx := context.Background()
 	user := seedTestUser(t)
 
-	ar := &AuthRequest{model: &model.AuthRequest{
+	ar := &AuthRequest{domain: &oidcdom.AuthRequest{
 		ClientID: "test-client",
 		UserID:   user.ID,
 		Scopes:   []string{"openid"},
@@ -577,7 +578,7 @@ func TestStorage_GetRefreshTokenInfo(t *testing.T) {
 
 func TestStorage_GetRefreshTokenInfo_NotFound(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	_, _, err := s.GetRefreshTokenInfo(context.Background(), "client", "nonexistent")
 	if !errors.Is(err, op.ErrInvalidRefreshToken) {
 		t.Errorf("expected ErrInvalidRefreshToken, got %v", err)
@@ -586,7 +587,7 @@ func TestStorage_GetRefreshTokenInfo_NotFound(t *testing.T) {
 
 func TestStorage_ClientCredentials(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	ctx := context.Background()
 	seedTestClient(t, "cc-client", "cc-secret")
 
@@ -605,7 +606,7 @@ func TestStorage_ClientCredentials(t *testing.T) {
 }
 
 func TestStorage_ClientCredentialsTokenRequest(t *testing.T) {
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	req, err := s.ClientCredentialsTokenRequest(context.Background(), "cc-client", []string{"openid"})
 	if err != nil {
 		t.Fatalf("ClientCredentialsTokenRequest: %v", err)
@@ -617,11 +618,11 @@ func TestStorage_ClientCredentialsTokenRequest(t *testing.T) {
 
 func TestStorage_SetUserinfoFromToken(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	ctx := context.Background()
 	user := seedTestUser(t)
 
-	ar := &AuthRequest{model: &model.AuthRequest{
+	ar := &AuthRequest{domain: &oidcdom.AuthRequest{
 		ClientID: "test-client",
 		UserID:   user.ID,
 		Scopes:   []string{oidc.ScopeOpenID, oidc.ScopeEmail},
@@ -646,7 +647,7 @@ func TestStorage_SetUserinfoFromToken(t *testing.T) {
 
 func TestStorage_SetUserinfoFromToken_TokenNotFound(t *testing.T) {
 	testhelper.CleanTables(t, storageTestDB)
-	s := newTestStorage(t)
+	s := newTestAdapter(t)
 	userinfo := &oidc.UserInfo{}
 	err := s.SetUserinfoFromToken(context.Background(), userinfo, uuid.New().String(), "user-1", "test-client")
 	if err == nil {
