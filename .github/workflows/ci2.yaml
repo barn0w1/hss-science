@@ -53,7 +53,7 @@ jobs:
 
       - name: GolangCI-Lint
         if: steps.filter.outputs.changed == 'true'
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
           version: latest
           install-mode: goinstall
@@ -105,7 +105,7 @@ jobs:
       # Set up Node.js
       - name: Set up Node.js
         if: steps.filter.outputs.changed == 'true'
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
           # pnpm の依存関係キャッシュを有効化
