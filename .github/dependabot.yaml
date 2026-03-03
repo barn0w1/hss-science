@@ -15,9 +15,6 @@ updates:
       golang-dependencies:
         patterns:
           - "*"
-    labels:
-      - "dependencies"
-      - "go"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
@@ -29,9 +26,6 @@ updates:
       actions-dependencies:
         patterns:
           - "*"
-    labels:
-      - "dependencies"
-      - "github-actions"
 
   # Docker Images for accounts service
   - package-ecosystem: "docker"
@@ -39,9 +33,10 @@ updates:
     schedule:
       interval: "weekly"
       day: "friday"
-    labels:
-      - "dependencies"
-      - "docker"
+    groups:
+      docker-dependencies:
+        patterns:
+          - "*"
 
   # Web frontend
   # - package-ecosystem: "npm" 
