@@ -45,8 +45,11 @@ func (m *mockTokenRepo) GetRefreshInfo(_ context.Context, _ string) (string, str
 	return m.userID, m.tokenID, m.err
 }
 func (m *mockTokenRepo) DeleteByUserAndClient(_ context.Context, _, _ string) error { return m.err }
-func (m *mockTokenRepo) Revoke(_ context.Context, _ string) error                   { return m.err }
-func (m *mockTokenRepo) RevokeRefreshToken(_ context.Context, _ string) error       { return m.err }
+func (m *mockTokenRepo) Revoke(_ context.Context, _, _ string) error                { return m.err }
+func (m *mockTokenRepo) RevokeRefreshToken(_ context.Context, _, _ string) error    { return m.err }
+func (m *mockTokenRepo) DeleteExpired(_ context.Context, _ time.Time) (int64, int64, error) {
+	return 0, 0, m.err
+}
 
 func TestTokenService_CreateAccess(t *testing.T) {
 	repo := &mockTokenRepo{}
@@ -76,7 +79,7 @@ func TestTokenService_CreateAccessAndRefresh(t *testing.T) {
 
 	accessID, refreshToken, err := svc.CreateAccessAndRefresh(context.Background(),
 		"client-1", "user-1", []string{"client-1"}, []string{"openid"},
-		accessExp, refreshExp, authTime, []string{"federated"}, "old-token")
+		accessExp, refreshExp, authTime, []string{"fed"}, "old-token")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -92,11 +95,14 @@ func TestTokenService_CreateAccessAndRefresh(t *testing.T) {
 	if repo.lastRefresh.AccessTokenID != repo.lastAccess.ID {
 		t.Error("expected refresh.AccessTokenID == access.ID")
 	}
-	if repo.lastRefresh.Token != refreshToken {
-		t.Error("expected refresh.Token == returned refreshToken")
+	if repo.lastRefresh.Token == refreshToken {
+		t.Error("expected stored token to be a hash, not the raw value")
 	}
-	if repo.lastCurrentRefreshToken != "old-token" {
-		t.Errorf("expected currentRefreshToken old-token, got %s", repo.lastCurrentRefreshToken)
+	if repo.lastRefresh.Token != hashRefreshToken(refreshToken) {
+		t.Error("stored token is not the expected SHA-256 hash")
+	}
+	if repo.lastCurrentRefreshToken != hashRefreshToken("old-token") {
+		t.Errorf("expected hashed currentRefreshToken, got %s", repo.lastCurrentRefreshToken)
 	}
 }
 

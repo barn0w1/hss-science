@@ -319,7 +319,7 @@ func TestTokenRepository_Revoke(t *testing.T) {
 		t.Fatalf("CreateAccess: %v", err)
 	}
 
-	if err := repo.Revoke(ctx, tokenID); err != nil {
+	if err := repo.Revoke(ctx, tokenID, "test-client"); err != nil {
 		t.Fatalf("Revoke: %v", err)
 	}
 
@@ -366,7 +366,7 @@ func TestTokenRepository_DeleteByUserAndClient(t *testing.T) {
 		Audience:      []string{"test-client"},
 		Scopes:        []string{"openid"},
 		AuthTime:      authTime,
-		AMR:           []string{"federated"},
+		AMR:           []string{"fed"},
 		AccessTokenID: accessID,
 		Expiration:    refreshExp,
 	}
@@ -387,4 +387,223 @@ func TestTokenRepository_DeleteByUserAndClient(t *testing.T) {
 	if !errors.Is(err, domerr.ErrNotFound) {
 		t.Errorf("expected refresh token deleted, got %v", err)
 	}
+}
+
+func TestTokenRepository_CreateAccessAndRefresh_DoubleRotation(t *testing.T) {
+	testhelper.CleanTables(t, testDB)
+	ctx := context.Background()
+
+	userID := ulid.Make().String()
+	_, err := testDB.ExecContext(ctx,
+		`INSERT INTO users (id, email) VALUES ($1, $2)`, userID, "user@example.com")
+	if err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+
+	repo := NewTokenRepository(testDB)
+	accessExp := time.Now().UTC().Add(15 * time.Minute)
+	refreshExp := time.Now().UTC().Add(7 * 24 * time.Hour)
+	authTime := time.Now().UTC()
+
+	tokenHash := "initialhash"
+	accessID := ulid.Make().String()
+	refreshID := ulid.Make().String()
+
+	access := &oidc.Token{
+		ID:             accessID,
+		ClientID:       "test-client",
+		Subject:        userID,
+		Audience:       []string{"test-client"},
+		Scopes:         []string{"openid"},
+		Expiration:     accessExp,
+		RefreshTokenID: refreshID,
+	}
+	refresh := &oidc.RefreshToken{
+		ID:            refreshID,
+		Token:         tokenHash,
+		ClientID:      "test-client",
+		UserID:        userID,
+		Audience:      []string{"test-client"},
+		Scopes:        []string{"openid"},
+		AuthTime:      authTime,
+		AMR:           []string{"fed"},
+		AccessTokenID: accessID,
+		Expiration:    refreshExp,
+	}
+
+	if err := repo.CreateAccessAndRefresh(ctx, access, refresh, ""); err != nil {
+		t.Fatalf("initial CreateAccessAndRefresh: %v", err)
+	}
+
+	// First rotation — should succeed, consuming tokenHash.
+	access2 := &oidc.Token{
+		ID:             ulid.Make().String(),
+		ClientID:       "test-client",
+		Subject:        userID,
+		Audience:       []string{"test-client"},
+		Scopes:         []string{"openid"},
+		Expiration:     accessExp,
+		RefreshTokenID: ulid.Make().String(),
+	}
+	access2.RefreshTokenID = ulid.Make().String()
+	refresh2 := &oidc.RefreshToken{
+		ID:            access2.RefreshTokenID,
+		Token:         "secondhash",
+		ClientID:      "test-client",
+		UserID:        userID,
+		Audience:      []string{"test-client"},
+		Scopes:        []string{"openid"},
+		AuthTime:      authTime,
+		AMR:           []string{"fed"},
+		AccessTokenID: access2.ID,
+		Expiration:    refreshExp,
+	}
+	if err := repo.CreateAccessAndRefresh(ctx, access2, refresh2, tokenHash); err != nil {
+		t.Fatalf("first rotation: %v", err)
+	}
+
+	// Second rotation with the same original tokenHash — must fail (already consumed).
+	access3 := &oidc.Token{
+		ID:             ulid.Make().String(),
+		ClientID:       "test-client",
+		Subject:        userID,
+		Audience:       []string{"test-client"},
+		Scopes:         []string{"openid"},
+		Expiration:     accessExp,
+		RefreshTokenID: ulid.Make().String(),
+	}
+	refresh3 := &oidc.RefreshToken{
+		ID:            access3.RefreshTokenID,
+		Token:         "thirdhash",
+		ClientID:      "test-client",
+		UserID:        userID,
+		Audience:      []string{"test-client"},
+		Scopes:        []string{"openid"},
+		AuthTime:      authTime,
+		AMR:           []string{"fed"},
+		AccessTokenID: access3.ID,
+		Expiration:    refreshExp,
+	}
+	err = repo.CreateAccessAndRefresh(ctx, access3, refresh3, tokenHash)
+	if !errors.Is(err, domerr.ErrNotFound) {
+		t.Errorf("expected ErrNotFound for double rotation, got %v", err)
+	}
+}
+
+func TestTokenRepository_Revoke_WrongClientID(t *testing.T) {
+	testhelper.CleanTables(t, testDB)
+	repo := NewTokenRepository(testDB)
+	ctx := context.Background()
+
+	tokenID := ulid.Make().String()
+	exp := time.Now().UTC().Add(15 * time.Minute)
+	access := &oidc.Token{
+		ID:         tokenID,
+		ClientID:   "test-client",
+		Subject:    "user-1",
+		Audience:   []string{"test-client"},
+		Scopes:     []string{"openid"},
+		Expiration: exp,
+	}
+	if err := repo.CreateAccess(ctx, access); err != nil {
+		t.Fatalf("CreateAccess: %v", err)
+	}
+
+	err := repo.Revoke(ctx, tokenID, "other-client")
+	if !errors.Is(err, domerr.ErrNotFound) {
+		t.Errorf("expected ErrNotFound for wrong clientID, got %v", err)
+	}
+
+	// Token must still exist.
+	tok, err := repo.GetByID(ctx, tokenID)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if tok.ID != tokenID {
+		t.Errorf("expected token %s to survive wrong-client revoke", tokenID)
+	}
+}
+
+func TestTokenRepository_DeleteExpired(t *testing.T) {
+	testhelper.CleanTables(t, testDB)
+	ctx := context.Background()
+
+	userID := ulid.Make().String()
+	_, err := testDB.ExecContext(ctx,
+		`INSERT INTO users (id, email) VALUES ($1, $2)`, userID, "user@example.com")
+	if err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+
+	repo := NewTokenRepository(testDB)
+	past := time.Now().UTC().Add(-1 * time.Hour)
+	future := time.Now().UTC().Add(time.Hour)
+	authTime := time.Now().UTC()
+
+	// Expired access token.
+	expiredAccessID := ulid.Make().String()
+	if err := repo.CreateAccess(ctx, &oidc.Token{
+		ID:         expiredAccessID,
+		ClientID:   "test-client",
+		Subject:    userID,
+		Audience:   []string{"test-client"},
+		Scopes:     []string{"openid"},
+		Expiration: past,
+	}); err != nil {
+		t.Fatalf("CreateAccess (expired): %v", err)
+	}
+
+	// Active access token.
+	activeAccessID := ulid.Make().String()
+	if err := repo.CreateAccess(ctx, &oidc.Token{
+		ID:         activeAccessID,
+		ClientID:   "test-client",
+		Subject:    userID,
+		Audience:   []string{"test-client"},
+		Scopes:     []string{"openid"},
+		Expiration: future,
+	}); err != nil {
+		t.Fatalf("CreateAccess (active): %v", err)
+	}
+
+	// Expired refresh token.
+	expiredRefreshID := ulid.Make().String()
+	if err := repo.createRefreshForTest(ctx, expiredRefreshID, userID, past, authTime); err != nil {
+		t.Fatalf("create expired refresh: %v", err)
+	}
+
+	// Active refresh token.
+	activeRefreshID := ulid.Make().String()
+	if err := repo.createRefreshForTest(ctx, activeRefreshID, userID, future, authTime); err != nil {
+		t.Fatalf("create active refresh: %v", err)
+	}
+
+	access, refresh, err := repo.DeleteExpired(ctx, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("DeleteExpired: %v", err)
+	}
+	if access != 1 {
+		t.Errorf("expected 1 expired access token deleted, got %d", access)
+	}
+	if refresh != 1 {
+		t.Errorf("expected 1 expired refresh token deleted, got %d", refresh)
+	}
+
+	// Active tokens must remain.
+	if _, err := repo.GetByID(ctx, activeAccessID); err != nil {
+		t.Errorf("expected active access token to remain: %v", err)
+	}
+}
+
+// createRefreshForTest inserts a refresh token with arbitrary expiration directly
+// for testing purposes, bypassing the service layer's access-token pairing requirement.
+func (r *TokenRepository) createRefreshForTest(ctx context.Context, id, userID string, expiration, authTime time.Time) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO refresh_tokens (id, token_hash, client_id, user_id, audience, scopes, auth_time, amr, expiration)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+		id, "hash-"+id, "test-client", userID,
+		`{"test-client"}`, `{"openid"}`,
+		authTime, `{"fed"}`, expiration,
+	)
+	return err
 }

@@ -1210,3 +1210,59 @@ go test ./internal/identity/postgres/...
 go vet ./...
 golangci-lint run
 ```
+
+---
+
+## TODO Checklist
+
+### Batch 1 – Token Security Core
+
+- [x] **1.1.1** Create `migrations/3_refresh_token_hash.up.sql` — rename `token` → `token_hash`, backfill SHA-256
+- [x] **1.1.1** Create `migrations/3_refresh_token_hash.down.sql`
+- [x] **1.1.2** Add `newRefreshTokenValue()` and `hashRefreshToken()` to `internal/oidc/token_svc.go`
+- [x] **1.1.3** Update `tokenService.CreateAccessAndRefresh` to generate high-entropy token and store hash
+- [x] **1.1.4** Update `GetRefreshToken`, `GetRefreshInfo`, `RevokeRefreshToken` in `token_svc.go` to hash before repo call
+- [x] **1.1.5** Rename all `token` → `token_hash` in SQL queries in `internal/oidc/postgres/token_repo.go`
+- [x] **1.1.6** Update `token_svc_test.go` mock signatures and add hash assertions
+- [x] **1.2** Fix rotation race: add `RowsAffected()` check with `AND expiration > now()` in `token_repo.go`; update `storage.go` to map `ErrNotFound` → `op.ErrInvalidRefreshToken`
+- [x] **1.3.1** Update `ports.go`: `Revoke`/`RevokeRefreshToken` add `clientID` param; add `DeleteExpired`
+- [x] **1.3.2** Update `token_repo.go`: `Revoke`/`RevokeRefreshToken` add `clientID` + `RowsAffected`
+- [x] **1.3.3** Update `token_svc.go`: `Revoke`/`RevokeRefreshToken` pass `clientID`
+- [x] **1.3.4** Update `adapter/storage.go` `RevokeToken` to pass `clientID`
+- [x] **1.3.5** Update mock in `token_svc_test.go` for new `Revoke`/`RevokeRefreshToken` signatures
+
+### Batch 2 – Operational Resilience
+
+- [x] **2.1.1** Create `migrations/4_token_expiry_indexes.up.sql` — indexes on `expiration` columns
+- [x] **2.1.1** Create `migrations/4_token_expiry_indexes.down.sql`
+- [x] **2.1.2** Add `DeleteExpired` to `TokenRepository` and `TokenService` interfaces in `ports.go`
+- [x] **2.1.3** Implement `DeleteExpired` in `token_repo.go`
+- [x] **2.1.4** Implement `DeleteExpired` in `token_svc.go`
+- [x] **2.1.5** Refactor `main.go` to CLI subcommand dispatch (`server` / `cleanup`); extract `runServer`, `runCleanup`, `buildServices`, `mustConnectDB`; remove `runAuthRequestCleanup` goroutine
+- [x] **2.2.1** Add DB pool config fields to `config/config.go` (`DBMaxOpenConns`, `DBMaxIdleConns`, `DBConnMaxLifetimeSecs`, `DBConnMaxIdleTimeSecs`)
+- [x] **2.2.2** Apply DB pool settings in `runServer` in `main.go`
+- [x] **2.2.3** Document DB pool vars in `.env.example`
+
+### Batch 3 – HTTP Security Layer
+
+- [x] **3.1.1** Add `golang.org/x/time/rate` as a direct dependency
+- [x] **3.1.2** Create `internal/middleware/ratelimit.go` with `IPRateLimiter`, `clientIP()`, `isInternalRequest()`
+- [x] **3.1.3** Add `RateLimitEnabled` and `RateLimitPublicRPM` to `config/config.go`
+- [x] **3.1.4** Apply `publicLimiter` on `/login/*` and `/authorize` in `runServer`; add `authorizePathLimiter` helper
+- [x] **3.1.5** Document rate limit vars in `.env.example`
+- [x] **3.2.1** Create `internal/middleware/securityheaders.go`
+- [x] **3.2.2** Apply `SecurityHeaders()` middleware globally in `runServer`
+
+### Batch 4 – Protocol Hardening
+
+- [x] **4.1** Add PKCE enforcement for public clients in `adapter/storage.go` `CreateAuthRequest`
+- [x] **4.2** Add `fetchPrimaryEmail` fallback in `internal/authn/provider_github.go`
+- [x] **4.3** Change AMR to `["fed"]` in `internal/authn/login_usecase.go`
+
+### Tests
+
+- [x] Add `TestTokenRepository_CreateAccessAndRefresh_DoubleRotation` in `repo_test.go`
+- [x] Add `TestTokenRepository_Revoke_WrongClientID` in `repo_test.go`
+- [x] Add `TestTokenRepository_DeleteExpired` in `repo_test.go`
+- [x] Add PKCE enforcement unit test in `adapter/storage_test.go`
+- [x] Add tests for new config fields in `config/config_test.go`

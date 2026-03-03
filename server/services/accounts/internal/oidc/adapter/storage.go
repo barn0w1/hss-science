@@ -77,6 +77,12 @@ func (s *StorageAdapter) CreateAuthRequest(ctx context.Context, authReq *oidc.Au
 		ar.UserID = userID
 	}
 
+	if client, err := s.clients.GetByID(ctx, ar.ClientID); err == nil {
+		if isPublicClient(client.AuthMethod) && ar.CodeChallenge == "" {
+			return nil, oidc.ErrInvalidRequest().WithDescription("code_challenge is required for public clients (PKCE S256)")
+		}
+	}
+
 	if err := s.authReqs.Create(ctx, ar); err != nil {
 		return nil, internalErr("create auth request", err)
 	}
@@ -143,6 +149,9 @@ func (s *StorageAdapter) CreateAccessAndRefreshTokens(ctx context.Context, reque
 		clientIDFromRequest(request), request.GetSubject(), request.GetAudience(), request.GetScopes(),
 		accessExp, refreshExp, authTime, amr, currentRefreshToken)
 	if err != nil {
+		if errors.Is(err, domerr.ErrNotFound) {
+			return "", "", time.Time{}, op.ErrInvalidRefreshToken
+		}
 		return "", "", time.Time{}, internalErr("create access and refresh tokens", err)
 	}
 	return accessID, refreshToken, accessExp, nil
@@ -166,14 +175,20 @@ func (s *StorageAdapter) TerminateSession(ctx context.Context, userID, clientID 
 	return nil
 }
 
-func (s *StorageAdapter) RevokeToken(ctx context.Context, tokenOrTokenID, userID, _ string) *oidc.Error {
+func (s *StorageAdapter) RevokeToken(ctx context.Context, tokenOrTokenID, userID, clientID string) *oidc.Error {
 	if userID != "" {
-		if err := s.tokens.Revoke(ctx, tokenOrTokenID); err != nil {
+		if err := s.tokens.Revoke(ctx, tokenOrTokenID, clientID); err != nil {
+			if errors.Is(err, domerr.ErrNotFound) {
+				return oidc.ErrInvalidRequest().WithDescription("token not found")
+			}
 			return oidc.ErrServerError().WithParent(err)
 		}
 		return nil
 	}
-	if err := s.tokens.RevokeRefreshToken(ctx, tokenOrTokenID); err != nil {
+	if err := s.tokens.RevokeRefreshToken(ctx, tokenOrTokenID, clientID); err != nil {
+		if errors.Is(err, domerr.ErrNotFound) {
+			return oidc.ErrInvalidRequest().WithDescription("token not found")
+		}
 		return oidc.ErrServerError().WithParent(err)
 	}
 	return nil
@@ -413,4 +428,8 @@ func (c *clientCredentialsTokenRequest) GetScopes() []string   { return c.scopes
 func internalErr(msg string, err error) error {
 	slog.Error(msg, "error", err)
 	return oidc.ErrServerError().WithDescription("internal error")
+}
+
+func isPublicClient(authMethod string) bool {
+	return authMethod == "none"
 }
