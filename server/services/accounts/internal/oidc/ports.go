@@ -12,6 +12,7 @@ type AuthRequestRepository interface {
 	SaveCode(ctx context.Context, id, code string) error
 	CompleteLogin(ctx context.Context, id, userID string, authTime time.Time, amr []string) error
 	Delete(ctx context.Context, id string) error
+	DeleteExpiredBefore(ctx context.Context, before time.Time) (int64, error)
 }
 
 type ClientRepository interface {
@@ -36,6 +37,7 @@ type AuthRequestService interface {
 	SaveCode(ctx context.Context, id, code string) error
 	CompleteLogin(ctx context.Context, id, userID string, authTime time.Time, amr []string) error
 	Delete(ctx context.Context, id string) error
+	DeleteExpiredBefore(ctx context.Context, before time.Time) (int64, error)
 }
 
 type ClientService interface {
@@ -53,4 +55,8 @@ type TokenService interface {
 	DeleteByUserAndClient(ctx context.Context, userID, clientID string) error
 	Revoke(ctx context.Context, tokenID string) error
 	RevokeRefreshToken(ctx context.Context, token string) error
+}
+
+type LoginCompleter interface {
+	CompleteLogin(ctx context.Context, authRequestID, userID string, authTime time.Time, amr []string) error
 }

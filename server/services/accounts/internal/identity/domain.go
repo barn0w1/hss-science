@@ -11,6 +11,7 @@ type User struct {
 	FamilyName    string
 	Picture       string
 	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type FederatedIdentity struct {

@@ -2,6 +2,7 @@ package oidc
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -34,6 +35,9 @@ func (m *mockAuthRequestRepo) CompleteLogin(_ context.Context, _, _ string, _ ti
 	return m.err
 }
 func (m *mockAuthRequestRepo) Delete(_ context.Context, _ string) error { return m.err }
+func (m *mockAuthRequestRepo) DeleteExpiredBefore(_ context.Context, _ time.Time) (int64, error) {
+	return 0, m.err
+}
 
 func TestAuthRequestService_GetByID_Valid(t *testing.T) {
 	ar := &AuthRequest{
@@ -57,7 +61,7 @@ func TestAuthRequestService_GetByID_Expired(t *testing.T) {
 	}
 	svc := NewAuthRequestService(&mockAuthRequestRepo{ar: ar}, 30*time.Minute)
 	_, err := svc.GetByID(context.Background(), "ar-1")
-	if !domerr.Is(err, domerr.ErrNotFound) {
+	if !errors.Is(err, domerr.ErrNotFound) {
 		t.Errorf("expected domerr.ErrNotFound for expired request, got %v", err)
 	}
 }
@@ -86,7 +90,7 @@ func TestAuthRequestService_GetByCode_Expired(t *testing.T) {
 	}
 	svc := NewAuthRequestService(&mockAuthRequestRepo{ar: ar}, 30*time.Minute)
 	_, err := svc.GetByCode(context.Background(), "code-1")
-	if !domerr.Is(err, domerr.ErrNotFound) {
+	if !errors.Is(err, domerr.ErrNotFound) {
 		t.Errorf("expected domerr.ErrNotFound for expired request, got %v", err)
 	}
 }
@@ -94,7 +98,7 @@ func TestAuthRequestService_GetByCode_Expired(t *testing.T) {
 func TestAuthRequestService_GetByID_NotFound(t *testing.T) {
 	svc := NewAuthRequestService(&mockAuthRequestRepo{err: domerr.ErrNotFound}, 30*time.Minute)
 	_, err := svc.GetByID(context.Background(), "nonexistent")
-	if !domerr.Is(err, domerr.ErrNotFound) {
+	if !errors.Is(err, domerr.ErrNotFound) {
 		t.Errorf("expected domerr.ErrNotFound, got %v", err)
 	}
 }

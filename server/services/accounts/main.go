@@ -22,6 +22,7 @@ import (
 	oidcdom "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc"
 	oidcadapter "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc/adapter"
 	oidcpg "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc/postgres"
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/pkg/crypto"
 )
 
 func main() {
@@ -51,12 +52,12 @@ func main() {
 	clientSvc := oidcdom.NewClientService(clientRepo)
 	tokenSvc := oidcdom.NewTokenService(tokenRepo)
 
-	signingKey := oidcadapter.NewSigningKey(cfg.SigningKey)
-	publicKey := oidcadapter.NewPublicKey(cfg.SigningKey)
+	signingKey := oidcadapter.NewSigningKey(cfg.SigningKeys.Current)
+	publicKeys := oidcadapter.NewPublicKeySet(cfg.SigningKeys.Current, cfg.SigningKeys.Previous)
 
 	storage := oidcadapter.NewStorageAdapter(
-		identitySvc, authReqSvc, clientSvc, tokenSvc,
-		signingKey, publicKey,
+		&userClaimsBridge{svc: identitySvc}, authReqSvc, clientSvc, tokenSvc,
+		signingKey, publicKeys,
 		time.Duration(cfg.AccessTokenLifetimeMinutes)*time.Minute,
 		time.Duration(cfg.RefreshTokenLifetimeDays)*24*time.Hour,
 		db.PingContext,
@@ -83,8 +84,8 @@ func main() {
 	loginHandler := authn.NewHandler(
 		upstreamProviders,
 		identitySvc,
-		&authReqBridge{svc: authReqSvc},
-		cfg.CryptoKey,
+		authReqSvc,
+		crypto.NewAESCipher(cfg.CryptoKey),
 		op.AuthCallbackURL(provider),
 		logger,
 	)
@@ -116,6 +117,9 @@ func main() {
 
 	router.Mount("/", provider)
 
+	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
+	go runAuthRequestCleanup(cleanupCtx, authReqSvc, time.Duration(cfg.AuthRequestTTLMinutes)*time.Minute, logger)
+
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           router,
@@ -139,6 +143,7 @@ func main() {
 	<-quit
 
 	logger.Info("shutting down server")
+	cleanupCancel()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
@@ -148,18 +153,44 @@ func main() {
 	logger.Info("server stopped")
 }
 
-type authReqBridge struct {
-	svc oidcdom.AuthRequestService
+type userClaimsBridge struct {
+	svc identity.Service
 }
 
-func (b *authReqBridge) GetByID(ctx context.Context, id string) (authn.AuthRequestInfo, error) {
-	ar, err := b.svc.GetByID(ctx, id)
+func (b *userClaimsBridge) UserClaims(ctx context.Context, userID string) (*oidcadapter.UserClaims, error) {
+	user, err := b.svc.GetUser(ctx, userID)
 	if err != nil {
-		return authn.AuthRequestInfo{}, err
+		return nil, err
 	}
-	return authn.AuthRequestInfo{ID: ar.ID}, nil
+	return &oidcadapter.UserClaims{
+		Subject:       user.ID,
+		Email:         user.Email,
+		EmailVerified: user.EmailVerified,
+		Name:          user.Name,
+		GivenName:     user.GivenName,
+		FamilyName:    user.FamilyName,
+		Picture:       user.Picture,
+		UpdatedAt:     user.UpdatedAt,
+	}, nil
 }
 
-func (b *authReqBridge) CompleteLogin(ctx context.Context, id, userID string, authTime time.Time, amr []string) error {
-	return b.svc.CompleteLogin(ctx, id, userID, authTime, amr)
+func runAuthRequestCleanup(ctx context.Context, svc oidcdom.AuthRequestService, ttl time.Duration, logger *slog.Logger) {
+	ticker := time.NewTicker(ttl)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			cutoff := time.Now().UTC().Add(-ttl)
+			n, err := svc.DeleteExpiredBefore(ctx, cutoff)
+			if err != nil {
+				logger.Error("auth request cleanup failed", "error", err)
+				continue
+			}
+			if n > 0 {
+				logger.Info("cleaned up expired auth requests", "count", n)
+			}
+		}
+	}
 }

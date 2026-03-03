@@ -27,17 +27,17 @@ func (r *ClientRepository) GetByID(ctx context.Context, clientID string) (*oidc.
 	row := r.db.QueryRowxContext(ctx,
 		`SELECT id, secret_hash, redirect_uris, post_logout_redirect_uris,
 		        application_type, auth_method, response_types, grant_types,
-		        access_token_type, id_token_lifetime_seconds, clock_skew_seconds,
+		        access_token_type, allowed_scopes, id_token_lifetime_seconds, clock_skew_seconds,
 		        id_token_userinfo_assertion, created_at, updated_at
 		 FROM clients WHERE id = $1`, clientID,
 	)
 
 	var c oidc.Client
-	var redirectURIs, postLogoutURIs, responseTypes, grantTypes pq.StringArray
+	var redirectURIs, postLogoutURIs, responseTypes, grantTypes, allowedScopes pq.StringArray
 	err := row.Scan(
 		&c.ID, &c.SecretHash, &redirectURIs, &postLogoutURIs,
 		&c.ApplicationType, &c.AuthMethod, &responseTypes, &grantTypes,
-		&c.AccessTokenType, &c.IDTokenLifetimeSeconds, &c.ClockSkewSeconds,
+		&c.AccessTokenType, &allowedScopes, &c.IDTokenLifetimeSeconds, &c.ClockSkewSeconds,
 		&c.IDTokenUserinfoAssertion, &c.CreatedAt, &c.UpdatedAt,
 	)
 	if err != nil {
@@ -50,5 +50,6 @@ func (r *ClientRepository) GetByID(ctx context.Context, clientID string) (*oidc.
 	c.PostLogoutRedirectURIs = postLogoutURIs
 	c.ResponseTypes = responseTypes
 	c.GrantTypes = grantTypes
+	c.AllowedScopes = allowedScopes
 	return &c, nil
 }

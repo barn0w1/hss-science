@@ -38,9 +38,19 @@ func (s *identityService) FindOrCreateByFederatedLogin(
 
 	if existing != nil {
 		now := time.Now().UTC()
+		if err := s.repo.UpdateUserFromClaims(ctx, existing.ID, claims, now); err != nil {
+			return nil, fmt.Errorf("identity.FindOrCreate: update user: %w", err)
+		}
 		if err := s.repo.UpdateFederatedIdentityClaims(ctx, provider, claims.Subject, claims, now); err != nil {
 			return nil, fmt.Errorf("identity.FindOrCreate: update claims: %w", err)
 		}
+		existing.Email = claims.Email
+		existing.EmailVerified = claims.EmailVerified
+		existing.Name = claims.Name
+		existing.GivenName = claims.GivenName
+		existing.FamilyName = claims.FamilyName
+		existing.Picture = claims.Picture
+		existing.UpdatedAt = now
 		return existing, nil
 	}
 
@@ -54,6 +64,7 @@ func (s *identityService) FindOrCreateByFederatedLogin(
 		FamilyName:    claims.FamilyName,
 		Picture:       claims.Picture,
 		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 	fi := &FederatedIdentity{
 		ID:                    newID(),

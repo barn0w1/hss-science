@@ -8,6 +8,23 @@ import (
 	"fmt"
 )
 
+type Cipher interface {
+	Encrypt(plaintext []byte) (string, error)
+	Decrypt(encoded string) ([]byte, error)
+}
+
+type AESCipher struct{ key [32]byte }
+
+func NewAESCipher(key [32]byte) *AESCipher { return &AESCipher{key: key} }
+
+func (c *AESCipher) Encrypt(plaintext []byte) (string, error) {
+	return Encrypt(c.key, plaintext)
+}
+
+func (c *AESCipher) Decrypt(encoded string) ([]byte, error) {
+	return Decrypt(c.key, encoded)
+}
+
 func Encrypt(key [32]byte, plaintext []byte) (string, error) {
 	block, err := aes.NewCipher(key[:])
 	if err != nil {

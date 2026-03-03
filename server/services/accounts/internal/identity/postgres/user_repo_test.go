@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -111,7 +112,7 @@ func TestGetByID_NotFound(t *testing.T) {
 	cleanTables(t)
 	repo := NewUserRepository(testDB)
 	_, err := repo.GetByID(context.Background(), newID())
-	if !domerr.Is(err, domerr.ErrNotFound) {
+	if !errors.Is(err, domerr.ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }

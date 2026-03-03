@@ -68,10 +68,32 @@ func (k *PublicKeyWithID) Key() any {
 	return k.jwk.Key
 }
 
+type PublicKeySet struct {
+	current  *PublicKeyWithID
+	previous []*PublicKeyWithID
+}
+
+func NewPublicKeySet(current *rsa.PrivateKey, previous []*rsa.PrivateKey) *PublicKeySet {
+	set := &PublicKeySet{
+		current: NewPublicKey(current),
+	}
+	for _, key := range previous {
+		set.previous = append(set.previous, NewPublicKey(key))
+	}
+	return set
+}
+
+func (s *PublicKeySet) All() []*PublicKeyWithID {
+	result := make([]*PublicKeyWithID, 0, 1+len(s.previous))
+	result = append(result, s.current)
+	result = append(result, s.previous...)
+	return result
+}
+
 func deriveKeyID(pub *rsa.PublicKey) string {
 	der, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
-		panic("failed to marshal public key: " + err.Error())
+		panic("marshal public key: " + err.Error())
 	}
 	h := sha256.Sum256(der)
 	return hex.EncodeToString(h[:8])

@@ -36,21 +36,22 @@ func validCryptoKeyHex() string {
 	return hex.EncodeToString(make([]byte, 32))
 }
 
-func setRequiredEnv(t *testing.T, keyPEM string) {
-	t.Helper()
-	t.Setenv("ISSUER", "https://accounts.example.com")
-	t.Setenv("DATABASE_URL", "postgres://localhost/test")
-	t.Setenv("CRYPTO_KEY", validCryptoKeyHex())
-	t.Setenv("SIGNING_KEY_PEM", keyPEM)
-	t.Setenv("GOOGLE_CLIENT_ID", "gid")
-	t.Setenv("GOOGLE_CLIENT_SECRET", "gsecret")
+func requiredEnv(keyPEM string) MapSource {
+	return MapSource{
+		"ISSUER":               "https://accounts.example.com",
+		"DATABASE_URL":         "postgres://localhost/test",
+		"CRYPTO_KEY":           validCryptoKeyHex(),
+		"SIGNING_KEY_PEM":      keyPEM,
+		"GOOGLE_CLIENT_ID":     "gid",
+		"GOOGLE_CLIENT_SECRET": "gsecret",
+	}
 }
 
-func TestLoad_Success(t *testing.T) {
+func TestLoadFrom_Success(t *testing.T) {
 	pemKey := generateTestKey(t)
-	setRequiredEnv(t, pemKey)
+	src := requiredEnv(pemKey)
 
-	cfg, err := Load()
+	cfg, err := LoadFrom(src)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -60,17 +61,17 @@ func TestLoad_Success(t *testing.T) {
 	if cfg.Issuer != "https://accounts.example.com" {
 		t.Errorf("expected issuer https://accounts.example.com, got %s", cfg.Issuer)
 	}
-	if cfg.SigningKey == nil {
+	if cfg.SigningKeys.Current == nil {
 		t.Fatal("expected signing key to be set")
 	}
 }
 
-func TestLoad_CustomPort(t *testing.T) {
+func TestLoadFrom_CustomPort(t *testing.T) {
 	pemKey := generateTestKey(t)
-	setRequiredEnv(t, pemKey)
-	t.Setenv("PORT", "9090")
+	src := requiredEnv(pemKey)
+	src["PORT"] = "9090"
 
-	cfg, err := Load()
+	cfg, err := LoadFrom(src)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -79,115 +80,113 @@ func TestLoad_CustomPort(t *testing.T) {
 	}
 }
 
-func TestLoad_PKCS8Key(t *testing.T) {
+func TestLoadFrom_PKCS8Key(t *testing.T) {
 	pemKey := generatePKCS8Key(t)
-	setRequiredEnv(t, pemKey)
+	src := requiredEnv(pemKey)
 
-	cfg, err := Load()
+	cfg, err := LoadFrom(src)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.SigningKey == nil {
+	if cfg.SigningKeys.Current == nil {
 		t.Fatal("expected signing key to be set")
 	}
 }
 
-func TestLoad_MissingIssuer(t *testing.T) {
+func TestLoadFrom_MissingIssuer(t *testing.T) {
 	pemKey := generateTestKey(t)
-	setRequiredEnv(t, pemKey)
-	t.Setenv("ISSUER", "")
+	src := requiredEnv(pemKey)
+	delete(src, "ISSUER")
 
-	_, err := Load()
+	_, err := LoadFrom(src)
 	if err == nil {
 		t.Fatal("expected error for missing ISSUER")
 	}
 }
 
-func TestLoad_MissingDatabaseURL(t *testing.T) {
+func TestLoadFrom_MissingDatabaseURL(t *testing.T) {
 	pemKey := generateTestKey(t)
-	setRequiredEnv(t, pemKey)
-	t.Setenv("DATABASE_URL", "")
+	src := requiredEnv(pemKey)
+	delete(src, "DATABASE_URL")
 
-	_, err := Load()
+	_, err := LoadFrom(src)
 	if err == nil {
 		t.Fatal("expected error for missing DATABASE_URL")
 	}
 }
 
-func TestLoad_MissingCryptoKey(t *testing.T) {
+func TestLoadFrom_MissingCryptoKey(t *testing.T) {
 	pemKey := generateTestKey(t)
-	setRequiredEnv(t, pemKey)
-	t.Setenv("CRYPTO_KEY", "")
+	src := requiredEnv(pemKey)
+	delete(src, "CRYPTO_KEY")
 
-	_, err := Load()
+	_, err := LoadFrom(src)
 	if err == nil {
 		t.Fatal("expected error for missing CRYPTO_KEY")
 	}
 }
 
-func TestLoad_InvalidCryptoKeyHex(t *testing.T) {
+func TestLoadFrom_InvalidCryptoKeyHex(t *testing.T) {
 	pemKey := generateTestKey(t)
-	setRequiredEnv(t, pemKey)
-	t.Setenv("CRYPTO_KEY", "not-hex")
+	src := requiredEnv(pemKey)
+	src["CRYPTO_KEY"] = "not-hex"
 
-	_, err := Load()
+	_, err := LoadFrom(src)
 	if err == nil {
 		t.Fatal("expected error for invalid hex CRYPTO_KEY")
 	}
 }
 
-func TestLoad_CryptoKeyWrongLength(t *testing.T) {
+func TestLoadFrom_CryptoKeyWrongLength(t *testing.T) {
 	pemKey := generateTestKey(t)
-	setRequiredEnv(t, pemKey)
-	t.Setenv("CRYPTO_KEY", hex.EncodeToString(make([]byte, 16)))
+	src := requiredEnv(pemKey)
+	src["CRYPTO_KEY"] = hex.EncodeToString(make([]byte, 16))
 
-	_, err := Load()
+	_, err := LoadFrom(src)
 	if err == nil {
 		t.Fatal("expected error for wrong-length CRYPTO_KEY")
 	}
 }
 
-func TestLoad_MissingSigningKey(t *testing.T) {
-	setRequiredEnv(t, "")
-	t.Setenv("SIGNING_KEY_PEM", "")
+func TestLoadFrom_MissingSigningKey(t *testing.T) {
+	src := requiredEnv("")
+	delete(src, "SIGNING_KEY_PEM")
 
-	_, err := Load()
+	_, err := LoadFrom(src)
 	if err == nil {
 		t.Fatal("expected error for missing SIGNING_KEY_PEM")
 	}
 }
 
-func TestLoad_InvalidSigningKey(t *testing.T) {
-	setRequiredEnv(t, "not-a-pem")
-	t.Setenv("SIGNING_KEY_PEM", "not-a-pem")
+func TestLoadFrom_InvalidSigningKey(t *testing.T) {
+	src := requiredEnv("not-a-pem")
 
-	_, err := Load()
+	_, err := LoadFrom(src)
 	if err == nil {
 		t.Fatal("expected error for invalid SIGNING_KEY_PEM")
 	}
 }
 
-func TestLoad_NoUpstreamIdP(t *testing.T) {
+func TestLoadFrom_NoUpstreamIdP(t *testing.T) {
 	pemKey := generateTestKey(t)
-	setRequiredEnv(t, pemKey)
-	t.Setenv("GOOGLE_CLIENT_ID", "")
-	t.Setenv("GITHUB_CLIENT_ID", "")
+	src := requiredEnv(pemKey)
+	delete(src, "GOOGLE_CLIENT_ID")
 
-	_, err := Load()
+	_, err := LoadFrom(src)
 	if err == nil {
 		t.Fatal("expected error when no upstream IdP is configured")
 	}
 }
 
-func TestLoad_GitHubOnly(t *testing.T) {
+func TestLoadFrom_GitHubOnly(t *testing.T) {
 	pemKey := generateTestKey(t)
-	setRequiredEnv(t, pemKey)
-	t.Setenv("GOOGLE_CLIENT_ID", "")
-	t.Setenv("GOOGLE_CLIENT_SECRET", "")
-	t.Setenv("GITHUB_CLIENT_ID", "ghid")
-	t.Setenv("GITHUB_CLIENT_SECRET", "ghsecret")
+	src := requiredEnv(pemKey)
+	delete(src, "GOOGLE_CLIENT_ID")
+	delete(src, "GOOGLE_CLIENT_SECRET")
+	src["GITHUB_CLIENT_ID"] = "ghid"
+	src["GITHUB_CLIENT_SECRET"] = "ghsecret"
 
-	cfg, err := Load()
+	cfg, err := LoadFrom(src)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -204,11 +203,11 @@ func TestParseRSAPrivateKey_UnsupportedBlockType(t *testing.T) {
 	}
 }
 
-func TestLoad_TokenLifetimeDefaults(t *testing.T) {
+func TestLoadFrom_TokenLifetimeDefaults(t *testing.T) {
 	pemKey := generateTestKey(t)
-	setRequiredEnv(t, pemKey)
+	src := requiredEnv(pemKey)
 
-	cfg, err := Load()
+	cfg, err := LoadFrom(src)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -223,13 +222,13 @@ func TestLoad_TokenLifetimeDefaults(t *testing.T) {
 	}
 }
 
-func TestLoad_TokenLifetimeCustom(t *testing.T) {
+func TestLoadFrom_TokenLifetimeCustom(t *testing.T) {
 	pemKey := generateTestKey(t)
-	setRequiredEnv(t, pemKey)
-	t.Setenv("ACCESS_TOKEN_LIFETIME_MINUTES", "30")
-	t.Setenv("REFRESH_TOKEN_LIFETIME_DAYS", "14")
+	src := requiredEnv(pemKey)
+	src["ACCESS_TOKEN_LIFETIME_MINUTES"] = "30"
+	src["REFRESH_TOKEN_LIFETIME_DAYS"] = "14"
 
-	cfg, err := Load()
+	cfg, err := LoadFrom(src)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -241,13 +240,13 @@ func TestLoad_TokenLifetimeCustom(t *testing.T) {
 	}
 }
 
-func TestLoad_TokenLifetimeZeroFallsBackToDefault(t *testing.T) {
+func TestLoadFrom_TokenLifetimeZeroFallsBackToDefault(t *testing.T) {
 	pemKey := generateTestKey(t)
-	setRequiredEnv(t, pemKey)
-	t.Setenv("ACCESS_TOKEN_LIFETIME_MINUTES", "0")
-	t.Setenv("REFRESH_TOKEN_LIFETIME_DAYS", "0")
+	src := requiredEnv(pemKey)
+	src["ACCESS_TOKEN_LIFETIME_MINUTES"] = "0"
+	src["REFRESH_TOKEN_LIFETIME_DAYS"] = "0"
 
-	cfg, err := Load()
+	cfg, err := LoadFrom(src)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -259,33 +258,33 @@ func TestLoad_TokenLifetimeZeroFallsBackToDefault(t *testing.T) {
 	}
 }
 
-func TestLoad_TokenLifetimeOutOfRange(t *testing.T) {
+func TestLoadFrom_TokenLifetimeOutOfRange(t *testing.T) {
 	pemKey := generateTestKey(t)
+	src := requiredEnv(pemKey)
+	src["ACCESS_TOKEN_LIFETIME_MINUTES"] = "120"
 
-	setRequiredEnv(t, pemKey)
-	t.Setenv("ACCESS_TOKEN_LIFETIME_MINUTES", "120")
-	_, err := Load()
+	_, err := LoadFrom(src)
 	if err == nil {
 		t.Fatal("expected error for out-of-range ACCESS_TOKEN_LIFETIME_MINUTES")
 	}
 }
 
-func TestLoad_RefreshTokenLifetimeOutOfRange(t *testing.T) {
+func TestLoadFrom_RefreshTokenLifetimeOutOfRange(t *testing.T) {
 	pemKey := generateTestKey(t)
+	src := requiredEnv(pemKey)
+	src["REFRESH_TOKEN_LIFETIME_DAYS"] = "365"
 
-	setRequiredEnv(t, pemKey)
-	t.Setenv("REFRESH_TOKEN_LIFETIME_DAYS", "365")
-	_, err := Load()
+	_, err := LoadFrom(src)
 	if err == nil {
 		t.Fatal("expected error for out-of-range REFRESH_TOKEN_LIFETIME_DAYS")
 	}
 }
 
-func TestLoad_AuthRequestTTLDefault(t *testing.T) {
+func TestLoadFrom_AuthRequestTTLDefault(t *testing.T) {
 	pemKey := generateTestKey(t)
-	setRequiredEnv(t, pemKey)
+	src := requiredEnv(pemKey)
 
-	cfg, err := Load()
+	cfg, err := LoadFrom(src)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -294,12 +293,12 @@ func TestLoad_AuthRequestTTLDefault(t *testing.T) {
 	}
 }
 
-func TestLoad_AuthRequestTTLCustom(t *testing.T) {
+func TestLoadFrom_AuthRequestTTLCustom(t *testing.T) {
 	pemKey := generateTestKey(t)
-	setRequiredEnv(t, pemKey)
-	t.Setenv("AUTH_REQUEST_TTL_MINUTES", "10")
+	src := requiredEnv(pemKey)
+	src["AUTH_REQUEST_TTL_MINUTES"] = "10"
 
-	cfg, err := Load()
+	cfg, err := LoadFrom(src)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -308,12 +307,12 @@ func TestLoad_AuthRequestTTLCustom(t *testing.T) {
 	}
 }
 
-func TestLoad_AuthRequestTTLZeroFallsBackToDefault(t *testing.T) {
+func TestLoadFrom_AuthRequestTTLZeroFallsBackToDefault(t *testing.T) {
 	pemKey := generateTestKey(t)
-	setRequiredEnv(t, pemKey)
-	t.Setenv("AUTH_REQUEST_TTL_MINUTES", "0")
+	src := requiredEnv(pemKey)
+	src["AUTH_REQUEST_TTL_MINUTES"] = "0"
 
-	cfg, err := Load()
+	cfg, err := LoadFrom(src)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -322,12 +321,12 @@ func TestLoad_AuthRequestTTLZeroFallsBackToDefault(t *testing.T) {
 	}
 }
 
-func TestLoad_AuthRequestTTLOutOfRange(t *testing.T) {
+func TestLoadFrom_AuthRequestTTLOutOfRange(t *testing.T) {
 	pemKey := generateTestKey(t)
-	setRequiredEnv(t, pemKey)
-	t.Setenv("AUTH_REQUEST_TTL_MINUTES", "120")
+	src := requiredEnv(pemKey)
+	src["AUTH_REQUEST_TTL_MINUTES"] = "120"
 
-	_, err := Load()
+	_, err := LoadFrom(src)
 	if err == nil {
 		t.Fatal("expected error for out-of-range AUTH_REQUEST_TTL_MINUTES")
 	}

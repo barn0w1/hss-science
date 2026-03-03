@@ -1,45 +1,47 @@
 CREATE TABLE users (
-    id             TEXT PRIMARY KEY,
+    id             TEXT        PRIMARY KEY,
     email          TEXT        NOT NULL DEFAULT '',
     email_verified BOOLEAN     NOT NULL DEFAULT false,
     name           TEXT        NOT NULL DEFAULT '',
     given_name     TEXT        NOT NULL DEFAULT '',
     family_name    TEXT        NOT NULL DEFAULT '',
     picture        TEXT        NOT NULL DEFAULT '',
-    created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE federated_identities (
-    id               TEXT PRIMARY KEY,
-    user_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    provider         TEXT NOT NULL,
-    provider_subject TEXT NOT NULL,
+    id                      TEXT        PRIMARY KEY,
+    user_id                 TEXT        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider                TEXT        NOT NULL,
+    provider_subject        TEXT        NOT NULL,
+    provider_email          TEXT        NOT NULL DEFAULT '',
+    provider_email_verified BOOLEAN     NOT NULL DEFAULT false,
+    provider_display_name   TEXT        NOT NULL DEFAULT '',
+    provider_given_name     TEXT        NOT NULL DEFAULT '',
+    provider_family_name    TEXT        NOT NULL DEFAULT '',
+    provider_picture_url    TEXT        NOT NULL DEFAULT '',
+    last_login_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-    provider_email           TEXT    NOT NULL DEFAULT '',
-    provider_email_verified  BOOLEAN NOT NULL DEFAULT false,
-    provider_display_name    TEXT    NOT NULL DEFAULT '',
-    provider_given_name      TEXT    NOT NULL DEFAULT '',
-    provider_family_name     TEXT    NOT NULL DEFAULT '',
-    provider_picture_url     TEXT    NOT NULL DEFAULT '',
-
-    last_login_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-    UNIQUE(provider, provider_subject),
-    UNIQUE(user_id)
+    UNIQUE(provider, provider_subject)
 );
 
+CREATE INDEX federated_identities_user_id_idx
+    ON federated_identities (user_id);
+
 CREATE TABLE clients (
-    id                          TEXT PRIMARY KEY,
+    id                          TEXT        PRIMARY KEY,
     secret_hash                 TEXT        NOT NULL DEFAULT '',
-    redirect_uris               TEXT[]      NOT NULL,
+    redirect_uris               TEXT[]      NOT NULL DEFAULT '{}',
     post_logout_redirect_uris   TEXT[]      NOT NULL DEFAULT '{}',
     application_type            TEXT        NOT NULL DEFAULT 'web',
     auth_method                 TEXT        NOT NULL DEFAULT 'client_secret_basic',
-    response_types              TEXT[]      NOT NULL,
-    grant_types                 TEXT[]      NOT NULL,
+    response_types              TEXT[]      NOT NULL DEFAULT '{}',
+    grant_types                 TEXT[]      NOT NULL DEFAULT '{}',
     access_token_type           TEXT        NOT NULL DEFAULT 'jwt',
+    allowed_scopes              TEXT[]      NOT NULL DEFAULT '{}',
     id_token_lifetime_seconds   INTEGER     NOT NULL DEFAULT 3600,
     clock_skew_seconds          INTEGER     NOT NULL DEFAULT 0,
     id_token_userinfo_assertion BOOLEAN     NOT NULL DEFAULT false,
@@ -53,7 +55,7 @@ CREATE TABLE auth_requests (
     redirect_uri          TEXT        NOT NULL,
     state                 TEXT,
     nonce                 TEXT,
-    scopes                TEXT[],
+    scopes                TEXT[]      NOT NULL DEFAULT '{}',
     response_type         TEXT        NOT NULL,
     response_mode         TEXT,
     code_challenge        TEXT,
@@ -69,28 +71,35 @@ CREATE TABLE auth_requests (
     created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX auth_requests_code_idx ON auth_requests (code) WHERE code IS NOT NULL;
+CREATE INDEX auth_requests_code_idx
+    ON auth_requests (code) WHERE code IS NOT NULL;
+
+CREATE INDEX auth_requests_created_at_idx
+    ON auth_requests (created_at);
 
 CREATE TABLE tokens (
     id               TEXT        PRIMARY KEY,
     client_id        TEXT        NOT NULL,
     subject          TEXT        NOT NULL,
-    audience         TEXT[],
-    scopes           TEXT[],
+    audience         TEXT[]      NOT NULL DEFAULT '{}',
+    scopes           TEXT[]      NOT NULL DEFAULT '{}',
     expiration       TIMESTAMPTZ NOT NULL,
     refresh_token_id TEXT,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE INDEX tokens_subject_client_idx
+    ON tokens (subject, client_id);
 
 CREATE TABLE refresh_tokens (
     id               TEXT        PRIMARY KEY,
     token            TEXT        NOT NULL UNIQUE,
     client_id        TEXT        NOT NULL,
     user_id          TEXT        NOT NULL REFERENCES users(id),
-    audience         TEXT[],
-    scopes           TEXT[],
+    audience         TEXT[]      NOT NULL DEFAULT '{}',
+    scopes           TEXT[]      NOT NULL DEFAULT '{}',
     auth_time        TIMESTAMPTZ NOT NULL,
-    amr              TEXT[],
+    amr              TEXT[]      NOT NULL DEFAULT '{}',
     access_token_id  TEXT,
     expiration       TIMESTAMPTZ NOT NULL,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now()

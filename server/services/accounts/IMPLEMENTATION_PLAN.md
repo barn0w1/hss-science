@@ -1157,3 +1157,40 @@ package identity
 | `internal/pkg/middleware/requestid.go` | 3 | **Create** (request ID middleware) |
 | `internal/pkg/metrics/metrics.go` | 3 | **Create** (Prometheus metrics) |
 | `main.go` | 1+2+3 | Modify (cleanup goroutine, wiring changes, middleware, metrics) |
+
+---
+
+## TODO Checklist
+
+### Phase 1: Foundation & Security Core
+
+- [x] **1.1** Rewrite `migrations/001_initial.sql`: remove `UNIQUE(user_id)`, add `allowed_scopes`, add indexes, add `NOT NULL DEFAULT` constraints
+- [x] **1.2** Update `migrations/002_seed_clients.sql`: add `allowed_scopes` column value
+- [x] **1.3** Fix access token revocation during refresh rotation in `oidc/postgres/token_repo.go`
+- [x] **1.4** Enforce RSA key size >= 2048 bits in `config/config.go`
+- [x] **1.5** Validate ISSUER URL format at startup in `config/config.go`
+- [x] **1.6** Implement signing key rotation support (`SigningKeySet` in config, multi-key JWKS)
+- [x] **1.7** Fix internal error leakage in `oidc/adapter/storage.go` (wrap all raw errors)
+- [x] **1.8** Fix silent template rendering failure in `authn/handler.go`
+- [x] **1.9** Add expired auth request cleanup (repo method + goroutine in main.go)
+- [x] **1.10** Update all tests affected by Phase 1 changes, verify build + lint
+
+### Phase 2: Architectural Realignment
+
+- [x] **2.1** Introduce `ConfigSource` interface; refactor `Load()` to `LoadFrom(ConfigSource)`
+- [x] **2.2** Introduce `Cipher` interface in `pkg/crypto`; update `authn/handler.go`
+- [x] **2.3** Extract `ClaimsProvider` interface; refactor Google/GitHub providers
+- [x] **2.4** Move `AuthRequestQuerier` to `oidc` package as `LoginCompleter`
+- [x] **2.5** Extract login orchestration use-case (`authn/login_usecase.go`)
+- [x] **2.6** Decouple `StorageAdapter` from `identity.Service` via `UserClaimsSource` interface
+- [x] **2.7** Add `UpdatedAt` to `identity.User`; implement user email sync
+- [x] **2.8** Eliminate config validation duplication (DRY bounded int parsing)
+- [x] **2.9** Remove `domerr.Is()` wrapper; replace all call sites with `errors.Is`
+- [x] **2.10** Fix type assertion silent failures in `oidc/adapter/storage.go`
+- [x] **2.11** Update all tests affected by Phase 2 changes, verify build + lint
+
+### Phase 3: Feature Completion
+
+- [x] **3.1** Enforce per-client scope restrictions (`IsScopeAllowed` in client adapter)
+- [x] **3.2** Pool GitHub HTTP client (reuse `http.Client` in provider)
+- [x] **3.3** Update all tests affected by Phase 3 changes, verify build + lint

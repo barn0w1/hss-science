@@ -3,6 +3,8 @@ package adapter
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 	"math"
 	"time"
 
@@ -11,7 +13,6 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"github.com/zitadel/oidc/v3/pkg/op"
 
-	"github.com/barn0w1/hss-science/server/services/accounts/internal/identity"
 	oidcdom "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/pkg/domerr"
 )
@@ -19,34 +20,34 @@ import (
 var _ op.Storage = (*StorageAdapter)(nil)
 
 type StorageAdapter struct {
-	identity    identity.Service
+	users       UserClaimsSource
 	authReqs    oidcdom.AuthRequestService
 	clients     oidcdom.ClientService
 	tokens      oidcdom.TokenService
 	signing     *SigningKeyWithID
-	public      *PublicKeyWithID
+	publicKeys  *PublicKeySet
 	accessTTL   time.Duration
 	refreshTTL  time.Duration
 	healthCheck func(context.Context) error
 }
 
 func NewStorageAdapter(
-	identity identity.Service,
+	users UserClaimsSource,
 	authReqs oidcdom.AuthRequestService,
 	clients oidcdom.ClientService,
 	tokens oidcdom.TokenService,
 	signing *SigningKeyWithID,
-	public *PublicKeyWithID,
+	publicKeys *PublicKeySet,
 	accessTTL, refreshTTL time.Duration,
 	healthCheck func(context.Context) error,
 ) *StorageAdapter {
 	return &StorageAdapter{
-		identity:    identity,
+		users:       users,
 		authReqs:    authReqs,
 		clients:     clients,
 		tokens:      tokens,
 		signing:     signing,
-		public:      public,
+		publicKeys:  publicKeys,
 		accessTTL:   accessTTL,
 		refreshTTL:  refreshTTL,
 		healthCheck: healthCheck,
@@ -77,7 +78,7 @@ func (s *StorageAdapter) CreateAuthRequest(ctx context.Context, authReq *oidc.Au
 	}
 
 	if err := s.authReqs.Create(ctx, ar); err != nil {
-		return nil, err
+		return nil, internalErr("create auth request", err)
 	}
 	return NewAuthRequest(ar), nil
 }
@@ -85,10 +86,10 @@ func (s *StorageAdapter) CreateAuthRequest(ctx context.Context, authReq *oidc.Au
 func (s *StorageAdapter) AuthRequestByID(ctx context.Context, id string) (op.AuthRequest, error) {
 	ar, err := s.authReqs.GetByID(ctx, id)
 	if err != nil {
-		if domerr.Is(err, domerr.ErrNotFound) {
+		if errors.Is(err, domerr.ErrNotFound) {
 			return nil, oidc.ErrInvalidRequest().WithDescription("auth request not found")
 		}
-		return nil, err
+		return nil, internalErr("get auth request by id", err)
 	}
 	return NewAuthRequest(ar), nil
 }
@@ -96,20 +97,26 @@ func (s *StorageAdapter) AuthRequestByID(ctx context.Context, id string) (op.Aut
 func (s *StorageAdapter) AuthRequestByCode(ctx context.Context, code string) (op.AuthRequest, error) {
 	ar, err := s.authReqs.GetByCode(ctx, code)
 	if err != nil {
-		if domerr.Is(err, domerr.ErrNotFound) {
+		if errors.Is(err, domerr.ErrNotFound) {
 			return nil, oidc.ErrInvalidRequest().WithDescription("auth request not found for code")
 		}
-		return nil, err
+		return nil, internalErr("get auth request by code", err)
 	}
 	return NewAuthRequest(ar), nil
 }
 
 func (s *StorageAdapter) SaveAuthCode(ctx context.Context, id, code string) error {
-	return s.authReqs.SaveCode(ctx, id, code)
+	if err := s.authReqs.SaveCode(ctx, id, code); err != nil {
+		return internalErr("save auth code", err)
+	}
+	return nil
 }
 
 func (s *StorageAdapter) DeleteAuthRequest(ctx context.Context, id string) error {
-	return s.authReqs.Delete(ctx, id)
+	if err := s.authReqs.Delete(ctx, id); err != nil {
+		return internalErr("delete auth request", err)
+	}
+	return nil
 }
 
 func (s *StorageAdapter) CreateAccessToken(ctx context.Context, request op.TokenRequest) (string, time.Time, error) {
@@ -122,7 +129,7 @@ func (s *StorageAdapter) CreateAccessToken(ctx context.Context, request op.Token
 		expiration,
 	)
 	if err != nil {
-		return "", time.Time{}, err
+		return "", time.Time{}, internalErr("create access token", err)
 	}
 	return tokenID, expiration, nil
 }
@@ -136,7 +143,7 @@ func (s *StorageAdapter) CreateAccessAndRefreshTokens(ctx context.Context, reque
 		clientIDFromRequest(request), request.GetSubject(), request.GetAudience(), request.GetScopes(),
 		accessExp, refreshExp, authTime, amr, currentRefreshToken)
 	if err != nil {
-		return "", "", time.Time{}, err
+		return "", "", time.Time{}, internalErr("create access and refresh tokens", err)
 	}
 	return accessID, refreshToken, accessExp, nil
 }
@@ -144,16 +151,19 @@ func (s *StorageAdapter) CreateAccessAndRefreshTokens(ctx context.Context, reque
 func (s *StorageAdapter) TokenRequestByRefreshToken(ctx context.Context, refreshToken string) (op.RefreshTokenRequest, error) {
 	rt, err := s.tokens.GetRefreshToken(ctx, refreshToken)
 	if err != nil {
-		if domerr.Is(err, domerr.ErrNotFound) {
+		if errors.Is(err, domerr.ErrNotFound) {
 			return nil, op.ErrInvalidRefreshToken
 		}
-		return nil, err
+		return nil, internalErr("get refresh token", err)
 	}
 	return NewRefreshTokenRequest(rt), nil
 }
 
 func (s *StorageAdapter) TerminateSession(ctx context.Context, userID, clientID string) error {
-	return s.tokens.DeleteByUserAndClient(ctx, userID, clientID)
+	if err := s.tokens.DeleteByUserAndClient(ctx, userID, clientID); err != nil {
+		return internalErr("terminate session", err)
+	}
+	return nil
 }
 
 func (s *StorageAdapter) RevokeToken(ctx context.Context, tokenOrTokenID, userID, _ string) *oidc.Error {
@@ -172,10 +182,10 @@ func (s *StorageAdapter) RevokeToken(ctx context.Context, tokenOrTokenID, userID
 func (s *StorageAdapter) GetRefreshTokenInfo(ctx context.Context, _ string, token string) (string, string, error) {
 	userID, tokenID, err := s.tokens.GetRefreshInfo(ctx, token)
 	if err != nil {
-		if domerr.Is(err, domerr.ErrNotFound) {
+		if errors.Is(err, domerr.ErrNotFound) {
 			return "", "", op.ErrInvalidRefreshToken
 		}
-		return "", "", err
+		return "", "", internalErr("get refresh token info", err)
 	}
 	return userID, tokenID, nil
 }
@@ -189,16 +199,21 @@ func (s *StorageAdapter) SignatureAlgorithms(_ context.Context) ([]jose.Signatur
 }
 
 func (s *StorageAdapter) KeySet(_ context.Context) ([]op.Key, error) {
-	return []op.Key{s.public}, nil
+	all := s.publicKeys.All()
+	keys := make([]op.Key, len(all))
+	for i, k := range all {
+		keys[i] = k
+	}
+	return keys, nil
 }
 
 func (s *StorageAdapter) GetClientByClientID(ctx context.Context, clientID string) (op.Client, error) {
 	c, err := s.clients.GetByID(ctx, clientID)
 	if err != nil {
-		if domerr.Is(err, domerr.ErrNotFound) {
+		if errors.Is(err, domerr.ErrNotFound) {
 			return nil, oidc.ErrInvalidClient().WithDescription("client not found")
 		}
-		return nil, err
+		return nil, internalErr("get client by id", err)
 	}
 	return NewClientAdapter(c), nil
 }
@@ -206,13 +221,13 @@ func (s *StorageAdapter) GetClientByClientID(ctx context.Context, clientID strin
 func (s *StorageAdapter) AuthorizeClientIDSecret(ctx context.Context, clientID, clientSecret string) error {
 	err := s.clients.AuthorizeSecret(ctx, clientID, clientSecret)
 	if err != nil {
-		if domerr.Is(err, domerr.ErrNotFound) {
+		if errors.Is(err, domerr.ErrNotFound) {
 			return oidc.ErrInvalidClient().WithDescription("client not found")
 		}
-		if domerr.Is(err, domerr.ErrUnauthorized) {
+		if errors.Is(err, domerr.ErrUnauthorized) {
 			return oidc.ErrInvalidClient().WithDescription("invalid client secret")
 		}
-		return err
+		return internalErr("authorize client secret", err)
 	}
 	return nil
 }
@@ -228,10 +243,10 @@ func (s *StorageAdapter) SetUserinfoFromRequest(ctx context.Context, userinfo *o
 func (s *StorageAdapter) SetUserinfoFromToken(ctx context.Context, userinfo *oidc.UserInfo, tokenID, _, _ string) error {
 	token, err := s.tokens.GetByID(ctx, tokenID)
 	if err != nil {
-		if domerr.Is(err, domerr.ErrNotFound) {
+		if errors.Is(err, domerr.ErrNotFound) {
 			return oidc.ErrInvalidRequest().WithDescription("token not found")
 		}
-		return err
+		return internalErr("get token for userinfo", err)
 	}
 	return s.setUserinfo(ctx, userinfo, token.Subject, token.Scopes)
 }
@@ -239,11 +254,11 @@ func (s *StorageAdapter) SetUserinfoFromToken(ctx context.Context, userinfo *oid
 func (s *StorageAdapter) SetIntrospectionFromToken(ctx context.Context, introspection *oidc.IntrospectionResponse, tokenID, _, _ string) error {
 	token, err := s.tokens.GetByID(ctx, tokenID)
 	if err != nil {
-		if domerr.Is(err, domerr.ErrNotFound) {
+		if errors.Is(err, domerr.ErrNotFound) {
 			introspection.Active = false
 			return nil
 		}
-		return err
+		return internalErr("get token for introspection", err)
 	}
 
 	introspection.Active = true
@@ -255,9 +270,9 @@ func (s *StorageAdapter) SetIntrospectionFromToken(ctx context.Context, introspe
 	introspection.IssuedAt = oidc.FromTime(token.CreatedAt)
 	introspection.TokenType = oidc.BearerToken
 
-	user, err := s.identity.GetUser(ctx, token.Subject)
-	if err != nil && !domerr.Is(err, domerr.ErrNotFound) {
-		return err
+	user, err := s.users.UserClaims(ctx, token.Subject)
+	if err != nil && !errors.Is(err, domerr.ErrNotFound) {
+		return internalErr("get user for introspection", err)
 	}
 	if user != nil {
 		s.setIntrospectionUserinfo(introspection, user, token.Scopes)
@@ -284,13 +299,13 @@ func (s *StorageAdapter) Health(ctx context.Context) error {
 func (s *StorageAdapter) ClientCredentials(ctx context.Context, clientID, clientSecret string) (op.Client, error) {
 	c, err := s.clients.ClientCredentials(ctx, clientID, clientSecret)
 	if err != nil {
-		if domerr.Is(err, domerr.ErrNotFound) {
+		if errors.Is(err, domerr.ErrNotFound) {
 			return nil, oidc.ErrInvalidClient().WithDescription("client not found")
 		}
-		if domerr.Is(err, domerr.ErrUnauthorized) {
+		if errors.Is(err, domerr.ErrUnauthorized) {
 			return nil, oidc.ErrInvalidClient().WithDescription("invalid client secret")
 		}
-		return nil, err
+		return nil, internalErr("client credentials", err)
 	}
 	return NewClientAdapter(c), nil
 }
@@ -303,24 +318,24 @@ func (s *StorageAdapter) ClientCredentialsTokenRequest(_ context.Context, client
 }
 
 func (s *StorageAdapter) setUserinfo(ctx context.Context, userinfo *oidc.UserInfo, userID string, scopes []string) error {
-	user, err := s.identity.GetUser(ctx, userID)
+	user, err := s.users.UserClaims(ctx, userID)
 	if err != nil {
-		if domerr.Is(err, domerr.ErrNotFound) {
+		if errors.Is(err, domerr.ErrNotFound) {
 			return oidc.ErrInvalidRequest().WithDescription("user not found")
 		}
-		return err
+		return internalErr("get user for userinfo", err)
 	}
 
 	for _, scope := range scopes {
 		switch scope {
 		case oidc.ScopeOpenID:
-			userinfo.Subject = user.ID
+			userinfo.Subject = user.Subject
 		case oidc.ScopeProfile:
 			userinfo.Name = user.Name
 			userinfo.GivenName = user.GivenName
 			userinfo.FamilyName = user.FamilyName
 			userinfo.Picture = user.Picture
-			userinfo.UpdatedAt = oidc.FromTime(user.CreatedAt)
+			userinfo.UpdatedAt = oidc.FromTime(user.UpdatedAt)
 		case oidc.ScopeEmail:
 			userinfo.Email = user.Email
 			userinfo.EmailVerified = oidc.Bool(user.EmailVerified)
@@ -329,17 +344,17 @@ func (s *StorageAdapter) setUserinfo(ctx context.Context, userinfo *oidc.UserInf
 	return nil
 }
 
-func (s *StorageAdapter) setIntrospectionUserinfo(introspection *oidc.IntrospectionResponse, user *identity.User, scopes []string) {
+func (s *StorageAdapter) setIntrospectionUserinfo(introspection *oidc.IntrospectionResponse, user *UserClaims, scopes []string) {
 	for _, scope := range scopes {
 		switch scope {
 		case oidc.ScopeOpenID:
-			introspection.Subject = user.ID
+			introspection.Subject = user.Subject
 		case oidc.ScopeProfile:
 			introspection.Name = user.Name
 			introspection.GivenName = user.GivenName
 			introspection.FamilyName = user.FamilyName
 			introspection.Picture = user.Picture
-			introspection.UpdatedAt = oidc.FromTime(user.CreatedAt)
+			introspection.UpdatedAt = oidc.FromTime(user.UpdatedAt)
 		case oidc.ScopeEmail:
 			introspection.Email = user.Email
 			introspection.EmailVerified = oidc.Bool(user.EmailVerified)
@@ -357,6 +372,7 @@ func clientIDFromRequest(request op.TokenRequest) string {
 	if ccr, ok := request.(*clientCredentialsTokenRequest); ok {
 		return ccr.clientID
 	}
+	slog.Warn("clientIDFromRequest: unhandled request type", "type", fmt.Sprintf("%T", request))
 	return ""
 }
 
@@ -393,3 +409,8 @@ type clientCredentialsTokenRequest struct {
 func (c *clientCredentialsTokenRequest) GetSubject() string    { return c.clientID }
 func (c *clientCredentialsTokenRequest) GetAudience() []string { return []string{c.clientID} }
 func (c *clientCredentialsTokenRequest) GetScopes() []string   { return c.scopes }
+
+func internalErr(msg string, err error) error {
+	slog.Error(msg, "error", err)
+	return oidc.ErrServerError().WithDescription("internal error")
+}

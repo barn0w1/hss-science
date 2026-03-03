@@ -2,6 +2,7 @@ package identity
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ type mockRepo struct {
 	getByIDFn                       func(ctx context.Context, id string) (*User, error)
 	findByFederatedIdentityFn       func(ctx context.Context, provider, providerSubject string) (*User, error)
 	createWithFederatedIdentityFn   func(ctx context.Context, user *User, fi *FederatedIdentity) error
+	updateUserFromClaimsFn          func(ctx context.Context, userID string, claims FederatedClaims, updatedAt time.Time) error
 	updateFederatedIdentityClaimsFn func(ctx context.Context, provider, providerSubject string, claims FederatedClaims, lastLoginAt time.Time) error
 }
 
@@ -24,6 +26,9 @@ func (m *mockRepo) FindByFederatedIdentity(ctx context.Context, provider, provid
 }
 func (m *mockRepo) CreateWithFederatedIdentity(ctx context.Context, user *User, fi *FederatedIdentity) error {
 	return m.createWithFederatedIdentityFn(ctx, user, fi)
+}
+func (m *mockRepo) UpdateUserFromClaims(ctx context.Context, userID string, claims FederatedClaims, updatedAt time.Time) error {
+	return m.updateUserFromClaimsFn(ctx, userID, claims, updatedAt)
 }
 func (m *mockRepo) UpdateFederatedIdentityClaims(ctx context.Context, provider, providerSubject string, claims FederatedClaims, lastLoginAt time.Time) error {
 	return m.updateFederatedIdentityClaimsFn(ctx, provider, providerSubject, claims, lastLoginAt)
@@ -57,20 +62,25 @@ func TestGetUser_NotFound(t *testing.T) {
 	}
 	svc := NewService(repo)
 	_, err := svc.GetUser(context.Background(), "nonexistent")
-	if !domerr.Is(err, domerr.ErrNotFound) {
+	if !errors.Is(err, domerr.ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }
 
 func TestFindOrCreate_ExistingUser(t *testing.T) {
 	existing := &User{ID: "u1", Email: "a@b.com"}
-	var updateCalled bool
+	var updateUserCalled bool
+	var updateClaimsCalled bool
 	repo := &mockRepo{
 		findByFederatedIdentityFn: func(_ context.Context, _, _ string) (*User, error) {
 			return existing, nil
 		},
+		updateUserFromClaimsFn: func(_ context.Context, _ string, _ FederatedClaims, _ time.Time) error {
+			updateUserCalled = true
+			return nil
+		},
 		updateFederatedIdentityClaimsFn: func(_ context.Context, _, _ string, _ FederatedClaims, _ time.Time) error {
-			updateCalled = true
+			updateClaimsCalled = true
 			return nil
 		},
 		createWithFederatedIdentityFn: func(_ context.Context, _ *User, _ *FederatedIdentity) error {
@@ -88,7 +98,13 @@ func TestFindOrCreate_ExistingUser(t *testing.T) {
 	if got.ID != existing.ID {
 		t.Errorf("expected ID %s, got %s", existing.ID, got.ID)
 	}
-	if !updateCalled {
+	if got.Email != "new@b.com" {
+		t.Errorf("expected email new@b.com, got %s", got.Email)
+	}
+	if !updateUserCalled {
+		t.Error("expected UpdateUserFromClaims to be called")
+	}
+	if !updateClaimsCalled {
 		t.Error("expected UpdateFederatedIdentityClaims to be called")
 	}
 }
@@ -188,6 +204,9 @@ func TestFindOrCreate_UpdateClaimsError(t *testing.T) {
 	repo := &mockRepo{
 		findByFederatedIdentityFn: func(_ context.Context, _, _ string) (*User, error) {
 			return existing, nil
+		},
+		updateUserFromClaimsFn: func(_ context.Context, _ string, _ FederatedClaims, _ time.Time) error {
+			return nil
 		},
 		updateFederatedIdentityClaimsFn: func(_ context.Context, _, _ string, _ FederatedClaims, _ time.Time) error {
 			return fmt.Errorf("db error")

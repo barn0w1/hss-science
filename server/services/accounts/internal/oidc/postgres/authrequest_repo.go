@@ -72,6 +72,14 @@ func (r *AuthRequestRepository) Delete(ctx context.Context, id string) error {
 	return err
 }
 
+func (r *AuthRequestRepository) DeleteExpiredBefore(ctx context.Context, before time.Time) (int64, error) {
+	result, err := r.db.ExecContext(ctx, `DELETE FROM auth_requests WHERE created_at < $1`, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 func (r *AuthRequestRepository) scanOne(ctx context.Context, query string, args ...any) (*oidc.AuthRequest, error) {
 	row := r.db.QueryRowxContext(ctx, query, args...)
 	var ar oidc.AuthRequest

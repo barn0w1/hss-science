@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -91,7 +92,7 @@ func TestClientRepository_GetByID_NotFound(t *testing.T) {
 	testhelper.CleanTables(t, testDB)
 	repo := NewClientRepository(testDB)
 	_, err := repo.GetByID(context.Background(), "nonexistent")
-	if !domerr.Is(err, domerr.ErrNotFound) {
+	if !errors.Is(err, domerr.ErrNotFound) {
 		t.Errorf("expected domerr.ErrNotFound, got %v", err)
 	}
 }
@@ -158,7 +159,7 @@ func TestAuthRequestRepository_CRUD(t *testing.T) {
 		t.Fatalf("Delete: %v", err)
 	}
 	_, err = repo.GetByID(ctx, ar.ID)
-	if !domerr.Is(err, domerr.ErrNotFound) {
+	if !errors.Is(err, domerr.ErrNotFound) {
 		t.Errorf("expected domerr.ErrNotFound after delete, got %v", err)
 	}
 }
@@ -294,7 +295,7 @@ func TestTokenRepository_CreateAccessAndRefresh(t *testing.T) {
 	}
 
 	_, err = repo.GetRefreshToken(ctx, refreshTokenValue)
-	if !domerr.Is(err, domerr.ErrNotFound) {
+	if !errors.Is(err, domerr.ErrNotFound) {
 		t.Errorf("expected old refresh token to be deleted, got %v", err)
 	}
 }
@@ -323,7 +324,7 @@ func TestTokenRepository_Revoke(t *testing.T) {
 	}
 
 	_, err := repo.GetByID(ctx, tokenID)
-	if !domerr.Is(err, domerr.ErrNotFound) {
+	if !errors.Is(err, domerr.ErrNotFound) {
 		t.Errorf("expected token to be revoked, got %v", err)
 	}
 }
@@ -379,11 +380,11 @@ func TestTokenRepository_DeleteByUserAndClient(t *testing.T) {
 	}
 
 	_, err = repo.GetByID(ctx, accessID)
-	if !domerr.Is(err, domerr.ErrNotFound) {
+	if !errors.Is(err, domerr.ErrNotFound) {
 		t.Errorf("expected access token deleted, got %v", err)
 	}
 	_, err = repo.GetRefreshToken(ctx, refreshTokenValue)
-	if !domerr.Is(err, domerr.ErrNotFound) {
+	if !errors.Is(err, domerr.ErrNotFound) {
 		t.Errorf("expected refresh token deleted, got %v", err)
 	}
 }

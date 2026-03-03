@@ -11,6 +11,41 @@ import (
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/identity"
 )
 
+type googleClaimsProvider struct {
+	verifier *gooidc.IDTokenVerifier
+}
+
+func (g *googleClaimsProvider) FetchClaims(ctx context.Context, token *oauth2.Token) (*identity.FederatedClaims, error) {
+	rawIDToken, ok := token.Extra("id_token").(string)
+	if !ok {
+		return nil, fmt.Errorf("no id_token in token response")
+	}
+	idToken, err := g.verifier.Verify(ctx, rawIDToken)
+	if err != nil {
+		return nil, fmt.Errorf("verifying id_token: %w", err)
+	}
+	var claims struct {
+		Email         string `json:"email"`
+		EmailVerified bool   `json:"email_verified"`
+		Name          string `json:"name"`
+		GivenName     string `json:"given_name"`
+		FamilyName    string `json:"family_name"`
+		Picture       string `json:"picture"`
+	}
+	if err := idToken.Claims(&claims); err != nil {
+		return nil, fmt.Errorf("parsing id_token claims: %w", err)
+	}
+	return &identity.FederatedClaims{
+		Subject:       idToken.Subject,
+		Email:         claims.Email,
+		EmailVerified: claims.EmailVerified,
+		Name:          claims.Name,
+		GivenName:     claims.GivenName,
+		FamilyName:    claims.FamilyName,
+		Picture:       claims.Picture,
+	}, nil
+}
+
 func newGoogleProvider(ctx context.Context, clientID, clientSecret, callbackURL string) (*Provider, error) {
 	oidcProvider, err := gooidc.NewProvider(ctx, "https://accounts.google.com")
 	if err != nil {
@@ -30,35 +65,6 @@ func newGoogleProvider(ctx context.Context, clientID, clientSecret, callbackURL 
 		Name:         "google",
 		DisplayName:  "Sign in with Google",
 		OAuth2Config: oauth2Cfg,
-		FetchClaims: func(ctx context.Context, token *oauth2.Token) (*identity.FederatedClaims, error) {
-			rawIDToken, ok := token.Extra("id_token").(string)
-			if !ok {
-				return nil, fmt.Errorf("no id_token in token response")
-			}
-			idToken, err := verifier.Verify(ctx, rawIDToken)
-			if err != nil {
-				return nil, fmt.Errorf("verifying id_token: %w", err)
-			}
-			var claims struct {
-				Email         string `json:"email"`
-				EmailVerified bool   `json:"email_verified"`
-				Name          string `json:"name"`
-				GivenName     string `json:"given_name"`
-				FamilyName    string `json:"family_name"`
-				Picture       string `json:"picture"`
-			}
-			if err := idToken.Claims(&claims); err != nil {
-				return nil, fmt.Errorf("parsing id_token claims: %w", err)
-			}
-			return &identity.FederatedClaims{
-				Subject:       idToken.Subject,
-				Email:         claims.Email,
-				EmailVerified: claims.EmailVerified,
-				Name:          claims.Name,
-				GivenName:     claims.GivenName,
-				FamilyName:    claims.FamilyName,
-				Picture:       claims.Picture,
-			}, nil
-		},
+		Claims:       &googleClaimsProvider{verifier: verifier},
 	}, nil
 }

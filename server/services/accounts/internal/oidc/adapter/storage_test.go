@@ -70,7 +70,7 @@ func newTestAdapter(t *testing.T) *StorageAdapter {
 		t.Fatal(err)
 	}
 	sk := NewSigningKey(key)
-	pk := NewPublicKey(key)
+	pks := NewPublicKeySet(key, nil)
 
 	authReqRepo := oidcpg.NewAuthRequestRepository(storageTestDB)
 	clientRepo := oidcpg.NewClientRepository(storageTestDB)
@@ -80,8 +80,29 @@ func newTestAdapter(t *testing.T) *StorageAdapter {
 	tokenSvc := oidcdom.NewTokenService(tokenRepo)
 	identitySvc := identity.NewService(identitypg.NewUserRepository(storageTestDB))
 
-	return NewStorageAdapter(identitySvc, authReqSvc, clientSvc, tokenSvc,
-		sk, pk, 15*time.Minute, 7*24*time.Hour, storageTestDB.PingContext)
+	return NewStorageAdapter(&testUserClaimsBridge{svc: identitySvc}, authReqSvc, clientSvc, tokenSvc,
+		sk, pks, 15*time.Minute, 7*24*time.Hour, storageTestDB.PingContext)
+}
+
+type testUserClaimsBridge struct {
+	svc identity.Service
+}
+
+func (b *testUserClaimsBridge) UserClaims(ctx context.Context, userID string) (*UserClaims, error) {
+	user, err := b.svc.GetUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return &UserClaims{
+		Subject:       user.ID,
+		Email:         user.Email,
+		EmailVerified: user.EmailVerified,
+		Name:          user.Name,
+		GivenName:     user.GivenName,
+		FamilyName:    user.FamilyName,
+		Picture:       user.Picture,
+		UpdatedAt:     user.UpdatedAt,
+	}, nil
 }
 
 func seedTestClient(t *testing.T, clientID, secret string) {

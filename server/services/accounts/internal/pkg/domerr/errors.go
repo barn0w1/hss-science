@@ -8,5 +8,3 @@ var (
 	ErrUnauthorized  = errors.New("unauthorized")
 	ErrInternal      = errors.New("internal error")
 )
-
-func Is(err, target error) bool { return errors.Is(err, target) }
