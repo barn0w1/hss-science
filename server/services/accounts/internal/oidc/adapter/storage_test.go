@@ -675,3 +675,37 @@ func TestStorage_SetUserinfoFromToken_TokenNotFound(t *testing.T) {
 		t.Fatal("expected error for non-existent token")
 	}
 }
+
+func TestStorage_CreateAuthRequest_PKCERequired(t *testing.T) {
+	testhelper.CleanTables(t, storageTestDB)
+	s := newTestAdapter(t)
+	ctx := context.Background()
+
+	_, err := storageTestDB.Exec(
+		`INSERT INTO clients (id, secret_hash, redirect_uris, response_types, grant_types, access_token_type, auth_method)
+		 VALUES ($1, $2, $3, $4, $5, $6, 'none')`,
+		"public-client", "",
+		`{"https://app.example.com/callback"}`,
+		`{"code"}`,
+		`{"authorization_code"}`,
+		"jwt",
+	)
+	if err != nil {
+		t.Fatalf("seed public client: %v", err)
+	}
+
+	authReq := &oidc.AuthRequest{
+		ClientID:     "public-client",
+		RedirectURI:  "https://app.example.com/callback",
+		Scopes:       oidc.SpaceDelimitedArray{"openid"},
+		ResponseType: oidc.ResponseTypeCode,
+	}
+
+	_, err = s.CreateAuthRequest(ctx, authReq, "")
+	if err == nil {
+		t.Fatal("expected error for public client without PKCE")
+	}
+	if !errors.As(err, new(*oidc.Error)) {
+		t.Fatalf("expected oidc.Error, got %T: %v", err, err)
+	}
+}

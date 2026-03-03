@@ -43,12 +43,53 @@ func (g *githubClaimsProvider) FetchClaims(ctx context.Context, token *oauth2.To
 	if err := json.NewDecoder(resp.Body).Decode(&ghUser); err != nil {
 		return nil, fmt.Errorf("decoding github user: %w", err)
 	}
+
+	email := ghUser.Email
+	emailVerified := false
+	if email == "" {
+		if fetched, err := g.fetchPrimaryEmail(ctx, token); err == nil && fetched != "" {
+			email = fetched
+			emailVerified = true
+		}
+	}
+
 	return &identity.FederatedClaims{
-		Subject: strconv.FormatInt(ghUser.ID, 10),
-		Email:   ghUser.Email,
-		Name:    ghUser.Name,
-		Picture: ghUser.AvatarURL,
+		Subject:       strconv.FormatInt(ghUser.ID, 10),
+		Email:         email,
+		EmailVerified: emailVerified,
+		Name:          ghUser.Name,
+		Picture:       ghUser.AvatarURL,
 	}, nil
+}
+
+func (g *githubClaimsProvider) fetchPrimaryEmail(ctx context.Context, token *oauth2.Token) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user/emails", nil)
+	if err != nil {
+		return "", err
+	}
+	token.SetAuthHeader(req)
+	resp, err := g.httpClient.Do(req) //nolint:gosec // URL is a hardcoded constant
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("github emails API returned %d", resp.StatusCode)
+	}
+	var emails []struct {
+		Email    string `json:"email"`
+		Primary  bool   `json:"primary"`
+		Verified bool   `json:"verified"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&emails); err != nil {
+		return "", err
+	}
+	for _, e := range emails {
+		if e.Primary && e.Verified {
+			return e.Email, nil
+		}
+	}
+	return "", nil
 }
 
 func newGitHubProvider(clientID, clientSecret, callbackURL string) *Provider {

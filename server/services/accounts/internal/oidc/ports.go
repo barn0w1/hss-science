@@ -23,11 +23,12 @@ type TokenRepository interface {
 	CreateAccess(ctx context.Context, access *Token) error
 	CreateAccessAndRefresh(ctx context.Context, access *Token, refresh *RefreshToken, currentRefreshToken string) error
 	GetByID(ctx context.Context, tokenID string) (*Token, error)
-	GetRefreshToken(ctx context.Context, token string) (*RefreshToken, error)
-	GetRefreshInfo(ctx context.Context, token string) (userID, tokenID string, err error)
+	GetRefreshToken(ctx context.Context, tokenHash string) (*RefreshToken, error)
+	GetRefreshInfo(ctx context.Context, tokenHash string) (userID, tokenID string, err error)
 	DeleteByUserAndClient(ctx context.Context, userID, clientID string) error
-	Revoke(ctx context.Context, tokenID string) error
-	RevokeRefreshToken(ctx context.Context, token string) error
+	Revoke(ctx context.Context, tokenID, clientID string) error
+	RevokeRefreshToken(ctx context.Context, tokenHash, clientID string) error
+	DeleteExpired(ctx context.Context, before time.Time) (int64, int64, error)
 }
 
 type AuthRequestService interface {
@@ -50,11 +51,12 @@ type TokenService interface {
 	CreateAccess(ctx context.Context, clientID, subject string, audience, scopes []string, expiration time.Time) (tokenID string, err error)
 	CreateAccessAndRefresh(ctx context.Context, clientID, subject string, audience, scopes []string, accessExpiration, refreshExpiration, authTime time.Time, amr []string, currentRefreshToken string) (accessID, refreshToken string, err error)
 	GetByID(ctx context.Context, tokenID string) (*Token, error)
-	GetRefreshToken(ctx context.Context, token string) (*RefreshToken, error)
-	GetRefreshInfo(ctx context.Context, token string) (userID, tokenID string, err error)
+	GetRefreshToken(ctx context.Context, rawToken string) (*RefreshToken, error)
+	GetRefreshInfo(ctx context.Context, rawToken string) (userID, tokenID string, err error)
 	DeleteByUserAndClient(ctx context.Context, userID, clientID string) error
-	Revoke(ctx context.Context, tokenID string) error
-	RevokeRefreshToken(ctx context.Context, token string) error
+	Revoke(ctx context.Context, tokenID, clientID string) error
+	RevokeRefreshToken(ctx context.Context, rawToken, clientID string) error
+	DeleteExpired(ctx context.Context, before time.Time) (int64, int64, error)
 }
 
 type LoginCompleter interface {

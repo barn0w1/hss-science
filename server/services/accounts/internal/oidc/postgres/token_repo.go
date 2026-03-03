@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
@@ -44,7 +45,7 @@ func (r *TokenRepository) CreateAccessAndRefresh(ctx context.Context, access *oi
 	if currentRefreshToken != "" {
 		var oldAccessTokenID sql.NullString
 		err = tx.QueryRowContext(ctx,
-			`SELECT access_token_id FROM refresh_tokens WHERE token = $1`,
+			`SELECT access_token_id FROM refresh_tokens WHERE token_hash = $1`,
 			currentRefreshToken,
 		).Scan(&oldAccessTokenID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -59,10 +60,18 @@ func (r *TokenRepository) CreateAccessAndRefresh(ctx context.Context, access *oi
 			}
 		}
 
-		if _, err = tx.ExecContext(ctx,
-			`DELETE FROM refresh_tokens WHERE token = $1`, currentRefreshToken,
-		); err != nil {
+		result, err := tx.ExecContext(ctx,
+			`DELETE FROM refresh_tokens WHERE token_hash = $1 AND expiration > now()`, currentRefreshToken,
+		)
+		if err != nil {
 			return fmt.Errorf("delete old refresh token: %w", err)
+		}
+		n, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("rows affected: %w", err)
+		}
+		if n == 0 {
+			return fmt.Errorf("refresh token already used or expired: %w", domerr.ErrNotFound)
 		}
 	}
 
@@ -78,7 +87,7 @@ func (r *TokenRepository) CreateAccessAndRefresh(ctx context.Context, access *oi
 	}
 
 	_, err = tx.ExecContext(ctx,
-		`INSERT INTO refresh_tokens (id, token, client_id, user_id, audience, scopes, auth_time, amr, access_token_id, expiration)
+		`INSERT INTO refresh_tokens (id, token_hash, client_id, user_id, audience, scopes, auth_time, amr, access_token_id, expiration)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
 		refresh.ID, refresh.Token, refresh.ClientID, refresh.UserID,
 		pq.Array(refresh.Audience), pq.Array(refresh.Scopes),
@@ -99,16 +108,16 @@ func (r *TokenRepository) GetByID(ctx context.Context, tokenID string) (*oidc.To
 	return r.scanToken(row)
 }
 
-func (r *TokenRepository) GetRefreshToken(ctx context.Context, token string) (*oidc.RefreshToken, error) {
+func (r *TokenRepository) GetRefreshToken(ctx context.Context, tokenHash string) (*oidc.RefreshToken, error) {
 	row := r.db.QueryRowxContext(ctx,
-		`SELECT id, token, client_id, user_id, audience, scopes, auth_time, amr, access_token_id, expiration, created_at
-		 FROM refresh_tokens WHERE token = $1 AND expiration > now()`, token)
+		`SELECT id, token_hash, client_id, user_id, audience, scopes, auth_time, amr, access_token_id, expiration, created_at
+		 FROM refresh_tokens WHERE token_hash = $1 AND expiration > now()`, tokenHash)
 	return r.scanRefreshToken(row)
 }
 
-func (r *TokenRepository) GetRefreshInfo(ctx context.Context, token string) (userID, tokenID string, err error) {
+func (r *TokenRepository) GetRefreshInfo(ctx context.Context, tokenHash string) (userID, tokenID string, err error) {
 	err = r.db.QueryRowxContext(ctx,
-		`SELECT user_id, id FROM refresh_tokens WHERE token = $1 AND expiration > now()`, token,
+		`SELECT user_id, id FROM refresh_tokens WHERE token_hash = $1 AND expiration > now()`, tokenHash,
 	).Scan(&userID, &tokenID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -137,14 +146,45 @@ func (r *TokenRepository) DeleteByUserAndClient(ctx context.Context, userID, cli
 	return tx.Commit()
 }
 
-func (r *TokenRepository) Revoke(ctx context.Context, tokenID string) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM tokens WHERE id = $1`, tokenID)
-	return err
+func (r *TokenRepository) Revoke(ctx context.Context, tokenID, clientID string) error {
+	result, err := r.db.ExecContext(ctx, `DELETE FROM tokens WHERE id = $1 AND client_id = $2`, tokenID, clientID)
+	if err != nil {
+		return err
+	}
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("token %s: %w", tokenID, domerr.ErrNotFound)
+	}
+	return nil
 }
 
-func (r *TokenRepository) RevokeRefreshToken(ctx context.Context, token string) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM refresh_tokens WHERE token = $1`, token)
-	return err
+func (r *TokenRepository) RevokeRefreshToken(ctx context.Context, tokenHash, clientID string) error {
+	result, err := r.db.ExecContext(ctx,
+		`DELETE FROM refresh_tokens WHERE token_hash = $1 AND client_id = $2`, tokenHash, clientID)
+	if err != nil {
+		return err
+	}
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("refresh token: %w", domerr.ErrNotFound)
+	}
+	return nil
+}
+
+func (r *TokenRepository) DeleteExpired(ctx context.Context, before time.Time) (int64, int64, error) {
+	res1, err := r.db.ExecContext(ctx, `DELETE FROM tokens WHERE expiration < $1`, before)
+	if err != nil {
+		return 0, 0, fmt.Errorf("delete expired access tokens: %w", err)
+	}
+	accessDeleted, _ := res1.RowsAffected()
+
+	res2, err := r.db.ExecContext(ctx, `DELETE FROM refresh_tokens WHERE expiration < $1`, before)
+	if err != nil {
+		return accessDeleted, 0, fmt.Errorf("delete expired refresh tokens: %w", err)
+	}
+	refreshDeleted, _ := res2.RowsAffected()
+
+	return accessDeleted, refreshDeleted, nil
 }
 
 func (r *TokenRepository) scanToken(row *sqlx.Row) (*oidc.Token, error) {

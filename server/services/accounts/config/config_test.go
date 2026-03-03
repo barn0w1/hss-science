@@ -331,3 +331,110 @@ func TestLoadFrom_AuthRequestTTLOutOfRange(t *testing.T) {
 		t.Fatal("expected error for out-of-range AUTH_REQUEST_TTL_MINUTES")
 	}
 }
+
+func TestLoadFrom_DBPoolDefaults(t *testing.T) {
+	pemKey := generateTestKey(t)
+	cfg, err := LoadFrom(requiredEnv(pemKey))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.DBMaxOpenConns != 25 {
+		t.Errorf("expected DBMaxOpenConns=25, got %d", cfg.DBMaxOpenConns)
+	}
+	if cfg.DBMaxIdleConns != 10 {
+		t.Errorf("expected DBMaxIdleConns=10, got %d", cfg.DBMaxIdleConns)
+	}
+	if cfg.DBConnMaxLifetimeSecs != 300 {
+		t.Errorf("expected DBConnMaxLifetimeSecs=300, got %d", cfg.DBConnMaxLifetimeSecs)
+	}
+	if cfg.DBConnMaxIdleTimeSecs != 180 {
+		t.Errorf("expected DBConnMaxIdleTimeSecs=180, got %d", cfg.DBConnMaxIdleTimeSecs)
+	}
+}
+
+func TestLoadFrom_DBPoolCustom(t *testing.T) {
+	pemKey := generateTestKey(t)
+	src := requiredEnv(pemKey)
+	src["DB_MAX_OPEN_CONNS"] = "50"
+	src["DB_MAX_IDLE_CONNS"] = "20"
+	src["DB_CONN_MAX_LIFETIME_SECONDS"] = "600"
+	src["DB_CONN_MAX_IDLE_TIME_SECONDS"] = "300"
+
+	cfg, err := LoadFrom(src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.DBMaxOpenConns != 50 {
+		t.Errorf("expected 50, got %d", cfg.DBMaxOpenConns)
+	}
+	if cfg.DBMaxIdleConns != 20 {
+		t.Errorf("expected 20, got %d", cfg.DBMaxIdleConns)
+	}
+}
+
+func TestLoadFrom_DBPoolOutOfRange(t *testing.T) {
+	pemKey := generateTestKey(t)
+	src := requiredEnv(pemKey)
+	src["DB_MAX_OPEN_CONNS"] = "1000"
+
+	_, err := LoadFrom(src)
+	if err == nil {
+		t.Fatal("expected error for out-of-range DB_MAX_OPEN_CONNS")
+	}
+}
+
+func TestLoadFrom_RateLimitDefaults(t *testing.T) {
+	pemKey := generateTestKey(t)
+	cfg, err := LoadFrom(requiredEnv(pemKey))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.RateLimitEnabled {
+		t.Error("expected RateLimitEnabled=true by default")
+	}
+	if cfg.RateLimitLoginRPM != 20 {
+		t.Errorf("expected RateLimitLoginRPM=20, got %d", cfg.RateLimitLoginRPM)
+	}
+	if cfg.RateLimitTokenRPM != 60 {
+		t.Errorf("expected RateLimitTokenRPM=60, got %d", cfg.RateLimitTokenRPM)
+	}
+	if cfg.RateLimitGlobalRPM != 120 {
+		t.Errorf("expected RateLimitGlobalRPM=120, got %d", cfg.RateLimitGlobalRPM)
+	}
+}
+
+func TestLoadFrom_RateLimitDisabled(t *testing.T) {
+	pemKey := generateTestKey(t)
+	src := requiredEnv(pemKey)
+	src["RATE_LIMIT_ENABLED"] = "false"
+
+	cfg, err := LoadFrom(src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.RateLimitEnabled {
+		t.Error("expected RateLimitEnabled=false")
+	}
+}
+
+func TestLoadFrom_RateLimitCustom(t *testing.T) {
+	pemKey := generateTestKey(t)
+	src := requiredEnv(pemKey)
+	src["RATE_LIMIT_LOGIN_RPM"] = "10"
+	src["RATE_LIMIT_TOKEN_RPM"] = "30"
+	src["RATE_LIMIT_GLOBAL_RPM"] = "60"
+
+	cfg, err := LoadFrom(src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.RateLimitLoginRPM != 10 {
+		t.Errorf("expected 10, got %d", cfg.RateLimitLoginRPM)
+	}
+	if cfg.RateLimitTokenRPM != 30 {
+		t.Errorf("expected 30, got %d", cfg.RateLimitTokenRPM)
+	}
+	if cfg.RateLimitGlobalRPM != 60 {
+		t.Errorf("expected 60, got %d", cfg.RateLimitGlobalRPM)
+	}
+}

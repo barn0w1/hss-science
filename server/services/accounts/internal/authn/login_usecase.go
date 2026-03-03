@@ -28,7 +28,7 @@ func (uc *CompleteFederatedLogin) Execute(ctx context.Context, provider string, 
 	}
 
 	authTime := time.Now().UTC()
-	amr := []string{"federated:" + provider}
+	amr := []string{"fed"}
 	if err := uc.loginComp.CompleteLogin(ctx, authRequestID, user.ID, authTime, amr); err != nil {
 		return "", fmt.Errorf("complete login: %w", err)
 	}

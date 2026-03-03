@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -10,7 +11,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"github.com/zitadel/oidc/v3/pkg/op"
@@ -19,6 +20,7 @@ import (
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/authn"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/identity"
 	identitypg "github.com/barn0w1/hss-science/server/services/accounts/internal/identity/postgres"
+	appmiddleware "github.com/barn0w1/hss-science/server/services/accounts/internal/middleware"
 	oidcdom "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc"
 	oidcadapter "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc/adapter"
 	oidcpg "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc/postgres"
@@ -28,6 +30,11 @@ import (
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
+
+	subcommand := "server"
+	if len(os.Args) > 1 {
+		subcommand = os.Args[1]
+	}
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -42,15 +49,44 @@ func main() {
 	}
 	defer func() { _ = db.Close() }()
 
+	db.SetMaxOpenConns(cfg.DBMaxOpenConns)
+	db.SetMaxIdleConns(cfg.DBMaxIdleConns)
+	db.SetConnMaxLifetime(time.Duration(cfg.DBConnMaxLifetimeSecs) * time.Second)
+	db.SetConnMaxIdleTime(time.Duration(cfg.DBConnMaxIdleTimeSecs) * time.Second)
+
+	tokenRepo := oidcpg.NewTokenRepository(db)
+	tokenSvc := oidcdom.NewTokenService(tokenRepo)
+
+	switch subcommand {
+	case "cleanup":
+		runCleanup(context.Background(), tokenSvc, logger)
+		return
+	case "server":
+		runServer(cfg, db, tokenSvc, logger)
+	default:
+		fmt.Fprintln(os.Stderr, "unknown subcommand — valid: server, cleanup")
+		os.Exit(2)
+	}
+}
+
+func runCleanup(ctx context.Context, tokenSvc oidcdom.TokenService, logger *slog.Logger) {
+	cutoff := time.Now().UTC()
+	access, refresh, err := tokenSvc.DeleteExpired(ctx, cutoff)
+	if err != nil {
+		logger.Error("token cleanup failed", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("token cleanup complete", "access_tokens_deleted", access, "refresh_tokens_deleted", refresh)
+}
+
+func runServer(cfg *config.Config, db *sqlx.DB, tokenSvc oidcdom.TokenService, logger *slog.Logger) {
 	identitySvc := identity.NewService(identitypg.NewUserRepository(db))
 
 	authReqRepo := oidcpg.NewAuthRequestRepository(db)
 	clientRepo := oidcpg.NewClientRepository(db)
-	tokenRepo := oidcpg.NewTokenRepository(db)
 
 	authReqSvc := oidcdom.NewAuthRequestService(authReqRepo, time.Duration(cfg.AuthRequestTTLMinutes)*time.Minute)
 	clientSvc := oidcdom.NewClientService(clientRepo)
-	tokenSvc := oidcdom.NewTokenService(tokenRepo)
 
 	signingKey := oidcadapter.NewSigningKey(cfg.SigningKeys.Current)
 	publicKeys := oidcadapter.NewPublicKeySet(cfg.SigningKeys.Current, cfg.SigningKeys.Previous)
@@ -90,11 +126,29 @@ func main() {
 		logger,
 	)
 
+	var (
+		globalLimiter *appmiddleware.IPRateLimiter
+		loginLimiter  *appmiddleware.IPRateLimiter
+		tokenLimiter  *appmiddleware.IPRateLimiter
+	)
+	if cfg.RateLimitEnabled {
+		globalLimiter = appmiddleware.NewIPRateLimiter(float64(cfg.RateLimitGlobalRPM)/60.0, cfg.RateLimitGlobalRPM/4)
+		loginLimiter = appmiddleware.NewIPRateLimiter(float64(cfg.RateLimitLoginRPM)/60.0, 5)
+		tokenLimiter = appmiddleware.NewIPRateLimiter(float64(cfg.RateLimitTokenRPM)/60.0, 10)
+	}
+
 	router := chi.NewRouter()
-	router.Use(middleware.Recoverer)
+	router.Use(chimiddleware.Recoverer)
+	router.Use(appmiddleware.SecurityHeaders())
+	if cfg.RateLimitEnabled {
+		router.Use(globalLimiter.Middleware())
+	}
 
 	interceptor := op.NewIssuerInterceptor(provider.IssuerFromRequest)
 	router.Route("/login", func(r chi.Router) {
+		if cfg.RateLimitEnabled {
+			r.Use(loginLimiter.Middleware())
+		}
 		r.Use(interceptor.Handler)
 		r.Get("/", loginHandler.SelectProvider)
 		r.Post("/select", loginHandler.FederatedRedirect)
@@ -115,10 +169,32 @@ func main() {
 		_, _ = w.Write([]byte("You have been signed out."))
 	})
 
-	router.Mount("/", provider)
+	if cfg.RateLimitEnabled {
+		router.With(tokenPathLimiter(tokenLimiter)).Mount("/", provider)
+	} else {
+		router.Mount("/", provider)
+	}
 
 	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
 	go runAuthRequestCleanup(cleanupCtx, authReqSvc, time.Duration(cfg.AuthRequestTTLMinutes)*time.Minute, logger)
+	go runTokenCleanupLoop(cleanupCtx, tokenSvc, time.Hour, logger)
+
+	if cfg.RateLimitEnabled {
+		go func() {
+			ticker := time.NewTicker(10 * time.Minute)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-cleanupCtx.Done():
+					return
+				case <-ticker.C:
+					globalLimiter.Cleanup(15 * time.Minute)
+					loginLimiter.Cleanup(15 * time.Minute)
+					tokenLimiter.Cleanup(15 * time.Minute)
+				}
+			}
+		}()
+	}
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -192,5 +268,45 @@ func runAuthRequestCleanup(ctx context.Context, svc oidcdom.AuthRequestService, 
 				logger.Info("cleaned up expired auth requests", "count", n)
 			}
 		}
+	}
+}
+
+func runTokenCleanupLoop(ctx context.Context, svc oidcdom.TokenService, interval time.Duration, logger *slog.Logger) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			cutoff := time.Now().UTC()
+			access, refresh, err := svc.DeleteExpired(ctx, cutoff)
+			if err != nil {
+				logger.Error("token cleanup failed", "error", err)
+				continue
+			}
+			if access > 0 || refresh > 0 {
+				logger.Info("cleaned up expired tokens",
+					"access_tokens", access,
+					"refresh_tokens", refresh,
+				)
+			}
+		}
+	}
+}
+
+// tokenPathLimiter applies a rate limiter only to the OIDC token and
+// introspection endpoint paths, passing all other paths through unrestricted.
+func tokenPathLimiter(limiter *appmiddleware.IPRateLimiter) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/oauth/v2/token", "/token", "/oauth/token",
+				"/oauth/v2/introspect", "/introspect":
+				limiter.Middleware()(next).ServeHTTP(w, r)
+			default:
+				next.ServeHTTP(w, r)
+			}
+		})
 	}
 }

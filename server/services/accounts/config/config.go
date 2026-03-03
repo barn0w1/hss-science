@@ -40,6 +40,16 @@ type Config struct {
 	RefreshTokenLifetimeDays   int
 	AuthRequestTTLMinutes      int
 
+	DBMaxOpenConns        int
+	DBMaxIdleConns        int
+	DBConnMaxLifetimeSecs int
+	DBConnMaxIdleTimeSecs int
+
+	RateLimitEnabled   bool
+	RateLimitLoginRPM  int
+	RateLimitTokenRPM  int
+	RateLimitGlobalRPM int
+
 	GoogleClientID     string
 	GoogleClientSecret string
 	GitHubClientID     string
@@ -120,6 +130,37 @@ func LoadFrom(src ConfigSource) (*Config, error) {
 		return nil, err
 	}
 	cfg.AuthRequestTTLMinutes, err = loadBoundedInt(src, "AUTH_REQUEST_TTL_MINUTES", 30, 1, 60)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg.DBMaxOpenConns, err = loadBoundedInt(src, "DB_MAX_OPEN_CONNS", 25, 1, 500)
+	if err != nil {
+		return nil, err
+	}
+	cfg.DBMaxIdleConns, err = loadBoundedInt(src, "DB_MAX_IDLE_CONNS", 10, 1, 200)
+	if err != nil {
+		return nil, err
+	}
+	cfg.DBConnMaxLifetimeSecs, err = loadBoundedInt(src, "DB_CONN_MAX_LIFETIME_SECONDS", 300, 10, 3600)
+	if err != nil {
+		return nil, err
+	}
+	cfg.DBConnMaxIdleTimeSecs, err = loadBoundedInt(src, "DB_CONN_MAX_IDLE_TIME_SECONDS", 180, 10, 1800)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg.RateLimitEnabled = src.Get("RATE_LIMIT_ENABLED") != "false"
+	cfg.RateLimitLoginRPM, err = loadBoundedInt(src, "RATE_LIMIT_LOGIN_RPM", 20, 1, 600)
+	if err != nil {
+		return nil, err
+	}
+	cfg.RateLimitTokenRPM, err = loadBoundedInt(src, "RATE_LIMIT_TOKEN_RPM", 60, 1, 6000)
+	if err != nil {
+		return nil, err
+	}
+	cfg.RateLimitGlobalRPM, err = loadBoundedInt(src, "RATE_LIMIT_GLOBAL_RPM", 120, 1, 6000)
 	if err != nil {
 		return nil, err
 	}
