@@ -103,7 +103,7 @@ func (c *ClientAdapter) RestrictAdditionalAccessTokenScopes() func(scopes []stri
 
 func (c *ClientAdapter) filterScopes(scopes []string) []string {
 	if len(c.domain.AllowedScopes) == 0 {
-		return nil
+		return scopes
 	}
 	allowed := make(map[string]struct{}, len(c.domain.AllowedScopes))
 	for _, s := range c.domain.AllowedScopes {

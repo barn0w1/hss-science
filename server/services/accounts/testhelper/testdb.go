@@ -3,6 +3,7 @@ package testhelper
 import (
 	"fmt"
 	"io/fs"
+	"strings"
 	"testing"
 
 	"github.com/jmoiron/sqlx"
@@ -16,7 +17,7 @@ func RunMigrations(db *sqlx.DB) error {
 		return fmt.Errorf("read migration dir: %w", err)
 	}
 	for _, entry := range entries {
-		if entry.IsDir() {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".up.sql") {
 			continue
 		}
 		data, err := fs.ReadFile(migrations.FS, entry.Name())
