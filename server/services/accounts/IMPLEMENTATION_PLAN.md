@@ -702,8 +702,11 @@ only a few queries), so pool settings are applied in `runServer` only.
 **Why:** No rate limiting exists on any endpoint. The token endpoint, client
 credentials endpoint, and login flow are all unbounded.
 
-**Approach:** Per-IP token bucket using `golang.org/x/time/rate` with different
-limits for different endpoint categories.
+**Approach:** Per-IP token bucket using `golang.org/x/time/rate` applied only
+to the public login/authorize flow. Internal BFF calls bypass the limiter
+automatically based on the TCP source address (RFC-1918 / loopback). The
+real client IP is read from the `CF-Connecting-IP` header set by Cloudflare
+Tunnel, not from `X-Forwarded-For`.
 
 ---
 
@@ -734,6 +737,8 @@ import (
 
 // IPRateLimiter implements per-IP token-bucket rate limiting with automatic
 // eviction of inactive IP entries to prevent unbounded memory growth.
+// Internal requests (from private RFC-1918 / loopback addresses) are always
+// bypassed — they originate from Caddy or internal BFF services.
 type IPRateLimiter struct {
     mu      sync.Mutex
     entries map[string]*ipEntry
@@ -757,7 +762,7 @@ func NewIPRateLimiter(rps float64, burst int) *IPRateLimiter {
 }
 
 func (l *IPRateLimiter) allow(r *http.Request) bool {
-    ip := remoteIP(r)
+    ip := clientIP(r)
     l.mu.Lock()
     e, ok := l.entries[ip]
     if !ok {
@@ -784,9 +789,17 @@ func (l *IPRateLimiter) Cleanup(ttl time.Duration) {
 }
 
 // Middleware returns an http.Handler middleware that enforces the rate limit.
+// Requests whose direct TCP connection originates from a private (RFC-1918)
+// or loopback address are unconditionally allowed — these are internal
+// BFF/service calls (arriving via Caddy on the private network) that must
+// never be throttled regardless of the endpoint being accessed.
 func (l *IPRateLimiter) Middleware() func(http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            if isInternalRequest(r) {
+                next.ServeHTTP(w, r)
+                return
+            }
             if !l.allow(r) {
                 http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
                 return
@@ -796,24 +809,47 @@ func (l *IPRateLimiter) Middleware() func(http.Handler) http.Handler {
     }
 }
 
-// remoteIP extracts the client IP. X-Forwarded-For is trusted only when the
-// direct connection originates from loopback (a local reverse proxy).
-// Adjust this logic if your proxy sits on a non-loopback address.
-func remoteIP(r *http.Request) string {
+// clientIP returns the originating end-user IP address.
+// Traffic arrives via Cloudflare Tunnel → Caddy → App. Cloudflare sets the
+// CF-Connecting-IP header to the real end-user IP before the request enters
+// the tunnel; this header is the authoritative source for public traffic.
+// Falls back to the direct connection address if the header is absent (e.g.
+// in local development without Cloudflare).
+func clientIP(r *http.Request) string {
+    if cf := strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); cf != "" {
+        return cf
+    }
     host, _, err := net.SplitHostPort(r.RemoteAddr)
     if err != nil {
         return r.RemoteAddr
     }
-    if host == "127.0.0.1" || host == "::1" {
-        if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-            // Use the leftmost (originating client) IP.
-            if i := strings.IndexByte(xff, ','); i != -1 {
-                return strings.TrimSpace(xff[:i])
-            }
-            return strings.TrimSpace(xff)
+    return host
+}
+
+// isInternalRequest returns true when the TCP connection's direct source
+// address is loopback or a private RFC-1918 range. Caddy runs on the same
+// host or internal network and forwards requests from such addresses.
+// Because the bypass is based on the physical TCP source (r.RemoteAddr),
+// not on a spoofable header, it cannot be forged by an external caller.
+func isInternalRequest(r *http.Request) bool {
+    host, _, err := net.SplitHostPort(r.RemoteAddr)
+    if err != nil {
+        host = r.RemoteAddr
+    }
+    ip := net.ParseIP(host)
+    if ip == nil {
+        return false
+    }
+    if ip.IsLoopback() {
+        return true
+    }
+    for _, cidr := range []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"} {
+        _, network, _ := net.ParseCIDR(cidr)
+        if network.Contains(ip) {
+            return true
         }
     }
-    return host
+    return false
 }
 ```
 
@@ -825,20 +861,17 @@ Add to `Config`:
 
 ```go
 RateLimitEnabled   bool
-RateLimitLoginRPM  int // /login/* routes, per IP
-RateLimitTokenRPM  int // /token and /introspect paths, per IP
-RateLimitGlobalRPM int // all other OIDC endpoints, per IP
+RateLimitPublicRPM int // /authorize and /login/* (public-facing only), per IP
+                       // Internal endpoints (/token, /userinfo, /introspect, etc.)
+                       // are never rate-limited — they are bypassed at the middleware
+                       // level based on the TCP source address (RFC-1918 / loopback).
 ```
 
 In `LoadFrom`:
 
 ```go
 cfg.RateLimitEnabled = src.Get("RATE_LIMIT_ENABLED") != "false" // default on
-cfg.RateLimitLoginRPM, err = loadBoundedInt(src, "RATE_LIMIT_LOGIN_RPM", 20, 1, 600)
-if err != nil { return nil, err }
-cfg.RateLimitTokenRPM, err = loadBoundedInt(src, "RATE_LIMIT_TOKEN_RPM", 60, 1, 6000)
-if err != nil { return nil, err }
-cfg.RateLimitGlobalRPM, err = loadBoundedInt(src, "RATE_LIMIT_GLOBAL_RPM", 120, 1, 6000)
+cfg.RateLimitPublicRPM, err = loadBoundedInt(src, "RATE_LIMIT_PUBLIC_RPM", 20, 1, 600)
 if err != nil { return nil, err }
 ```
 
@@ -846,35 +879,25 @@ if err != nil { return nil, err }
 
 #### 3.1.4 – Apply in `runServer` in `main.go`
 
-Instantiate limiters after building the router and apply them to route groups.
-The limiter cleanup goroutine is the **only** background goroutine that remains
-in the server process — it is operational infrastructure for the limiter itself,
-not a database maintenance task.
+Instantiate a single rate limiter for the public-facing login/authorize flow.
+Token, userinfo, introspect, and all other OIDC endpoints served by the
+provider mount are **not** wrapped — they are exclusively called by the
+internal BFF and must never be throttled. The `isInternalRequest()` check
+inside `Middleware()` provides a defense-in-depth bypass for any request
+arriving from a private source address regardless of path.
 
 ```go
-var (
-    globalLimiter *appmiddleware.IPRateLimiter
-    loginLimiter  *appmiddleware.IPRateLimiter
-    tokenLimiter  *appmiddleware.IPRateLimiter
-)
+var publicLimiter *appmiddleware.IPRateLimiter
 if cfg.RateLimitEnabled {
-    globalLimiter = appmiddleware.NewIPRateLimiter(
-        float64(cfg.RateLimitGlobalRPM)/60.0, cfg.RateLimitGlobalRPM/4)
-    loginLimiter = appmiddleware.NewIPRateLimiter(
-        float64(cfg.RateLimitLoginRPM)/60.0, 5)
-    tokenLimiter = appmiddleware.NewIPRateLimiter(
-        float64(cfg.RateLimitTokenRPM)/60.0, 10)
-
-    router.Use(globalLimiter.Middleware())
+    publicLimiter = appmiddleware.NewIPRateLimiter(
+        float64(cfg.RateLimitPublicRPM)/60.0, 5)
 
     // Evict stale IP state every 10 minutes to bound memory usage.
     go func() {
         t := time.NewTicker(10 * time.Minute)
         defer t.Stop()
         for range t.C {
-            globalLimiter.Cleanup(15 * time.Minute)
-            loginLimiter.Cleanup(15 * time.Minute)
-            tokenLimiter.Cleanup(15 * time.Minute)
+            publicLimiter.Cleanup(15 * time.Minute)
         }
     }()
 }
@@ -885,7 +908,7 @@ Apply per-route limiters in the route definitions:
 ```go
 router.Route("/login", func(r chi.Router) {
     if cfg.RateLimitEnabled {
-        r.Use(loginLimiter.Middleware())
+        r.Use(publicLimiter.Middleware())
     }
     r.Use(interceptor.Handler)
     r.Get("/", loginHandler.SelectProvider)
@@ -893,10 +916,12 @@ router.Route("/login", func(r chi.Router) {
     r.Get("/callback", loginHandler.FederatedCallback)
 })
 
-// Apply token rate limiter only to the token/introspect paths served by
-// the zitadel provider. All other provider paths use the global limiter.
+// /authorize begins the login flow and must be rate-limited for public traffic.
+// All other provider paths (/token, /userinfo, /introspect, /.well-known/*,
+// /oauth/v2/*, etc.) are BFF-accessed internal endpoints — they are mounted
+// without any rate limiting middleware.
 if cfg.RateLimitEnabled {
-    router.With(tokenPathLimiter(tokenLimiter)).Mount("/", provider)
+    router.With(authorizePathLimiter(publicLimiter)).Mount("/", provider)
 } else {
     router.Mount("/", provider)
 }
@@ -905,21 +930,13 @@ if cfg.RateLimitEnabled {
 Add the path-matching helper in `main.go`:
 
 ```go
-// tokenPathLimiter applies the given limiter only to the OAuth token and
-// introspection endpoint paths. All other paths pass through unrestricted
-// (subject to the global limiter already applied at the router level).
-func tokenPathLimiter(limiter *appmiddleware.IPRateLimiter) func(http.Handler) http.Handler {
-    restricted := map[string]bool{
-        "/oauth/v2/token":       true,
-        "/token":                true,
-        "/oauth/token":          true,
-        "/oauth/v2/introspect":  true,
-        "/introspect":           true,
-    }
+// authorizePathLimiter applies the given limiter only to the /authorize
+// endpoint path. Every other provider path passes through unrestricted.
+func authorizePathLimiter(limiter *appmiddleware.IPRateLimiter) func(http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
         lm := limiter.Middleware()(next)
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-            if restricted[r.URL.Path] {
+            if r.URL.Path == "/authorize" {
                 lm.ServeHTTP(w, r)
             } else {
                 next.ServeHTTP(w, r)
@@ -929,20 +946,17 @@ func tokenPathLimiter(limiter *appmiddleware.IPRateLimiter) func(http.Handler) h
 }
 ```
 
-> **Note:** Verify the exact token endpoint path by checking the `token_endpoint`
-> field in `/.well-known/openid-configuration` at runtime. Update the `restricted`
-> map accordingly.
-
 ---
 
 #### 3.1.5 – Update `.env.example`
 
 ```
-# Rate limiting (set RATE_LIMIT_ENABLED=false to disable for local dev)
+# Rate limiting — applies only to public user-facing endpoints (/authorize, /login/*)
+# Internal/BFF endpoints (/token, /userinfo, /introspect, etc.) are never rate-limited;
+# requests from private IP ranges (RFC-1918 / loopback) bypass the limiter automatically.
+# Set RATE_LIMIT_ENABLED=false to disable entirely (e.g. local dev without Cloudflare).
 # RATE_LIMIT_ENABLED=true
-# RATE_LIMIT_LOGIN_RPM=20
-# RATE_LIMIT_TOKEN_RPM=60
-# RATE_LIMIT_GLOBAL_RPM=120
+# RATE_LIMIT_PUBLIC_RPM=20
 ```
 
 ---
@@ -1152,7 +1166,7 @@ migrations/4_token_expiry_indexes.down.sql
 | `internal/middleware/securityheaders.go` | **NEW** |
 | `config/config.go` | Add DB pool + rate limit config fields |
 | `config/config_test.go` | Add tests for new config fields |
-| `main.go` | Refactor to `server`/`cleanup` subcommand dispatch; extract `runServer`, `runCleanup`, `buildServices`, `mustConnectDB`; remove `runAuthRequestCleanup` goroutine; apply DB pool, rate limiter, security headers |
+| `main.go` | Refactor to `server`/`cleanup` subcommand dispatch; extract `runServer`, `runCleanup`, `buildServices`, `mustConnectDB`; remove `runAuthRequestCleanup` goroutine; apply DB pool, single public rate limiter (`authorizePathLimiter` + `/login/*`), security headers |
 | `internal/authn/provider_github.go` | Add `fetchPrimaryEmail` fallback |
 | `internal/authn/login_usecase.go` | Change AMR to `["fed"]` |
 | `.env.example` | Document new environment variables |
@@ -1193,7 +1207,7 @@ go test ./internal/identity/postgres/...
 2. Start server: `./accounts server` → confirm `/.well-known/openid-configuration` responds.
 3. Complete a full login flow → confirm ID token, access token, and refresh token are issued.
 4. Use refresh token → confirm new access token issued, old refresh token rejected on re-use.
-5. Hit `/login` rapidly from same IP → confirm `429 Too Many Requests` after burst is exhausted.
+5. Hit `/login` and `/authorize` rapidly with a spoofed `CF-Connecting-IP: 1.2.3.4` header → confirm `429 Too Many Requests` after burst is exhausted. Then repeat the same requests from a private IP (e.g. `curl --interface 127.0.0.1`) → confirm all pass without 429 (internal bypass active). Also confirm that rapid calls to `/token` never trigger 429 regardless of source IP.
 6. Inspect any response header → confirm `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, etc.
 7. Run cleanup command: `./accounts cleanup` → confirm clean exit with logged deletion counts.
 8. Run `EXPLAIN (ANALYZE, BUFFERS) DELETE FROM tokens WHERE expiration < now()` → confirm index scan on `tokens_expiration_idx`.
