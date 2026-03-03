@@ -691,14 +691,6 @@ only a few queries), so pool settings are applied in `runServer` only.
 
 ### 3.1 – Per-IP Rate Limiting
 
-> **User Annotation
-> 2.  **Rate Limiting Strategy (Hybrid):**
->     * **Why:** Even without password auth, we must protect against "Login Start" flooding which exhausts Upstream Provider (Google/GitHub) quotas and DB resources.
->     * **Public Endpoints (`/authorize`, `/login/*`..etc):** Apply strict rate limits per IP.
->         * *IP Resolution:* Since traffic flows `User -> Cloudflare Tunnel -> Caddy -> App`, strictly trust the **`CF-Connecting-IP`** header to identify the real user.
->     * **Internal/BFF Endpoints (`/token`, `/userinfo`...etc):**
->         * **Bypass:** Traffic coming from the internal network (e.g., private IP ranges or specific headers injected by Caddy) MUST be exempted from rate limits to prevent blocking the BFF.
-
 **Why:** No rate limiting exists on any endpoint. The token endpoint, client
 credentials endpoint, and login flow are all unbounded.
 
