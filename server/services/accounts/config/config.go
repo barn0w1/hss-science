@@ -6,16 +6,35 @@ import (
 	"encoding/hex"
 	"encoding/pem"
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 )
+
+type ConfigSource interface {
+	Get(key string) string
+}
+
+type OSEnvSource struct{}
+
+func (OSEnvSource) Get(key string) string { return os.Getenv(key) }
+
+type MapSource map[string]string
+
+func (m MapSource) Get(key string) string { return m[key] }
+
+type SigningKeySet struct {
+	Current  *rsa.PrivateKey
+	Previous []*rsa.PrivateKey
+}
 
 type Config struct {
 	Port        string
 	Issuer      string
 	DatabaseURL string
 	CryptoKey   [32]byte
-	SigningKey  *rsa.PrivateKey
+	SigningKeys SigningKeySet
 
 	AccessTokenLifetimeMinutes int
 	RefreshTokenLifetimeDays   int
@@ -28,24 +47,31 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
+	return LoadFrom(OSEnvSource{})
+}
+
+func LoadFrom(src ConfigSource) (*Config, error) {
 	cfg := &Config{
-		Port:               getEnv("PORT", "8080"),
-		Issuer:             os.Getenv("ISSUER"),
-		DatabaseURL:        os.Getenv("DATABASE_URL"),
-		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
-		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		GitHubClientID:     os.Getenv("GITHUB_CLIENT_ID"),
-		GitHubClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
+		Port:               getFrom(src, "PORT", "8080"),
+		Issuer:             src.Get("ISSUER"),
+		DatabaseURL:        src.Get("DATABASE_URL"),
+		GoogleClientID:     src.Get("GOOGLE_CLIENT_ID"),
+		GoogleClientSecret: src.Get("GOOGLE_CLIENT_SECRET"),
+		GitHubClientID:     src.Get("GITHUB_CLIENT_ID"),
+		GitHubClientSecret: src.Get("GITHUB_CLIENT_SECRET"),
 	}
 
 	if cfg.Issuer == "" {
 		return nil, fmt.Errorf("ISSUER is required")
 	}
+	if u, err := url.Parse(cfg.Issuer); err != nil || u.Scheme == "" || u.Host == "" {
+		return nil, fmt.Errorf("ISSUER must be a valid URL with scheme and host, got %q", cfg.Issuer)
+	}
 	if cfg.DatabaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is required")
 	}
 
-	cryptoKeyHex := os.Getenv("CRYPTO_KEY")
+	cryptoKeyHex := src.Get("CRYPTO_KEY")
 	if cryptoKeyHex == "" {
 		return nil, fmt.Errorf("CRYPTO_KEY is required")
 	}
@@ -58,41 +84,44 @@ func Load() (*Config, error) {
 	}
 	copy(cfg.CryptoKey[:], keyBytes)
 
-	signingKeyPEM := os.Getenv("SIGNING_KEY_PEM")
+	signingKeyPEM := src.Get("SIGNING_KEY_PEM")
 	if signingKeyPEM == "" {
 		return nil, fmt.Errorf("SIGNING_KEY_PEM is required")
 	}
-	cfg.SigningKey, err = parseRSAPrivateKey(signingKeyPEM)
+	cfg.SigningKeys.Current, err = parseRSAPrivateKey(signingKeyPEM)
 	if err != nil {
 		return nil, fmt.Errorf("SIGNING_KEY_PEM: %w", err)
+	}
+
+	if prev := src.Get("SIGNING_KEY_PREVIOUS_PEM"); prev != "" {
+		for _, pemStr := range strings.Split(prev, "---NEXT---") {
+			trimmed := strings.TrimSpace(pemStr)
+			if trimmed == "" {
+				continue
+			}
+			key, err := parseRSAPrivateKey(trimmed)
+			if err != nil {
+				return nil, fmt.Errorf("SIGNING_KEY_PREVIOUS_PEM: %w", err)
+			}
+			cfg.SigningKeys.Previous = append(cfg.SigningKeys.Previous, key)
+		}
 	}
 
 	if cfg.GoogleClientID == "" && cfg.GitHubClientID == "" {
 		return nil, fmt.Errorf("at least one upstream IdP must be configured (GOOGLE_CLIENT_ID or GITHUB_CLIENT_ID)")
 	}
 
-	cfg.AccessTokenLifetimeMinutes = getEnvInt("ACCESS_TOKEN_LIFETIME_MINUTES", 15)
-	if cfg.AccessTokenLifetimeMinutes == 0 {
-		cfg.AccessTokenLifetimeMinutes = 15
+	cfg.AccessTokenLifetimeMinutes, err = loadBoundedInt(src, "ACCESS_TOKEN_LIFETIME_MINUTES", 15, 1, 60)
+	if err != nil {
+		return nil, err
 	}
-	if cfg.AccessTokenLifetimeMinutes < 1 || cfg.AccessTokenLifetimeMinutes > 60 {
-		return nil, fmt.Errorf("ACCESS_TOKEN_LIFETIME_MINUTES must be 0 (default) or 1-60, got %d", cfg.AccessTokenLifetimeMinutes)
+	cfg.RefreshTokenLifetimeDays, err = loadBoundedInt(src, "REFRESH_TOKEN_LIFETIME_DAYS", 7, 1, 90)
+	if err != nil {
+		return nil, err
 	}
-
-	cfg.RefreshTokenLifetimeDays = getEnvInt("REFRESH_TOKEN_LIFETIME_DAYS", 7)
-	if cfg.RefreshTokenLifetimeDays == 0 {
-		cfg.RefreshTokenLifetimeDays = 7
-	}
-	if cfg.RefreshTokenLifetimeDays < 1 || cfg.RefreshTokenLifetimeDays > 90 {
-		return nil, fmt.Errorf("REFRESH_TOKEN_LIFETIME_DAYS must be 0 (default) or 1-90, got %d", cfg.RefreshTokenLifetimeDays)
-	}
-
-	cfg.AuthRequestTTLMinutes = getEnvInt("AUTH_REQUEST_TTL_MINUTES", 30)
-	if cfg.AuthRequestTTLMinutes == 0 {
-		cfg.AuthRequestTTLMinutes = 30
-	}
-	if cfg.AuthRequestTTLMinutes < 1 || cfg.AuthRequestTTLMinutes > 60 {
-		return nil, fmt.Errorf("AUTH_REQUEST_TTL_MINUTES must be 0 (default) or 1-60, got %d", cfg.AuthRequestTTLMinutes)
+	cfg.AuthRequestTTLMinutes, err = loadBoundedInt(src, "AUTH_REQUEST_TTL_MINUTES", 30, 1, 60)
+	if err != nil {
+		return nil, err
 	}
 
 	return cfg, nil
@@ -104,39 +133,57 @@ func parseRSAPrivateKey(pemStr string) (*rsa.PrivateKey, error) {
 		return nil, fmt.Errorf("failed to decode PEM block")
 	}
 
+	var rsaKey *rsa.PrivateKey
 	switch block.Type {
 	case "RSA PRIVATE KEY":
-		return x509.ParsePKCS1PrivateKey(block.Bytes)
+		key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+		if err != nil {
+			return nil, err
+		}
+		rsaKey = key
 	case "PRIVATE KEY":
 		key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 		if err != nil {
 			return nil, err
 		}
-		rsaKey, ok := key.(*rsa.PrivateKey)
+		var ok bool
+		rsaKey, ok = key.(*rsa.PrivateKey)
 		if !ok {
 			return nil, fmt.Errorf("PKCS#8 key is not RSA")
 		}
-		return rsaKey, nil
 	default:
 		return nil, fmt.Errorf("unsupported PEM block type: %s", block.Type)
 	}
+
+	if rsaKey.N.BitLen() < 2048 {
+		return nil, fmt.Errorf("RSA signing key must be >= 2048 bits, got %d", rsaKey.N.BitLen())
+	}
+
+	return rsaKey, nil
 }
 
-func getEnv(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
+func getFrom(src ConfigSource, key, fallback string) string {
+	if v := src.Get(key); v != "" {
 		return v
 	}
 	return fallback
 }
 
-func getEnvInt(key string, defaultVal int) int {
-	v := os.Getenv(key)
-	if v == "" {
-		return defaultVal
+func loadBoundedInt(src ConfigSource, key string, defaultVal, min, max int) (int, error) {
+	raw := src.Get(key)
+	val := defaultVal
+	if raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil {
+			return 0, fmt.Errorf("%s must be numeric: %w", key, err)
+		}
+		val = n
 	}
-	n, err := strconv.Atoi(v)
-	if err != nil {
-		return defaultVal
+	if val == 0 {
+		val = defaultVal
 	}
-	return n
+	if val < min || val > max {
+		return 0, fmt.Errorf("%s must be 0 (default) or %d-%d, got %d", key, min, max, val)
+	}
+	return val, nil
 }

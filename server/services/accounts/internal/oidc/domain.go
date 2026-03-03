@@ -34,6 +34,7 @@ type Client struct {
 	ResponseTypes            []string
 	GrantTypes               []string
 	AccessTokenType          string
+	AllowedScopes            []string
 	IDTokenLifetimeSeconds   int
 	ClockSkewSeconds         int
 	IDTokenUserinfoAssertion bool

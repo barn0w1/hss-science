@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -111,7 +112,7 @@ func TestGetByID_NotFound(t *testing.T) {
 	cleanTables(t)
 	repo := NewUserRepository(testDB)
 	_, err := repo.GetByID(context.Background(), newID())
-	if !domerr.Is(err, domerr.ErrNotFound) {
+	if !errors.Is(err, domerr.ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }
@@ -219,36 +220,33 @@ func TestUpdateFederatedIdentityClaims(t *testing.T) {
 	}
 }
 
-func TestUniqueUserID_Constraint(t *testing.T) {
+func TestUniqueFederatedIdentity_Constraint(t *testing.T) {
 	cleanTables(t)
 	repo := NewUserRepository(testDB)
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	user := &identity.User{
+	user1 := &identity.User{
 		ID: newID(), Email: "dave@example.com", Name: "Dave", CreatedAt: now,
 	}
 	fi1 := &identity.FederatedIdentity{
-		ID: newID(), UserID: user.ID, Provider: "google", ProviderSubject: "goog-dave",
+		ID: newID(), UserID: user1.ID, Provider: "google", ProviderSubject: "goog-dave",
 		LastLoginAt: now, CreatedAt: now, UpdatedAt: now,
 	}
-	if err := repo.CreateWithFederatedIdentity(ctx, user, fi1); err != nil {
+	if err := repo.CreateWithFederatedIdentity(ctx, user1, fi1); err != nil {
 		t.Fatalf("first create: %v", err)
 	}
 
-	// Attempting a second FI for the same user should fail due to UNIQUE(user_id)
+	// A second user attempting to claim the same (provider, provider_subject) should
+	// fail due to UNIQUE(provider, provider_subject).
+	user2 := &identity.User{
+		ID: newID(), Email: "eve@example.com", Name: "Eve", CreatedAt: now,
+	}
 	fi2 := &identity.FederatedIdentity{
-		ID: newID(), UserID: user.ID, Provider: "github", ProviderSubject: "gh-dave",
+		ID: newID(), UserID: user2.ID, Provider: "google", ProviderSubject: "goog-dave",
 		LastLoginAt: now, CreatedAt: now, UpdatedAt: now,
 	}
-	_, err := testDB.ExecContext(ctx,
-		`INSERT INTO federated_identities
-		    (id, user_id, provider, provider_subject, last_login_at, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-		fi2.ID, fi2.UserID, fi2.Provider, fi2.ProviderSubject,
-		fi2.LastLoginAt, fi2.CreatedAt, fi2.UpdatedAt,
-	)
-	if err == nil {
-		t.Fatal("expected UNIQUE(user_id) constraint violation")
+	if err := repo.CreateWithFederatedIdentity(ctx, user2, fi2); err == nil {
+		t.Fatal("expected UNIQUE(provider, provider_subject) constraint violation")
 	}
 }

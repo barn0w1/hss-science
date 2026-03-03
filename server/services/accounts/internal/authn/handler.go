@@ -1,36 +1,27 @@
 package authn
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/identity"
+	oidcdom "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/pkg/crypto"
 )
-
-type AuthRequestQuerier interface {
-	GetByID(ctx context.Context, id string) (AuthRequestInfo, error)
-	CompleteLogin(ctx context.Context, id, userID string, authTime time.Time, amr []string) error
-}
-
-type AuthRequestInfo struct {
-	ID string
-}
 
 type Handler struct {
 	providers   []*Provider
 	providerMap map[string]*Provider
-	identitySvc identity.Service
-	authReqs    AuthRequestQuerier
-	cryptoKey   [32]byte
+	loginUC     *CompleteFederatedLogin
+	cipher      crypto.Cipher
 	callbackURL func(context.Context, string) string
 	tmpl        *template.Template
 	logger      *slog.Logger
@@ -39,8 +30,8 @@ type Handler struct {
 func NewHandler(
 	providers []*Provider,
 	identitySvc identity.Service,
-	authReqs AuthRequestQuerier,
-	cryptoKey [32]byte,
+	loginCompleter oidcdom.LoginCompleter,
+	cipher crypto.Cipher,
 	callbackURL func(context.Context, string) string,
 	logger *slog.Logger,
 ) *Handler {
@@ -52,9 +43,8 @@ func NewHandler(
 	return &Handler{
 		providers:   providers,
 		providerMap: pm,
-		identitySvc: identitySvc,
-		authReqs:    authReqs,
-		cryptoKey:   cryptoKey,
+		loginUC:     NewCompleteFederatedLogin(identitySvc, loginCompleter),
+		cipher:      cipher,
 		callbackURL: callbackURL,
 		tmpl:        tmpl,
 		logger:      logger,
@@ -73,20 +63,17 @@ func (h *Handler) SelectProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := h.authReqs.GetByID(r.Context(), authRequestID)
-	if err != nil {
-		h.logger.Error("auth request not found", "id", authRequestID, "error", err)
-		http.Error(w, "invalid auth request", http.StatusBadRequest)
-		return
-	}
-
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := h.tmpl.Execute(w, selectProviderData{
+	var buf bytes.Buffer
+	if err := h.tmpl.Execute(&buf, selectProviderData{
 		AuthRequestID: authRequestID,
 		Providers:     h.providers,
 	}); err != nil {
 		h.logger.Error("template execution failed", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
 	}
+	_, _ = buf.WriteTo(w)
 }
 
 type federatedState struct {
@@ -159,23 +146,15 @@ func (h *Handler) FederatedCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, err := provider.FetchClaims(r.Context(), token)
+	claims, err := provider.Claims.FetchClaims(r.Context(), token)
 	if err != nil {
 		h.logger.Error("user info retrieval failed", "provider", state.Provider, "error", err)
 		http.Error(w, "authentication failed", http.StatusInternalServerError)
 		return
 	}
 
-	user, err := h.identitySvc.FindOrCreateByFederatedLogin(r.Context(), state.Provider, *claims)
-	if err != nil {
-		h.logger.Error("find or create user failed", "error", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-
-	now := time.Now().UTC()
-	if err := h.authReqs.CompleteLogin(r.Context(), state.AuthRequestID, user.ID, now, []string{"federated"}); err != nil {
-		h.logger.Error("complete login failed", "error", err)
+	if _, err := h.loginUC.Execute(r.Context(), state.Provider, *claims, state.AuthRequestID); err != nil {
+		h.logger.Error("login completion failed", "error", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -189,12 +168,12 @@ func (h *Handler) encryptState(state federatedState) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return crypto.Encrypt(h.cryptoKey, plaintext)
+	return h.cipher.Encrypt(plaintext)
 }
 
 func (h *Handler) decryptState(encoded string) (federatedState, error) {
 	var state federatedState
-	plaintext, err := crypto.Decrypt(h.cryptoKey, encoded)
+	plaintext, err := h.cipher.Decrypt(encoded)
 	if err != nil {
 		return state, err
 	}

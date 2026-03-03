@@ -9,11 +9,15 @@ import (
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/identity"
 )
 
+type ClaimsProvider interface {
+	FetchClaims(ctx context.Context, token *oauth2.Token) (*identity.FederatedClaims, error)
+}
+
 type Provider struct {
 	Name         string
 	DisplayName  string
 	OAuth2Config *oauth2.Config
-	FetchClaims  func(ctx context.Context, token *oauth2.Token) (*identity.FederatedClaims, error)
+	Claims       ClaimsProvider
 }
 
 func NewProviders(ctx context.Context, cfg Config) ([]*Provider, error) {

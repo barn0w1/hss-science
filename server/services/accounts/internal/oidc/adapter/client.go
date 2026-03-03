@@ -81,12 +81,39 @@ func (c *ClientAdapter) ClockSkew() time.Duration {
 	return time.Duration(c.domain.ClockSkewSeconds) * time.Second
 }
 
-func (c *ClientAdapter) IsScopeAllowed(_ string) bool { return false }
+func (c *ClientAdapter) IsScopeAllowed(scope string) bool {
+	if len(c.domain.AllowedScopes) == 0 {
+		return false
+	}
+	for _, s := range c.domain.AllowedScopes {
+		if s == scope {
+			return true
+		}
+	}
+	return false
+}
 
 func (c *ClientAdapter) RestrictAdditionalIdTokenScopes() func(scopes []string) []string {
-	return func(scopes []string) []string { return scopes }
+	return c.filterScopes
 }
 
 func (c *ClientAdapter) RestrictAdditionalAccessTokenScopes() func(scopes []string) []string {
-	return func(scopes []string) []string { return scopes }
+	return c.filterScopes
+}
+
+func (c *ClientAdapter) filterScopes(scopes []string) []string {
+	if len(c.domain.AllowedScopes) == 0 {
+		return scopes
+	}
+	allowed := make(map[string]struct{}, len(c.domain.AllowedScopes))
+	for _, s := range c.domain.AllowedScopes {
+		allowed[s] = struct{}{}
+	}
+	filtered := make([]string, 0, len(scopes))
+	for _, s := range scopes {
+		if _, ok := allowed[s]; ok {
+			filtered = append(filtered, s)
+		}
+	}
+	return filtered
 }

@@ -31,6 +31,7 @@ type userRow struct {
 	FamilyName    string    `db:"family_name"`
 	Picture       string    `db:"picture"`
 	CreatedAt     time.Time `db:"created_at"`
+	UpdatedAt     time.Time `db:"updated_at"`
 }
 
 func toUser(row userRow) *identity.User {
@@ -43,13 +44,14 @@ func toUser(row userRow) *identity.User {
 		FamilyName:    row.FamilyName,
 		Picture:       row.Picture,
 		CreatedAt:     row.CreatedAt,
+		UpdatedAt:     row.UpdatedAt,
 	}
 }
 
 func (r *UserRepository) GetByID(ctx context.Context, id string) (*identity.User, error) {
 	var row userRow
 	err := r.db.QueryRowxContext(ctx,
-		`SELECT id, email, email_verified, name, given_name, family_name, picture, created_at
+		`SELECT id, email, email_verified, name, given_name, family_name, picture, created_at, updated_at
 		 FROM users WHERE id = $1`, id,
 	).StructScan(&row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -64,7 +66,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*identity.User
 func (r *UserRepository) FindByFederatedIdentity(ctx context.Context, provider, providerSubject string) (*identity.User, error) {
 	var row userRow
 	err := r.db.QueryRowxContext(ctx,
-		`SELECT u.id, u.email, u.email_verified, u.name, u.given_name, u.family_name, u.picture, u.created_at
+		`SELECT u.id, u.email, u.email_verified, u.name, u.given_name, u.family_name, u.picture, u.created_at, u.updated_at
 		 FROM users u
 		 JOIN federated_identities fi ON fi.user_id = u.id
 		 WHERE fi.provider = $1 AND fi.provider_subject = $2`,
@@ -91,10 +93,10 @@ func (r *UserRepository) CreateWithFederatedIdentity(
 	defer func() { _ = tx.Rollback() }()
 
 	_, err = tx.ExecContext(ctx,
-		`INSERT INTO users (id, email, email_verified, name, given_name, family_name, picture, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		`INSERT INTO users (id, email, email_verified, name, given_name, family_name, picture, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 		user.ID, user.Email, user.EmailVerified, user.Name,
-		user.GivenName, user.FamilyName, user.Picture, user.CreatedAt,
+		user.GivenName, user.FamilyName, user.Picture, user.CreatedAt, user.UpdatedAt,
 	)
 	if err != nil {
 		return err
@@ -117,6 +119,24 @@ func (r *UserRepository) CreateWithFederatedIdentity(
 	}
 
 	return tx.Commit()
+}
+
+func (r *UserRepository) UpdateUserFromClaims(ctx context.Context, userID string, claims identity.FederatedClaims, updatedAt time.Time) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users
+		 SET email          = $1,
+		     email_verified = $2,
+		     name           = $3,
+		     given_name     = $4,
+		     family_name    = $5,
+		     picture        = $6,
+		     updated_at     = $7
+		 WHERE id = $8`,
+		claims.Email, claims.EmailVerified, claims.Name,
+		claims.GivenName, claims.FamilyName, claims.Picture,
+		updatedAt, userID,
+	)
+	return err
 }
 
 func (r *UserRepository) UpdateFederatedIdentityClaims(

@@ -42,9 +42,27 @@ func (r *TokenRepository) CreateAccessAndRefresh(ctx context.Context, access *oi
 	defer func() { _ = tx.Rollback() }()
 
 	if currentRefreshToken != "" {
-		_, err = tx.ExecContext(ctx, `DELETE FROM refresh_tokens WHERE token = $1`, currentRefreshToken)
-		if err != nil {
-			return err
+		var oldAccessTokenID sql.NullString
+		err = tx.QueryRowContext(ctx,
+			`SELECT access_token_id FROM refresh_tokens WHERE token = $1`,
+			currentRefreshToken,
+		).Scan(&oldAccessTokenID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("lookup old refresh token: %w", err)
+		}
+
+		if oldAccessTokenID.Valid && oldAccessTokenID.String != "" {
+			if _, err = tx.ExecContext(ctx,
+				`DELETE FROM tokens WHERE id = $1`, oldAccessTokenID.String,
+			); err != nil {
+				return fmt.Errorf("revoke old access token: %w", err)
+			}
+		}
+
+		if _, err = tx.ExecContext(ctx,
+			`DELETE FROM refresh_tokens WHERE token = $1`, currentRefreshToken,
+		); err != nil {
+			return fmt.Errorf("delete old refresh token: %w", err)
 		}
 	}
 

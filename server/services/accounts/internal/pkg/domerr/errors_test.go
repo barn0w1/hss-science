@@ -17,18 +17,18 @@ func TestSentinelErrors_AreDistinct(t *testing.T) {
 	}
 }
 
-func TestIs_WrappedError(t *testing.T) {
+func TestSentinelErrors_WrappedMatch(t *testing.T) {
 	wrapped := fmt.Errorf("user 123: %w", ErrNotFound)
-	if !Is(wrapped, ErrNotFound) {
-		t.Error("expected Is(wrapped, ErrNotFound) to be true")
+	if !errors.Is(wrapped, ErrNotFound) {
+		t.Error("expected errors.Is(wrapped, ErrNotFound) to be true")
 	}
-	if Is(wrapped, ErrAlreadyExists) {
-		t.Error("expected Is(wrapped, ErrAlreadyExists) to be false")
+	if errors.Is(wrapped, ErrAlreadyExists) {
+		t.Error("expected errors.Is(wrapped, ErrAlreadyExists) to be false")
 	}
 }
 
-func TestIs_NilError(t *testing.T) {
-	if Is(nil, ErrNotFound) {
-		t.Error("expected Is(nil, ErrNotFound) to be false")
+func TestSentinelErrors_NilNotMatch(t *testing.T) {
+	if errors.Is(nil, ErrNotFound) {
+		t.Error("expected errors.Is(nil, ErrNotFound) to be false")
 	}
 }

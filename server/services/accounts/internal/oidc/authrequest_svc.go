@@ -56,3 +56,7 @@ func (s *authRequestService) CompleteLogin(ctx context.Context, id, userID strin
 func (s *authRequestService) Delete(ctx context.Context, id string) error {
 	return s.repo.Delete(ctx, id)
 }
+
+func (s *authRequestService) DeleteExpiredBefore(ctx context.Context, before time.Time) (int64, error) {
+	return s.repo.DeleteExpiredBefore(ctx, before)
+}

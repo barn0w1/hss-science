@@ -2,6 +2,7 @@ package oidc
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"golang.org/x/crypto/bcrypt"
@@ -46,7 +47,7 @@ func TestClientService_ClientCredentials_WrongSecret(t *testing.T) {
 	c := &Client{ID: "client-1", SecretHash: hashPassword(t, "secret")}
 	svc := NewClientService(&mockClientRepo{client: c})
 	_, err := svc.ClientCredentials(context.Background(), "client-1", "wrong")
-	if !domerr.Is(err, domerr.ErrUnauthorized) {
+	if !errors.Is(err, domerr.ErrUnauthorized) {
 		t.Errorf("expected domerr.ErrUnauthorized, got %v", err)
 	}
 }
@@ -54,7 +55,7 @@ func TestClientService_ClientCredentials_WrongSecret(t *testing.T) {
 func TestClientService_ClientCredentials_NotFound(t *testing.T) {
 	svc := NewClientService(&mockClientRepo{err: domerr.ErrNotFound})
 	_, err := svc.ClientCredentials(context.Background(), "nonexistent", "secret")
-	if !domerr.Is(err, domerr.ErrNotFound) {
+	if !errors.Is(err, domerr.ErrNotFound) {
 		t.Errorf("expected domerr.ErrNotFound, got %v", err)
 	}
 }
@@ -71,7 +72,7 @@ func TestClientService_AuthorizeSecret_WrongSecret(t *testing.T) {
 	c := &Client{ID: "client-1", SecretHash: hashPassword(t, "secret")}
 	svc := NewClientService(&mockClientRepo{client: c})
 	err := svc.AuthorizeSecret(context.Background(), "client-1", "wrong")
-	if !domerr.Is(err, domerr.ErrUnauthorized) {
+	if !errors.Is(err, domerr.ErrUnauthorized) {
 		t.Errorf("expected domerr.ErrUnauthorized, got %v", err)
 	}
 }
@@ -79,7 +80,7 @@ func TestClientService_AuthorizeSecret_WrongSecret(t *testing.T) {
 func TestClientService_AuthorizeSecret_NotFound(t *testing.T) {
 	svc := NewClientService(&mockClientRepo{err: domerr.ErrNotFound})
 	err := svc.AuthorizeSecret(context.Background(), "nonexistent", "secret")
-	if !domerr.Is(err, domerr.ErrNotFound) {
+	if !errors.Is(err, domerr.ErrNotFound) {
 		t.Errorf("expected domerr.ErrNotFound, got %v", err)
 	}
 }

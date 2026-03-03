@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"golang.org/x/oauth2"
+
+	"github.com/barn0w1/hss-science/server/services/accounts/internal/pkg/crypto"
 )
 
 func testHandler(t *testing.T) *Handler {
@@ -50,9 +52,8 @@ func testHandler(t *testing.T) *Handler {
 	return &Handler{
 		providers:   providers,
 		providerMap: pm,
-		identitySvc: nil,
-		authReqs:    nil,
-		cryptoKey:   key,
+		loginUC:     nil,
+		cipher:      crypto.NewAESCipher(key),
 		callbackURL: func(_ context.Context, id string) string {
 			return "http://localhost/authorize/callback?id=" + id
 		},
@@ -125,7 +126,7 @@ func TestDecryptState_WrongKey(t *testing.T) {
 	if _, err := rand.Read(otherKey[:]); err != nil {
 		t.Fatal(err)
 	}
-	h.cryptoKey = otherKey
+	h.cipher = crypto.NewAESCipher(otherKey)
 	_, err = h.decryptState(encrypted)
 	if err == nil {
 		t.Fatal("expected error when decrypting with wrong key")

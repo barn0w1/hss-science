@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS refresh_tokens;
+DROP INDEX IF EXISTS tokens_subject_client_idx;
+DROP TABLE IF EXISTS tokens;
+DROP INDEX IF EXISTS auth_requests_created_at_idx;
+DROP INDEX IF EXISTS auth_requests_code_idx;
+DROP TABLE IF EXISTS auth_requests;
+DROP TABLE IF EXISTS clients;
+DROP INDEX IF EXISTS federated_identities_user_id_idx;
+DROP TABLE IF EXISTS federated_identities;
+DROP TABLE IF EXISTS users;
