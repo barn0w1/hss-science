@@ -10,3 +10,45 @@ updates:
     directory: "/server"
     schedule:
       interval: "weekly"
+      day: "friday"
+    groups:
+      golang-dependencies:
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "go"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "friday"
+    groups:
+      actions-dependencies:
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  # Docker Images for accounts service
+  - package-ecosystem: "docker"
+    directory: "/server/services/accounts"
+    schedule:
+      interval: "weekly"
+      day: "friday"
+    labels:
+      - "dependencies"
+      - "docker"
+
+  # Web frontend
+  # - package-ecosystem: "npm" 
+  #   directory: "/web"
+  #   schedule:
+  #     interval: "weekly"
+  #   groups:
+  #     frontend-dependencies:
+  #       patterns:
+  #         - "*"
