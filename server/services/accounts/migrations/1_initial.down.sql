@@ -1,4 +1,6 @@
 DROP TABLE IF EXISTS refresh_tokens;
+DROP INDEX IF EXISTS refresh_tokens_expiration_idx;
+DROP INDEX IF EXISTS tokens_expiration_idx;
 DROP INDEX IF EXISTS tokens_subject_client_idx;
 DROP TABLE IF EXISTS tokens;
 DROP INDEX IF EXISTS auth_requests_created_at_idx;

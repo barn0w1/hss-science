@@ -93,7 +93,7 @@ CREATE INDEX tokens_subject_client_idx
 
 CREATE TABLE refresh_tokens (
     id               TEXT        PRIMARY KEY,
-    token            TEXT        NOT NULL UNIQUE,
+    token_hash       TEXT        NOT NULL UNIQUE,
     client_id        TEXT        NOT NULL,
     user_id          TEXT        NOT NULL REFERENCES users(id),
     audience         TEXT[]      NOT NULL DEFAULT '{}',
@@ -104,3 +104,6 @@ CREATE TABLE refresh_tokens (
     expiration       TIMESTAMPTZ NOT NULL,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE INDEX tokens_expiration_idx ON tokens (expiration);
+CREATE INDEX refresh_tokens_expiration_idx ON refresh_tokens (expiration);
