@@ -676,6 +676,9 @@ type RedisStore struct {
 
 **Key format**: `bff:session:<opaque-uuid>`
 
+> User Annotions(Security):
+> Standard UUIDv4 provides 122 bits of entropy, which is generally fine, but for critical session identifiers, it is much safer to use 'crypto/rand' to generate 32 bytes of random data and base64url-encode it. This guarantees true cryptographic randomness and prevents any theoretical prediction attacks.
+
 **Implementation details**:
 - `Create`: Generate UUID v4, JSON-marshal `SessionData`, `SET bff:session:<uuid> <json> EX <ttl>`
 - `Get`: `GET bff:session:<uuid>`, unmarshal, return `ErrNotFound` if key doesn't exist
