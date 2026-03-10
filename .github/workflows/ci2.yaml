@@ -36,8 +36,6 @@ jobs:
             changed:
               - '${{ matrix.path }}/**'
               - 'server/internal/**'
-              - 'server/gen/**'
-              - 'server/bff/gen/**'
               - 'api/proto/**'
               - 'api/openapi/**'
               - 'server/go.mod'

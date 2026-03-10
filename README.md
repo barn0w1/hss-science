@@ -69,26 +69,3 @@ It is not an open-source project.
 ### 2026-01-12
 
 * Project initiated.
-
----
-
-## Directory Structure (Simplified)
-```txt
-.
-├── Makefile
-├── README.md
-├── buf.gen.yaml
-├── buf.lock
-├── buf.yaml
-├── server
-│   ├── go.mod
-│   ├── go.sum
-│   └── services
-└── web
-    ├── CLAUDE.md
-    ├── apps
-    ├── node_modules
-    ├── package.json
-    ├── pnpm-lock.yaml
-    └── pnpm-workspace.yaml
-```
