@@ -46,7 +46,7 @@ func testHandler(t *testing.T) *Handler {
 		pm[p.Name] = p
 	}
 
-	tmpl := template.Must(template.New("select_provider").Parse(selectProviderHTML))
+	tmpl := template.Must(template.ParseFS(templateFS, "templates/select_provider.html"))
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 
 	return &Handler{

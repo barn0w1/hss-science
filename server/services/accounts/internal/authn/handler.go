@@ -39,7 +39,7 @@ func NewHandler(
 	for _, p := range providers {
 		pm[p.Name] = p
 	}
-	tmpl := template.Must(template.New("select_provider").Parse(selectProviderHTML))
+	tmpl := template.Must(template.ParseFS(templateFS, "templates/select_provider.html"))
 	return &Handler{
 		providers:   providers,
 		providerMap: pm,
@@ -183,23 +183,3 @@ func (h *Handler) decryptState(encoded string) (federatedState, error) {
 	}
 	return state, nil
 }
-
-const selectProviderHTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign In</title>
-</head>
-<body>
-    <h1>Sign In</h1>
-    <p>Choose your sign-in method:</p>
-    {{range .Providers}}
-    <form method="POST" action="/login/select">
-        <input type="hidden" name="authRequestID" value="{{$.AuthRequestID}}">
-        <input type="hidden" name="provider" value="{{.Name}}">
-        <button type="submit">{{.DisplayName}}</button>
-    </form>
-    {{end}}
-</body>
-</html>`

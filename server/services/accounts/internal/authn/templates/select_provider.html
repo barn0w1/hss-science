@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In — HSS Science</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'DM Sans', sans-serif; }
+        body { background: #f7f6f3; min-height: 100vh; }
+        .card { background: #ffffff; border: 1px solid #e8e6e1; }
+        .provider-btn {
+            background: #fff;
+            border: 1.5px solid #e8e6e1;
+            transition: all 0.15s ease;
+        }
+        .provider-btn:hover {
+            background: #f7f6f3;
+            border-color: #c8c5be;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+        }
+        .provider-btn:active { transform: translateY(0); }
+        .mono { font-family: 'DM Mono', monospace; }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .anim-1 { animation: fadeUp 0.4s ease 0.0s both; }
+        .anim-2 { animation: fadeUp 0.4s ease 0.1s both; }
+        .anim-3 { animation: fadeUp 0.4s ease 0.2s both; }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen px-4">
+
+    <div class="fixed top-6 left-8 anim-1">
+        <span class="mono text-xs text-gray-400 tracking-widest uppercase">hss-science.org</span>
+    </div>
+
+    <div class="w-full max-w-sm">
+        <div class="card rounded-2xl p-8 shadow-sm">
+
+            <!-- Header -->
+            <div class="mb-8 anim-1">
+                <div class="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center mb-5">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                        <path d="M2 17l10 5 10-5"/>
+                        <path d="M2 12l10 5 10-5"/>
+                    </svg>
+                </div>
+                <h1 class="text-xl font-medium text-gray-900 tracking-tight">Sign in</h1>
+                <p class="text-sm text-gray-400 mt-1">Continue to your account</p>
+            </div>
+
+            <!-- Providers -->
+            <div class="space-y-3 anim-2">
+                {{range .Providers}}
+                <form method="POST" action="/login/select">
+                    <input type="hidden" name="authRequestID" value="{{$.AuthRequestID}}">
+                    <input type="hidden" name="provider" value="{{.Name}}">
+                    <button type="submit" class="provider-btn w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-700">
+                        {{if eq .Name "google"}}
+                        <svg width="18" height="18" viewBox="0 0 24 24">
+                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                        </svg>
+                        {{end}}
+                        Continue with {{.DisplayName}}
+                    </button>
+                </form>
+                {{end}}
+            </div>
+
+            <!-- Footer -->
+            <div class="mt-8 pt-6 border-t border-gray-100 anim-3">
+                <p class="text-xs text-gray-400 text-center leading-relaxed">
+                    For internal use only.<br>
+                    Access is restricted to authorized personnel.
+                </p>
+            </div>
+        </div>
+
+        <p class="text-center text-xs text-gray-300 mt-5 mono anim-3">
+            accounts.hss-science.org
+        </p>
+    </div>
+
+</body>
+</html>
