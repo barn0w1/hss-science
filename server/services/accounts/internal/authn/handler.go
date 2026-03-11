@@ -83,6 +83,7 @@ type federatedState struct {
 }
 
 func (h *Handler) FederatedRedirect(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1024)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid form", http.StatusBadRequest)
 		return
