@@ -5,30 +5,193 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign In — AppName</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
+        /* ============================================================
+           M3 System Tokens — ref → sys → comp の3層構造
+           https://m3.material.io/foundations/design-tokens/overview
+        ============================================================ */
+
         :root {
-            --md-primary:              #1a73e8;
-            --md-primary-container:    #d3e3fd;
-            --md-on-primary:           #ffffff;
-            --md-on-primary-container: #041e49;
-            --md-surface:              #ffffff;
-            --md-surface-variant:      #f1f3f4;
-            --md-on-surface:           #202124;
-            --md-on-surface-variant:   #5f6368;
-            --md-outline:              #dadce0;
-            --md-outline-variant:      #e8eaed;
-            --radius-sm:   8px;
-            --radius-xl:   28px;
-            --radius-full: 9999px;
-            --font-brand:  'Google Sans', sans-serif;
-            --font-plain:  'Roboto', sans-serif;
+            /* --- Ref Palette (source color: #1a73e8) --- */
+            --md-ref-palette-primary0:   #000000;
+            --md-ref-palette-primary10:  #041e49;
+            --md-ref-palette-primary20:  #062e6f;
+            --md-ref-palette-primary30:  #0842a0;
+            --md-ref-palette-primary40:  #0b57d0;
+            --md-ref-palette-primary50:  #1a6fe7;
+            --md-ref-palette-primary60:  #4c8df6;
+            --md-ref-palette-primary70:  #7cacf8;
+            --md-ref-palette-primary80:  #a8c7fa;
+            --md-ref-palette-primary90:  #d3e3fd;
+            --md-ref-palette-primary95:  #ecf3fe;
+            --md-ref-palette-primary99:  #fafbff;
+            --md-ref-palette-primary100: #ffffff;
+
+            --md-ref-palette-neutral0:   #000000;
+            --md-ref-palette-neutral10:  #191c20;
+            --md-ref-palette-neutral20:  #2e3135;
+            --md-ref-palette-neutral30:  #44474b;
+            --md-ref-palette-neutral40:  #5c5f63;
+            --md-ref-palette-neutral50:  #74777b;
+            --md-ref-palette-neutral60:  #8e9194;
+            --md-ref-palette-neutral70:  #a9acaf;
+            --md-ref-palette-neutral80:  #c4c7ca;
+            --md-ref-palette-neutral90:  #e0e3e7;
+            --md-ref-palette-neutral95:  #eef1f5;
+            --md-ref-palette-neutral99:  #f9fafb;
+            --md-ref-palette-neutral100: #ffffff;
+
+            --md-ref-palette-neutral-variant10:  #181c22;
+            --md-ref-palette-neutral-variant20:  #2d3038;
+            --md-ref-palette-neutral-variant30:  #43474f;
+            --md-ref-palette-neutral-variant40:  #5b5e67;
+            --md-ref-palette-neutral-variant50:  #74777f;
+            --md-ref-palette-neutral-variant60:  #8e9099;
+            --md-ref-palette-neutral-variant70:  #a8abb4;
+            --md-ref-palette-neutral-variant80:  #c4c6cf;
+            --md-ref-palette-neutral-variant90:  #e0e2ec;
+            --md-ref-palette-neutral-variant95:  #eef0fa;
+
+            /* --- Sys Color Scheme (Light) --- */
+            --md-sys-color-primary:                var(--md-ref-palette-primary40);
+            --md-sys-color-on-primary:             var(--md-ref-palette-primary100);
+            --md-sys-color-primary-container:      var(--md-ref-palette-primary90);
+            --md-sys-color-on-primary-container:   var(--md-ref-palette-primary10);
+
+            --md-sys-color-surface:                var(--md-ref-palette-neutral99);
+            --md-sys-color-surface-dim:            #d9dbe0;
+            --md-sys-color-surface-bright:         var(--md-ref-palette-neutral99);
+            --md-sys-color-surface-container-lowest:  var(--md-ref-palette-neutral100);
+            --md-sys-color-surface-container-low:     var(--md-ref-palette-neutral95);
+            --md-sys-color-surface-container:         var(--md-ref-palette-neutral90); /* #e0e3e7 */
+            --md-sys-color-surface-container-high:    var(--md-ref-palette-neutral90);
+            --md-sys-color-surface-container-highest: #dde0e4;
+
+            --md-sys-color-on-surface:             var(--md-ref-palette-neutral10);
+            --md-sys-color-on-surface-variant:     var(--md-ref-palette-neutral-variant30);
+            --md-sys-color-outline:                var(--md-ref-palette-neutral-variant50);
+            --md-sys-color-outline-variant:        var(--md-ref-palette-neutral-variant80);
+
+            /* --- Sys Typescale --- */
+            /* Display */
+            --md-sys-typescale-display-large-font:    'Google Sans', sans-serif;
+            --md-sys-typescale-display-large-size:    57px;
+            --md-sys-typescale-display-large-weight:  400;
+            --md-sys-typescale-display-large-line-height: 64px;
+            --md-sys-typescale-display-large-tracking: -0.25px;
+
+            /* Headline */
+            --md-sys-typescale-headline-medium-font:   'Google Sans', sans-serif;
+            --md-sys-typescale-headline-medium-size:   28px;
+            --md-sys-typescale-headline-medium-weight: 400;
+            --md-sys-typescale-headline-medium-line-height: 36px;
+            --md-sys-typescale-headline-medium-tracking: 0px;
+
+            /* Title */
+            --md-sys-typescale-title-large-font:   'Google Sans', sans-serif;
+            --md-sys-typescale-title-large-size:   22px;
+            --md-sys-typescale-title-large-weight: 400;
+            --md-sys-typescale-title-large-line-height: 28px;
+
+            --md-sys-typescale-title-medium-font:   'Google Sans', sans-serif;
+            --md-sys-typescale-title-medium-size:   16px;
+            --md-sys-typescale-title-medium-weight: 500;
+            --md-sys-typescale-title-medium-line-height: 24px;
+            --md-sys-typescale-title-medium-tracking: 0.15px;
+
+            /* Body */
+            --md-sys-typescale-body-large-font:   'Roboto', sans-serif;
+            --md-sys-typescale-body-large-size:   16px;
+            --md-sys-typescale-body-large-weight: 400;
+            --md-sys-typescale-body-large-line-height: 24px;
+            --md-sys-typescale-body-large-tracking: 0.5px;
+
+            --md-sys-typescale-body-medium-font:   'Roboto', sans-serif;
+            --md-sys-typescale-body-medium-size:   14px;
+            --md-sys-typescale-body-medium-weight: 400;
+            --md-sys-typescale-body-medium-line-height: 20px;
+            --md-sys-typescale-body-medium-tracking: 0.25px;
+
+            --md-sys-typescale-body-small-font:   'Roboto', sans-serif;
+            --md-sys-typescale-body-small-size:   12px;
+            --md-sys-typescale-body-small-weight: 400;
+            --md-sys-typescale-body-small-line-height: 16px;
+            --md-sys-typescale-body-small-tracking: 0.4px;
+
+            /* Label */
+            --md-sys-typescale-label-large-font:   'Roboto', sans-serif;
+            --md-sys-typescale-label-large-size:   14px;
+            --md-sys-typescale-label-large-weight: 500;
+            --md-sys-typescale-label-large-line-height: 20px;
+            --md-sys-typescale-label-large-tracking: 0.1px;
+
+            --md-sys-typescale-label-medium-font:   'Roboto', sans-serif;
+            --md-sys-typescale-label-medium-size:   12px;
+            --md-sys-typescale-label-medium-weight: 500;
+            --md-sys-typescale-label-medium-line-height: 16px;
+            --md-sys-typescale-label-medium-tracking: 0.5px;
+
+            --md-sys-typescale-label-small-font:   'Roboto', sans-serif;
+            --md-sys-typescale-label-small-size:   11px;
+            --md-sys-typescale-label-small-weight: 500;
+            --md-sys-typescale-label-small-line-height: 16px;
+            --md-sys-typescale-label-small-tracking: 0.5px;
+
+            /* --- Sys Shape --- */
+            --md-sys-shape-corner-none:        0px;
+            --md-sys-shape-corner-extra-small: 4px;
+            --md-sys-shape-corner-small:       8px;
+            --md-sys-shape-corner-medium:      12px;
+            --md-sys-shape-corner-large:       16px;
+            --md-sys-shape-corner-extra-large: 28px;
+            --md-sys-shape-corner-full:        9999px;
+
+            /* --- Sys Elevation (Surface Tint: primary) --- */
+            /* M3 uses surface + tint instead of drop-shadow for elevation */
+            --md-sys-elevation-level0: none;
+            --md-sys-elevation-level1: 0px 1px 2px rgba(0,0,0,.3), 0px 1px 3px 1px rgba(0,0,0,.15);
+            --md-sys-elevation-level2: 0px 1px 2px rgba(0,0,0,.3), 0px 2px 6px 2px rgba(0,0,0,.15);
+            --md-sys-elevation-level3: 0px 1px 3px rgba(0,0,0,.3), 0px 4px 8px 3px rgba(0,0,0,.15);
+            --md-sys-elevation-level4: 0px 2px 3px rgba(0,0,0,.3), 0px 6px 10px 4px rgba(0,0,0,.15);
+            --md-sys-elevation-level5: 0px 4px 4px rgba(0,0,0,.3), 0px 8px 12px 6px rgba(0,0,0,.15);
+
+            /* --- Sys State Layer Opacity --- */
+            --md-sys-state-hover-opacity:    0.08;
+            --md-sys-state-focus-opacity:    0.12;
+            --md-sys-state-pressed-opacity:  0.12;
+            --md-sys-state-dragged-opacity:  0.16;
+
+            /* --- Sys Motion --- */
+            --md-sys-motion-easing-standard:          cubic-bezier(0.2, 0, 0, 1);
+            --md-sys-motion-easing-standard-decelerate: cubic-bezier(0, 0, 0, 1);
+            --md-sys-motion-easing-standard-accelerate: cubic-bezier(0.3, 0, 1, 1);
+            --md-sys-motion-easing-emphasized:         cubic-bezier(0.2, 0, 0, 1);
+            --md-sys-motion-duration-short1:  50ms;
+            --md-sys-motion-duration-short2:  100ms;
+            --md-sys-motion-duration-short3:  150ms;
+            --md-sys-motion-duration-short4:  200ms;
+            --md-sys-motion-duration-medium1: 250ms;
+            --md-sys-motion-duration-medium2: 300ms;
+            --md-sys-motion-duration-medium3: 350ms;
+            --md-sys-motion-duration-medium4: 400ms;
+            --md-sys-motion-duration-long1:   450ms;
+            --md-sys-motion-duration-long2:   500ms;
         }
+
+        /* ============================================================
+           Base Reset
+        ============================================================ */
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
         body {
-            font-family: var(--font-plain);
-            background: var(--md-surface-variant);
-            color: var(--md-on-surface);
+            font-family: var(--md-sys-typescale-body-large-font);
+            font-size: var(--md-sys-typescale-body-large-size);
+            font-weight: var(--md-sys-typescale-body-large-weight);
+            line-height: var(--md-sys-typescale-body-large-line-height);
+            letter-spacing: var(--md-sys-typescale-body-large-tracking);
+            background-color: var(--md-sys-color-surface-container-low); /* scrim background */
+            color: var(--md-sys-color-on-surface);
             min-height: 100vh;
             display: flex;
             flex-direction: column;
@@ -36,169 +199,414 @@
             justify-content: center;
             padding: 24px 16px;
         }
-        .card {
+
+        /* ============================================================
+           M3 Card (Elevated) — comp token
+           https://m3.material.io/components/cards/specs
+        ============================================================ */
+        .md-card {
+            /* Elevated Card: surface-container-lowest + level1 shadow + surface tint 5% */
+            background-color: var(--md-sys-color-surface-container-lowest);
+            border-radius: var(--md-sys-shape-corner-extra-large); /* 28dp */
+            box-shadow: var(--md-sys-elevation-level1);
             width: 100%;
-            max-width: 440px;
-            background: var(--md-surface);
-            border-radius: var(--radius-xl);
-            border: 1px solid var(--md-outline);
+            max-width: 400px; /* M3 sign-in card recommended width */
             overflow: hidden;
-            animation: card-in 300ms cubic-bezier(.2,0,0,1) both;
+
+            /* Surface tint for elevation (primary color at 5% for level1) */
+            position: relative;
         }
-        @keyframes card-in {
-            from { opacity: 0; transform: translateY(16px) scale(.97); }
-            to   { opacity: 1; transform: none; }
+        .md-card::before {
+            content: '';
+            position: absolute; inset: 0;
+            background-color: var(--md-sys-color-primary);
+            opacity: 0.05; /* level1 tint overlay */
+            border-radius: inherit;
+            pointer-events: none;
         }
-        .card-header { padding: 40px 40px 28px; }
-        .brand {
-            margin-bottom: 28px;
+
+        /* Page enter animation — M3 emphasized easing */
+        @keyframes md-page-enter {
+            from {
+                opacity: 0;
+                transform: translateY(8px) scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: none;
+            }
         }
-        .brand__domain {
-            font-family: var(--font-plain);
-            font-size: 13px;
-            color: var(--md-on-surface-variant);
-            letter-spacing: .1px;
+        .md-card {
+            animation: md-page-enter var(--md-sys-motion-duration-medium2)
+                       var(--md-sys-motion-easing-standard-decelerate) both;
         }
-        .card-title {
-            font-family: var(--font-brand);
-            font-size: 24px; font-weight: 400;
-            color: var(--md-on-surface); margin-bottom: 8px;
+
+        /* ============================================================
+           Card Header
+        ============================================================ */
+        .card-header {
+            padding: 32px 24px 24px;
         }
-        .card-subtitle {
-            font-size: 14px;
-            color: var(--md-on-surface-variant); line-height: 1.5;
-        }
-        .divider { height: 1px; background: var(--md-outline-variant); }
-        .provider-list { padding: 8px 0; }
-        .provider-item + .provider-item { border-top: 1px solid var(--md-outline-variant); }
-        .provider-btn {
-            width: 100%; display: flex; align-items: center; gap: 16px;
-            padding: 14px 40px;
-            background: transparent; border: none; cursor: pointer;
-            text-align: left; position: relative; overflow: hidden;
-            transition: background 150ms;
-        }
-        .provider-btn:hover  { background: rgba(32,33,36,.06); }
-        .provider-btn:active { background: rgba(32,33,36,.12); }
-        .provider-btn:focus-visible { outline: 3px solid var(--md-primary); outline-offset: -3px; }
-        .provider-btn__avatar {
-            width: 40px; height: 40px;
-            border-radius: var(--radius-full);
-            background: var(--md-surface-variant);
-            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-        }
-        .provider-btn__avatar svg { width: 20px; height: 20px; }
-        .provider-btn__text { flex: 1; }
-        .provider-btn__name {
+
+        /* Label Small — domain name */
+        .brand-label {
+            font-family: var(--md-sys-typescale-label-medium-font);
+            font-size: var(--md-sys-typescale-label-medium-size);
+            font-weight: var(--md-sys-typescale-label-medium-weight);
+            line-height: var(--md-sys-typescale-label-medium-line-height);
+            letter-spacing: var(--md-sys-typescale-label-medium-tracking);
+            color: var(--md-sys-color-on-surface-variant);
+            margin-bottom: 24px;
             display: block;
-            font-family: var(--font-brand); font-size: 15px; font-weight: 500;
-            color: var(--md-on-surface);
         }
-        .provider-btn__hint {
-            display: block; font-size: 12px;
-            color: var(--md-on-surface-variant); margin-top: 1px;
+
+        /* Headline Medium — main title */
+        .card-title {
+            font-family: var(--md-sys-typescale-headline-medium-font);
+            font-size: var(--md-sys-typescale-headline-medium-size);
+            font-weight: var(--md-sys-typescale-headline-medium-weight);
+            line-height: var(--md-sys-typescale-headline-medium-line-height);
+            letter-spacing: var(--md-sys-typescale-headline-medium-tracking);
+            color: var(--md-sys-color-on-surface);
+            margin-bottom: 8px;
         }
-        .provider-btn__chevron { color: var(--md-on-surface-variant); flex-shrink: 0; }
-        .ripple {
-            position: absolute; border-radius: 50%; transform: scale(0);
-            animation: ripple 500ms linear;
-            background: rgba(26,115,232,.2); pointer-events: none;
+
+        /* Body Medium — subtitle */
+        .card-subtitle {
+            font-family: var(--md-sys-typescale-body-medium-font);
+            font-size: var(--md-sys-typescale-body-medium-size);
+            font-weight: var(--md-sys-typescale-body-medium-weight);
+            line-height: var(--md-sys-typescale-body-medium-line-height);
+            letter-spacing: var(--md-sys-typescale-body-medium-tracking);
+            color: var(--md-sys-color-on-surface-variant);
         }
-        @keyframes ripple { to { transform: scale(4); opacity: 0; } }
+
+        /* ============================================================
+           M3 Divider
+           https://m3.material.io/components/divider/specs
+        ============================================================ */
+        .md-divider {
+            height: 1px;
+            background-color: var(--md-sys-color-outline-variant);
+        }
+
+        /* ============================================================
+           Provider List
+        ============================================================ */
+        .provider-list {
+            padding: 8px 0;
+        }
+
+        /* ============================================================
+           M3 List Item (used as provider row)
+           https://m3.material.io/components/lists/specs
+           - Height: 72dp (two-line)
+           - Leading: 40dp avatar
+           - Padding: 16dp horizontal
+        ============================================================ */
+        .md-list-item {
+            position: relative;
+            overflow: hidden;
+        }
+        .md-list-item + .md-list-item {
+            border-top: 1px solid var(--md-sys-color-outline-variant);
+        }
+
+        .md-list-item__btn {
+            /* Reset */
+            width: 100%;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            text-align: left;
+
+            /* M3 List Item layout */
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 12px 24px 12px 16px;
+            min-height: 72px;
+
+            /* State layer */
+            position: relative;
+            overflow: hidden;
+
+            /* Transition */
+            transition:
+                background-color var(--md-sys-motion-duration-short3)
+                var(--md-sys-motion-easing-standard);
+        }
+
+        /* M3 State Layer — hover: on-surface at 8% */
+        .md-list-item__btn::before {
+            content: '';
+            position: absolute; inset: 0;
+            background-color: var(--md-sys-color-on-surface);
+            opacity: 0;
+            transition:
+                opacity var(--md-sys-motion-duration-short3)
+                var(--md-sys-motion-easing-standard);
+            pointer-events: none;
+        }
+        .md-list-item__btn:hover::before {
+            opacity: var(--md-sys-state-hover-opacity); /* 0.08 */
+        }
+        .md-list-item__btn:focus-visible {
+            outline: none;
+        }
+        .md-list-item__btn:focus-visible::before {
+            opacity: var(--md-sys-state-focus-opacity); /* 0.12 */
+        }
+        .md-list-item__btn:active::before {
+            opacity: var(--md-sys-state-pressed-opacity); /* 0.12 */
+        }
+
+        /* Focus ring — M3 spec: 3dp, primary color */
+        .md-list-item__btn:focus-visible {
+            outline: 3px solid var(--md-sys-color-primary);
+            outline-offset: -3px;
+        }
+
+        /* Leading avatar — 40dp */
+        .md-list-item__leading {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--md-sys-shape-corner-full);
+            background-color: var(--md-sys-color-surface-container-high);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        /* Text block */
+        .md-list-item__content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        /* Title: Label Large */
+        .md-list-item__headline {
+            display: block;
+            font-family: var(--md-sys-typescale-label-large-font);
+            font-size: var(--md-sys-typescale-label-large-size);
+            font-weight: var(--md-sys-typescale-label-large-weight);
+            line-height: var(--md-sys-typescale-label-large-line-height);
+            letter-spacing: var(--md-sys-typescale-label-large-tracking);
+            color: var(--md-sys-color-on-surface);
+        }
+
+        /* Supporting text: Body Medium */
+        .md-list-item__supporting {
+            display: block;
+            font-family: var(--md-sys-typescale-body-medium-font);
+            font-size: var(--md-sys-typescale-body-medium-size);
+            font-weight: var(--md-sys-typescale-body-medium-weight);
+            line-height: var(--md-sys-typescale-body-medium-line-height);
+            letter-spacing: var(--md-sys-typescale-body-medium-tracking);
+            color: var(--md-sys-color-on-surface-variant);
+            margin-top: 2px;
+        }
+
+        /* Trailing icon */
+        .md-list-item__trailing {
+            color: var(--md-sys-color-on-surface-variant);
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+        }
+
+        /* ============================================================
+           M3 Ripple (State Layer animation)
+           https://m3.material.io/foundations/interaction/states/overview
+        ============================================================ */
+        .md-ripple {
+            position: absolute;
+            border-radius: 50%;
+            transform: scale(0);
+            animation: md-ripple-anim var(--md-sys-motion-duration-long1)
+                       var(--md-sys-motion-easing-standard) forwards;
+            background-color: var(--md-sys-color-on-surface);
+            opacity: 0.12;
+            pointer-events: none;
+        }
+        @keyframes md-ripple-anim {
+            to {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+
+        /* ============================================================
+           Card Footer
+        ============================================================ */
         .card-footer {
-            border-top: 1px solid var(--md-outline-variant);
-            padding: 16px 40px 28px;
+            border-top: 1px solid var(--md-sys-color-outline-variant);
+            padding: 16px 24px 24px;
         }
+
+        /* Body Small */
         .card-footer p {
-            font-size: 12px; color: var(--md-on-surface-variant);
-            text-align: center; line-height: 1.6;
+            font-family: var(--md-sys-typescale-body-small-font);
+            font-size: var(--md-sys-typescale-body-small-size);
+            font-weight: var(--md-sys-typescale-body-small-weight);
+            line-height: var(--md-sys-typescale-body-small-line-height);
+            letter-spacing: var(--md-sys-typescale-body-small-tracking);
+            color: var(--md-sys-color-on-surface-variant);
+            text-align: center;
         }
-        .card-footer a { color: var(--md-primary); text-decoration: none; font-weight: 500; }
-        .card-footer a:hover { text-decoration: underline; }
-        .page-footer { margin-top: 20px; font-size: 11px; color: var(--md-on-surface-variant); }
-        .page-footer a { color: var(--md-on-surface-variant); text-decoration: none; padding: 0 6px; }
-        .page-footer a:hover { text-decoration: underline; }
-        .page-footer a + a { border-left: 1px solid var(--md-outline); }
+
+        /* M3 inline link */
+        .md-link {
+            color: var(--md-sys-color-primary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .md-link:hover {
+            text-decoration: underline;
+        }
+
+        /* ============================================================
+           Page Footer (Label Small)
+        ============================================================ */
+        .page-footer {
+            margin-top: 16px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .page-footer a {
+            font-family: var(--md-sys-typescale-label-small-font);
+            font-size: var(--md-sys-typescale-label-small-size);
+            font-weight: var(--md-sys-typescale-label-small-weight);
+            line-height: var(--md-sys-typescale-label-small-line-height);
+            letter-spacing: var(--md-sys-typescale-label-small-tracking);
+            color: var(--md-sys-color-on-surface-variant);
+            text-decoration: none;
+            padding: 4px 8px;
+            border-radius: var(--md-sys-shape-corner-full);
+            transition:
+                background-color var(--md-sys-motion-duration-short3)
+                var(--md-sys-motion-easing-standard);
+            position: relative;
+        }
+        .page-footer a:hover {
+            /* State layer hover */
+            background-color: color-mix(
+                in srgb,
+                var(--md-sys-color-on-surface) calc(var(--md-sys-state-hover-opacity) * 100%),
+                transparent
+            );
+        }
+        .page-footer__separator {
+            width: 1px;
+            height: 12px;
+            background-color: var(--md-sys-color-outline-variant);
+        }
     </style>
 </head>
 <body>
 
-    <div class="card">
+    <div class="md-card" role="main">
+        <!-- Card Header -->
         <div class="card-header">
-            <div class="brand">
-                <span class="brand__domain">hss-science.org</span>
-            </div>
+            <span class="brand-label" aria-label="Service domain">hss-science.org</span>
             <h1 class="card-title">Sign in</h1>
             <p class="card-subtitle">Choose your identity provider to continue</p>
         </div>
 
-        <div class="divider"></div>
+        <div class="md-divider" role="separator"></div>
 
-        <div class="provider-list">
+        <!-- Provider List (M3 List component) -->
+        <div class="provider-list" role="list">
             {{range .Providers}}
-            <div class="provider-item">
+            <div class="md-list-item" role="listitem">
                 <form method="POST" action="/login/select">
                     <input type="hidden" name="authRequestID" value="{{$.AuthRequestID}}">
                     <input type="hidden" name="provider" value="{{.Name}}">
-                    <button type="submit" class="provider-btn">
-                        <div class="provider-btn__avatar">
+                    <button type="submit" class="md-list-item__btn"
+                            aria-label="Sign in with {{.DisplayName}}">
+
+                        <!-- Leading: Provider icon avatar -->
+                        <div class="md-list-item__leading" aria-hidden="true">
                             {{if eq .Name "google"}}
-                            {{/* Google 公式 SVG — Google Identity HTML より */}}
-                            <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="20" height="20" style="display:block;">
-                                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
-                                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
-                                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
-                                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
-                                <path fill="none" d="M0 0h48v48H0z"></path>
+                            <svg version="1.1" xmlns="http://www.w3.org/2000/svg"
+                                 viewBox="0 0 48 48" width="20" height="20" style="display:block;">
+                                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
                             </svg>
                             {{else if eq .Name "github"}}
-                            {{/* GitHub 公式マーク SVG */}}
-                            <svg width="20" height="20" viewBox="0 0 98 96" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <g clip-path="url(#clip0_github)">
-                                    <path d="M41.4395 69.3848C28.8066 67.8535 19.9062 58.7617 19.9062 46.9902C19.9062 42.2051 21.6289 37.0371 24.5 33.5918C23.2559 30.4336 23.4473 23.7344 24.8828 20.959C28.7109 20.4805 33.8789 22.4902 36.9414 25.2656C40.5781 24.1172 44.4062 23.543 49.0957 23.543C53.7852 23.543 57.6133 24.1172 61.0586 25.1699C64.0254 22.4902 69.2891 20.4805 73.1172 20.959C74.457 23.543 74.6484 30.2422 73.4043 33.4961C76.4668 37.1328 78.0937 42.0137 78.0937 46.9902C78.0937 58.7617 69.1934 67.6621 56.3691 69.2891C59.623 71.3945 61.8242 75.9883 61.8242 81.252L61.8242 91.2051C61.8242 94.0762 64.2168 95.7031 67.0879 94.5547C84.4102 87.9512 98 70.6289 98 49.1914C98 22.1074 75.9883 0 48.9043 0C21.8203 0 0 22.1074 0 49.1914C0 70.4375 13.4941 88.0469 31.6777 94.6504C34.2617 95.6074 36.75 93.8848 36.75 91.3008L36.75 83.6445C35.4102 84.2188 33.6875 84.6016 32.1562 84.6016C25.8398 84.6016 22.1074 81.1563 19.4277 74.7441C18.375 72.1602 17.2266 70.6289 15.0254 70.3418C13.877 70.2461 13.4941 69.7676 13.4941 69.1934C13.4941 68.0449 15.4082 67.1836 17.3223 67.1836C20.0977 67.1836 22.4902 68.9063 24.9785 72.4473C26.8926 75.2227 28.9023 76.4668 31.2949 76.4668C33.6875 76.4668 35.2187 75.6055 37.4199 73.4043C39.0469 71.7773 40.291 70.3418 41.4395 69.3848Z" fill="#24292f"/>
-                                </g>
-                                <defs>
-                                    <clipPath id="clip0_github">
-                                        <rect width="98" height="96" fill="white"/>
-                                    </clipPath>
-                                </defs>
+                            <svg width="20" height="20" viewBox="0 0 98 96" fill="none"
+                                 xmlns="http://www.w3.org/2000/svg">
+                                <path d="M41.4395 69.3848C28.8066 67.8535 19.9062 58.7617 19.9062 46.9902C19.9062 42.2051 21.6289 37.0371 24.5 33.5918C23.2559 30.4336 23.4473 23.7344 24.8828 20.959C28.7109 20.4805 33.8789 22.4902 36.9414 25.2656C40.5781 24.1172 44.4062 23.543 49.0957 23.543C53.7852 23.543 57.6133 24.1172 61.0586 25.1699C64.0254 22.4902 69.2891 20.4805 73.1172 20.959C74.457 23.543 74.6484 30.2422 73.4043 33.4961C76.4668 37.1328 78.0937 42.0137 78.0937 46.9902C78.0937 58.7617 69.1934 67.6621 56.3691 69.2891C59.623 71.3945 61.8242 75.9883 61.8242 81.252L61.8242 91.2051C61.8242 94.0762 64.2168 95.7031 67.0879 94.5547C84.4102 87.9512 98 70.6289 98 49.1914C98 22.1074 75.9883 0 48.9043 0C21.8203 0 0 22.1074 0 49.1914C0 70.4375 13.4941 88.0469 31.6777 94.6504C34.2617 95.6074 36.75 93.8848 36.75 91.3008L36.75 83.6445C35.4102 84.2188 33.6875 84.6016 32.1562 84.6016C25.8398 84.6016 22.1074 81.1563 19.4277 74.7441C18.375 72.1602 17.2266 70.6289 15.0254 70.3418C13.877 70.2461 13.4941 69.7676 13.4941 69.1934C13.4941 68.0449 15.4082 67.1836 17.3223 67.1836C20.0977 67.1836 22.4902 68.9063 24.9785 72.4473C26.8926 75.2227 28.9023 76.4668 31.2949 76.4668C33.6875 76.4668 35.2187 75.6055 37.4199 73.4043C39.0469 71.7773 40.291 70.3418 41.4395 69.3848Z"
+                                      fill="#24292f"/>
                             </svg>
                             {{else}}
-                            <svg viewBox="0 0 24 24" fill="#5f6368" width="20" height="20"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"
+                                 style="color: var(--md-sys-color-on-surface-variant);">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+                            </svg>
                             {{end}}
                         </div>
-                        <div class="provider-btn__text">
-                            <span class="provider-btn__name">{{.DisplayName}}</span>
-                            <span class="provider-btn__hint">Continue with {{.DisplayName}}</span>
+
+                        <!-- Content -->
+                        <div class="md-list-item__content">
+                            <span class="md-list-item__headline">{{.DisplayName}}</span>
+                            <span class="md-list-item__supporting">Continue with {{.DisplayName}}</span>
                         </div>
-                        <span class="provider-btn__chevron">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+
+                        <!-- Trailing: chevron icon -->
+                        <span class="md-list-item__trailing" aria-hidden="true">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+                            </svg>
                         </span>
+
                     </button>
                 </form>
             </div>
             {{end}}
         </div>
 
+        <!-- Card Footer -->
         <div class="card-footer">
-            <p>By signing in, you agree to our <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.</p>
+            <p>
+                By signing in, you agree to our
+                <a href="#" class="md-link">Terms of Service</a>
+                and
+                <a href="#" class="md-link">Privacy Policy</a>.
+            </p>
         </div>
     </div>
 
-    <footer class="page-footer">
-        <a href="#">Help</a><a href="#">Privacy</a><a href="#">Terms</a>
+    <!-- Page footer -->
+    <footer class="page-footer" aria-label="Site links">
+        <a href="#">Help</a>
+        <span class="page-footer__separator" aria-hidden="true"></span>
+        <a href="#">Privacy</a>
+        <span class="page-footer__separator" aria-hidden="true"></span>
+        <a href="#">Terms</a>
     </footer>
 
     <script>
-        document.querySelectorAll('.provider-btn').forEach(btn => {
-            btn.addEventListener('click', e => {
-                const r = document.createElement('span');
-                r.className = 'ripple';
+        // M3 Ripple — State Layer interaction
+        // Spec: https://m3.material.io/foundations/interaction/states/overview
+        document.querySelectorAll('.md-list-item__btn').forEach(btn => {
+            btn.addEventListener('pointerdown', e => {
+                const ripple = document.createElement('span');
+                ripple.className = 'md-ripple';
                 const rect = btn.getBoundingClientRect();
-                const size = Math.max(rect.width, rect.height);
-                r.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX-rect.left-size/2}px;top:${e.clientY-rect.top-size/2}px`;
-                btn.appendChild(r);
-                setTimeout(() => r.remove(), 600);
+                const size = Math.max(rect.width, rect.height) * 2;
+                ripple.style.cssText = [
+                    `width: ${size}px`,
+                    `height: ${size}px`,
+                    `left: ${e.clientX - rect.left - size / 2}px`,
+                    `top: ${e.clientY - rect.top - size / 2}px`,
+                ].join(';');
+                btn.appendChild(ripple);
+                ripple.addEventListener('animationend', () => ripple.remove());
             });
         });
     </script>
