@@ -3,70 +3,546 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign In</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <title>Sign In - AppName</title>
+    <link href="https://fonts.googleapis.com/css2?family=Verdana&family=Trebuchet+MS&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Roboto', 'Google Sans', system-ui, sans-serif; }
+        /* ===== RESET & BASE ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: Verdana, Tahoma, Arial, sans-serif;
+            font-size: 13px;
+            background-color: #d4e4f7;
+            background-image:
+                url("data:image/svg+xml,%3Csvg width='4' height='4' viewBox='0 0 4 4' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='0' y='0' width='1' height='1' fill='%23ffffff' fill-opacity='0.3'/%3E%3C/svg%3E");
+            color: #333333;
+            min-height: 100vh;
+        }
+
+        a { color: #0055cc; text-decoration: none; }
+        a:hover { text-decoration: underline; color: #cc2200; }
+
+        /* ===== HEADER ===== */
+        #header {
+            background: linear-gradient(180deg, #3a6db5 0%, #2255a4 50%, #1a4a96 100%);
+            border-bottom: 2px solid #0d3880;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+            padding: 0;
+        }
+        #header-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 16px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        #logo-area {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        #logo-icon {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, #ffcc00 0%, #ff9900 100%);
+            border: 2px solid #cc7700;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 1px 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+        }
+        #logo-icon svg { width: 16px; height: 16px; fill: #663300; }
+        #logo-text {
+            font-family: Trebuchet MS, Verdana, Arial, sans-serif;
+            font-size: 20px;
+            font-weight: bold;
+            color: #ffffff;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5), 0 0 8px rgba(255,200,100,0.3);
+            letter-spacing: -0.5px;
+        }
+        #logo-text span { color: #ffdd66; }
+
+        #header-nav {
+            display: flex;
+            gap: 2px;
+        }
+        #header-nav a {
+            color: #cce0ff;
+            font-size: 11px;
+            padding: 2px 8px;
+            border: 1px solid transparent;
+            border-radius: 2px;
+            text-decoration: none;
+        }
+        #header-nav a:hover {
+            color: #ffffff;
+            background: rgba(255,255,255,0.15);
+            border-color: rgba(255,255,255,0.3);
+            text-decoration: none;
+        }
+
+        /* ===== MAIN LAYOUT ===== */
+        #main-wrapper {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px 16px;
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        /* ===== SIDEBAR ===== */
+        #sidebar {
+            width: 160px;
+            flex-shrink: 0;
+        }
+        .sidebar-box {
+            background: linear-gradient(180deg, #f0f5ff 0%, #ddeeff 100%);
+            border: 1px solid #aabbdd;
+            border-radius: 3px;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+        .sidebar-box-title {
+            background: linear-gradient(180deg, #4477cc 0%, #2255aa 100%);
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: bold;
+            padding: 3px 7px;
+            text-shadow: 0 1px 1px rgba(0,0,0,0.4);
+        }
+        .sidebar-box-content {
+            padding: 6px 7px;
+        }
+        .sidebar-box-content ul {
+            list-style: none;
+            padding: 0;
+        }
+        .sidebar-box-content ul li {
+            padding: 2px 0;
+            border-bottom: 1px dotted #ccd;
+            font-size: 11px;
+        }
+        .sidebar-box-content ul li:last-child { border-bottom: none; }
+        .sidebar-box-content ul li a { font-size: 11px; }
+
+        .site-counter {
+            text-align: center;
+            padding: 6px;
+        }
+        .counter-display {
+            display: inline-block;
+            background: #000;
+            color: #00ff41;
+            font-family: "Courier New", monospace;
+            font-size: 14px;
+            font-weight: bold;
+            padding: 2px 6px;
+            border: 2px inset #444;
+            letter-spacing: 2px;
+        }
+        .counter-label {
+            font-size: 10px;
+            color: #667;
+            display: block;
+            margin-top: 3px;
+        }
+
+        /* ===== CONTENT AREA ===== */
+        #content {
+            flex: 1;
+        }
+
+        /* ===== SIGN IN CARD ===== */
+        .page-title-bar {
+            background: linear-gradient(180deg, #eef2ff 0%, #dde6ff 100%);
+            border: 1px solid #aabbee;
+            border-bottom: none;
+            border-radius: 3px 3px 0 0;
+            padding: 6px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .page-title-bar-icon {
+            width: 16px;
+            height: 16px;
+            background: linear-gradient(135deg, #5588ff, #2244cc);
+            border-radius: 2px;
+            border: 1px solid #1133aa;
+        }
+        .page-title-bar h1 {
+            font-size: 13px;
+            font-weight: bold;
+            color: #223388;
+        }
+
+        .signin-card {
+            background: linear-gradient(180deg, #ffffff 0%, #f5f8ff 100%);
+            border: 1px solid #aabbee;
+            border-radius: 0 0 3px 3px;
+            padding: 20px 24px;
+        }
+
+        .signin-intro {
+            background: linear-gradient(180deg, #fffbe6 0%, #fff5cc 100%);
+            border: 1px solid #ddcc88;
+            border-radius: 2px;
+            padding: 7px 10px;
+            margin-bottom: 16px;
+            font-size: 12px;
+            color: #554400;
+        }
+        .signin-intro::before {
+            content: "ℹ ";
+            font-size: 13px;
+        }
+
+        .section-divider {
+            background: linear-gradient(180deg, #4477cc 0%, #2255aa 100%);
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: bold;
+            padding: 3px 8px;
+            margin-bottom: 10px;
+            border-radius: 2px;
+            text-shadow: 0 1px 1px rgba(0,0,0,0.3);
+        }
+
+        .provider-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+        }
+        .provider-table td {
+            padding: 4px 6px;
+            border-bottom: 1px solid #e4eeff;
+            vertical-align: middle;
+        }
+        .provider-table tr:last-child td { border-bottom: none; }
+        .provider-table tr:hover td { background: #eef4ff; }
+
+        /* ===== RETRO BUTTON ===== */
+        .retro-btn {
+            display: inline-block;
+            padding: 3px 14px;
+            font-family: Verdana, Arial, sans-serif;
+            font-size: 12px;
+            font-weight: bold;
+            color: #333333;
+            background: linear-gradient(180deg, #f8f8e8 0%, #d8d8b8 50%, #c8c8a8 51%, #e0e0c0 100%);
+            border: 1px solid #888877;
+            border-top-color: #ccccaa;
+            border-left-color: #ccccaa;
+            border-radius: 2px;
+            box-shadow: 1px 1px 2px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.6);
+            cursor: pointer;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .retro-btn:hover {
+            background: linear-gradient(180deg, #ffffee 0%, #eeeecc 50%, #ddddbb 51%, #eeeecc 100%);
+            border-color: #666655;
+            color: #000;
+        }
+        .retro-btn:active {
+            background: linear-gradient(180deg, #c8c8a8 0%, #d8d8b8 100%);
+            box-shadow: inset 1px 1px 2px rgba(0,0,0,0.2);
+            padding: 4px 13px 2px 15px;
+        }
+
+        .retro-btn-primary {
+            color: #ffffff;
+            background: linear-gradient(180deg, #5588ee 0%, #2255cc 50%, #1144bb 51%, #3366dd 100%);
+            border-color: #1133aa;
+            border-top-color: #6699ff;
+            border-left-color: #4477ee;
+            text-shadow: 0 1px 1px rgba(0,0,0,0.4);
+        }
+        .retro-btn-primary:hover {
+            background: linear-gradient(180deg, #77aaff 0%, #3366ee 50%, #2255dd 51%, #4477ee 100%);
+            color: #fff;
+        }
+
+        .provider-arrow {
+            color: #3355aa;
+            font-size: 11px;
+            margin-right: 4px;
+        }
+        .provider-name {
+            font-size: 12px;
+            color: #222244;
+        }
+        .provider-desc {
+            font-size: 10px;
+            color: #888;
+        }
+
+        /* Hidden form inputs */
+        .provider-form { display: inline; }
+
+        /* ===== MARQUEE BAR ===== */
+        #marquee-bar {
+            background: linear-gradient(180deg, #001166 0%, #000044 100%);
+            border-top: 1px solid #334499;
+            border-bottom: 2px solid #000033;
+            padding: 3px 0;
+            overflow: hidden;
+        }
+        #marquee-bar marquee {
+            color: #99ccff;
+            font-size: 11px;
+            font-family: Verdana, Arial, sans-serif;
+        }
+        #marquee-bar marquee b { color: #ffdd44; }
+
+        /* ===== FOOTER ===== */
+        #footer {
+            background: linear-gradient(180deg, #dde4ee 0%, #c8d4e8 100%);
+            border-top: 2px solid #aabbcc;
+            padding: 8px 16px;
+            text-align: center;
+        }
+        #footer-links {
+            margin-bottom: 4px;
+        }
+        #footer-links a {
+            font-size: 11px;
+            color: #335599;
+            padding: 0 6px;
+            border-right: 1px solid #aabbcc;
+        }
+        #footer-links a:last-child { border-right: none; }
+        #footer-copy {
+            font-size: 10px;
+            color: #778899;
+        }
+
+        /* ===== GIF-LIKE ANIMATED BADGE ===== */
+        @keyframes blink-new {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.2; }
+        }
+        .badge-new {
+            display: inline-block;
+            background: linear-gradient(135deg, #ff4400, #ff8800);
+            color: #fff;
+            font-size: 9px;
+            font-weight: bold;
+            padding: 1px 4px;
+            border-radius: 2px;
+            border: 1px solid #cc3300;
+            animation: blink-new 1.2s infinite;
+            vertical-align: middle;
+            margin-left: 4px;
+        }
+
+        /* ===== SECURITY SEAL ===== */
+        .security-seal {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: linear-gradient(180deg, #e8ffe8, #ccffcc);
+            border: 1px solid #88cc88;
+            border-radius: 2px;
+            padding: 3px 7px;
+            font-size: 10px;
+            color: #226622;
+            font-weight: bold;
+        }
+        .security-seal::before { content: "🔒"; font-size: 11px; }
+
+        /* ===== UNDER CONSTRUCTION (subtle easter egg) ===== */
+        .under-construction {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 10px;
+            color: #886600;
+        }
+        .construction-stripe {
+            display: inline-block;
+            width: 14px;
+            height: 10px;
+            background: repeating-linear-gradient(
+                45deg,
+                #ffcc00,
+                #ffcc00 2px,
+                #333 2px,
+                #333 4px
+            );
+            border: 1px solid #886600;
+        }
     </style>
 </head>
-<body class="min-h-screen bg-white text-gray-900">
+<body>
+
+    <!-- Marquee Bar -->
+    <div id="marquee-bar">
+        <marquee scrollamount="3" behavior="scroll">
+            &nbsp;&nbsp;&nbsp;
+            <b>★ Welcome to AppName!</b> &nbsp;|&nbsp;
+            Sign in securely with your preferred provider &nbsp;|&nbsp;
+            <b>NEW!</b> Faster sign-in experience &nbsp;|&nbsp;
+            Protected by 128-bit SSL encryption &nbsp;|&nbsp;
+            <b>★ Welcome to AppName!</b> &nbsp;|&nbsp;
+            Sign in securely with your preferred provider &nbsp;|&nbsp;
+        </marquee>
+    </div>
 
     <!-- Header -->
-    <header class="border-b border-gray-200 px-6 py-3 flex items-center gap-3">
-        <!-- Logo placeholder — replace with your app logo/wordmark -->
-        <div class="flex items-center gap-2">
-            <svg class="w-8 h-8 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
-            </svg>
-            <span class="text-lg font-medium text-gray-800">AppName</span>
+    <div id="header">
+        <div id="header-inner">
+            <div id="logo-area">
+                <div id="logo-icon">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+                </div>
+                <span id="logo-text">App<span>Name</span></span>
+            </div>
+            <nav id="header-nav">
+                <a href="#">Home</a>
+                <a href="#">Help</a>
+                <a href="#">Contact Us</a>
+                <a href="#">About</a>
+            </nav>
         </div>
-    </header>
+    </div>
 
-    <!-- Main -->
-    <main class="flex items-start justify-center min-h-[calc(100vh-57px)] px-4 py-16">
-        <div class="w-full max-w-sm">
+    <!-- Main Content -->
+    <div id="main-wrapper">
 
-            <!-- Card -->
-            <div class="bg-white border border-gray-200 rounded-2xl shadow-sm px-8 py-10">
+        <!-- Sidebar -->
+        <div id="sidebar">
+            <div class="sidebar-box">
+                <div class="sidebar-box-title">📋 Quick Links</div>
+                <div class="sidebar-box-content">
+                    <ul>
+                        <li><a href="#">Create Account</a></li>
+                        <li><a href="#">Forgot Password?</a></li>
+                        <li><a href="#">Help Center</a></li>
+                        <li><a href="#">Privacy Policy</a></li>
+                        <li><a href="#">Terms of Use</a></li>
+                    </ul>
+                </div>
+            </div>
 
-                <!-- Title -->
-                <h1 class="text-2xl font-normal text-gray-900 mb-1">Sign in</h1>
-                <p class="text-sm text-gray-500 mb-8">Choose your sign-in method to continue</p>
+            <div class="sidebar-box">
+                <div class="sidebar-box-title">🔐 Security Info</div>
+                <div class="sidebar-box-content">
+                    <p style="font-size:10px; color:#445566; line-height:1.5;">
+                        Your connection to this site is encrypted using <b>SSL 128-bit</b> technology.
+                    </p>
+                    <br>
+                    <div class="security-seal">Secure Login</div>
+                </div>
+            </div>
 
-                <!-- Provider Buttons -->
-                <div class="flex flex-col gap-3">
-                    {{range .Providers}}
-                    <form method="POST" action="/login/select">
-                        <input type="hidden" name="authRequestID" value="{{$.AuthRequestID}}">
-                        <input type="hidden" name="provider" value="{{.Name}}">
-                        <button
-                            type="submit"
-                            class="w-full flex items-center justify-center gap-3 px-4 py-3
-                                   border border-gray-300 rounded-full text-sm font-medium text-gray-700
-                                   bg-white hover:bg-gray-50 active:bg-gray-100
-                                   transition-colors duration-150
-                                   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                        >
-                            {{.DisplayName}}
-                        </button>
-                    </form>
-                    {{end}}
+            <div class="sidebar-box">
+                <div class="sidebar-box-title">👥 Visitors</div>
+                <div class="site-counter">
+                    <div class="counter-display">004821</div>
+                    <span class="counter-label">visitors since 2003</span>
+                </div>
+            </div>
+
+            <div style="text-align:center; margin-top: 8px;">
+                <div class="under-construction">
+                    <div class="construction-stripe"></div>
+                    Site v2.1 beta
+                    <div class="construction-stripe"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div id="content">
+
+            <div class="page-title-bar">
+                <div class="page-title-bar-icon"></div>
+                <h1>Member Sign In &mdash; Choose Your Login Method</h1>
+            </div>
+
+            <div class="signin-card">
+
+                <div class="signin-intro">
+                    Please select a sign-in method below to access your AppName account. All providers are verified and secure.
+                </div>
+
+                <div class="section-divider">▶ Available Sign-In Providers</div>
+
+                <table class="provider-table">
+                    <tbody>
+                        {{range .Providers}}
+                        <tr>
+                            <td width="16"><span class="provider-arrow">▶</span></td>
+                            <td>
+                                <span class="provider-name"><b>{{.DisplayName}}</b></span>
+                                <br>
+                                <span class="provider-desc">Sign in using your {{.DisplayName}} account credentials</span>
+                            </td>
+                            <td width="100" style="text-align:right;">
+                                <form method="POST" action="/login/select" class="provider-form">
+                                    <input type="hidden" name="authRequestID" value="{{$.AuthRequestID}}">
+                                    <input type="hidden" name="provider" value="{{.Name}}">
+                                    <button type="submit" class="retro-btn retro-btn-primary">
+                                        Sign In &raquo;
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+
+                <div style="border-top: 1px solid #dde4ff; padding-top: 12px; display: flex; align-items: center; justify-content: space-between;">
+                    <div style="font-size: 11px; color: #556677;">
+                        Don't have an account?
+                        <a href="#">Register for free</a>
+                        <span class="badge-new">NEW</span>
+                    </div>
+                    <div style="font-size: 11px; color: #778899;">
+                        Problems signing in? <a href="#">Get help</a>
+                    </div>
                 </div>
 
             </div>
 
-            <!-- Footer note -->
-            <p class="text-center text-xs text-gray-400 mt-6">
-                By signing in, you agree to our
-                <a href="#" class="text-blue-600 hover:underline">Terms</a>
-                and
-                <a href="#" class="text-blue-600 hover:underline">Privacy Policy</a>.
-            </p>
+            <!-- Bottom info box -->
+            <div style="margin-top: 14px; background: linear-gradient(180deg, #f0f8ff, #e4f0ff); border: 1px solid #aaccee; border-radius: 3px; padding: 8px 12px;">
+                <table width="100%" cellspacing="0" cellpadding="0">
+                    <tr>
+                        <td style="font-size:11px; color:#334455;">
+                            <b>Why sign in with a provider?</b><br>
+                            Using an existing account is faster and more secure. We never store your passwords.
+                        </td>
+                        <td width="120" style="text-align:right; vertical-align:middle;">
+                            <div class="security-seal" style="font-size:9px;">256-bit SSL</div>
+                        </td>
+                    </tr>
+                </table>
+            </div>
 
         </div>
-    </main>
+    </div>
+
+    <!-- Footer -->
+    <div id="footer">
+        <div id="footer-links">
+            <a href="#">Home</a>
+            <a href="#">Sign Up</a>
+            <a href="#">Help</a>
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms of Service</a>
+            <a href="#">Contact Us</a>
+            <a href="#">Site Map</a>
+        </div>
+        <div id="footer-copy">
+            &copy; 2003 AppName, Inc. All rights reserved. &nbsp;|&nbsp;
+            Best viewed in Internet Explorer 6.0 or Netscape 7.0 at 800&times;600 resolution.
+        </div>
+    </div>
 
 </body>
 </html>
