@@ -51,20 +51,13 @@
         }
         .card-header { padding: 40px 40px 28px; }
         .brand {
-            display: flex; align-items: center; gap: 10px;
             margin-bottom: 28px;
         }
-        .brand__icon {
-            width: 40px; height: 40px;
-            background: var(--md-primary-container);
-            border-radius: var(--radius-sm);
-            display: flex; align-items: center; justify-content: center;
-        }
-        .brand__icon svg { width: 22px; height: 22px; fill: var(--md-primary); }
-        .brand__name {
-            font-family: var(--font-brand);
-            font-size: 20px; font-weight: 500;
-            color: var(--md-on-surface); letter-spacing: -.2px;
+        .brand__domain {
+            font-family: var(--font-plain);
+            font-size: 13px;
+            color: var(--md-on-surface-variant);
+            letter-spacing: .1px;
         }
         .card-title {
             font-family: var(--font-brand);
@@ -133,10 +126,7 @@
     <div class="card">
         <div class="card-header">
             <div class="brand">
-                <div class="brand__icon">
-                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
-                </div>
-                <span class="brand__name">AppName</span>
+                <span class="brand__domain">hss-science.org</span>
             </div>
             <h1 class="card-title">Sign in</h1>
             <p class="card-subtitle">Choose your identity provider to continue</p>
