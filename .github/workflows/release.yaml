@@ -34,16 +34,10 @@ jobs:
             image-name: myaccount-bff
             type: backend
 
-          - name: drive-web
-            dockerfile: ./web/apps/drive/Dockerfile
+          - name: myaccount-spa
+            dockerfile: ./web/apps/myaccount-spa/Dockerfile
             context: .
-            image-name: drive-spa
-            type: frontend
-
-          - name: chat-web
-            dockerfile: ./web/apps/chat/Dockerfile
-            context: .
-            image-name: chat-spa
+            image-name: myaccount-spa
             type: frontend
 
     steps:
