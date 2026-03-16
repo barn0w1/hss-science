@@ -28,11 +28,11 @@ jobs:
             image-name: accounts
             type: backend
           
-          #- name: myaccount-bff
-          #  dockerfile: ./server/bff/myaccount/Dockerfile
-          #  context: .
-          #  image-name: myaccount-bff
-          #  type: backend
+          - name: myaccount-bff
+            dockerfile: ./server/services/myaccount-bff/Dockerfile
+            context: .
+            image-name: myaccount-bff
+            type: backend
 
           - name: drive-web
             dockerfile: ./web/apps/drive/Dockerfile

@@ -22,9 +22,9 @@ jobs:
             path: server/services/accounts
             build: ./services/accounts/...
         
-          #- name: myaccount-bff
-          #  path: server/bff/myaccount
-          #  build: ./bff/myaccount/...
+          - name: myaccount-bff
+            path: server/services/myaccount-bff
+            build: ./services/myaccount-bff/...
 
     steps:
       - uses: actions/checkout@v6
