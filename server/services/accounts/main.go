@@ -153,7 +153,7 @@ func runServer(cfg *config.Config, db *sqlx.DB, tokenSvc oidcdom.TokenService, l
 		if cfg.RateLimitEnabled {
 			r.Use(loginLimiter.Middleware())
 		}
-		r.Use(appmiddleware.LoginPageSecurityHeaders())
+		r.Use(appmiddleware.SecurityHeaders())
 		r.Use(interceptor.Handler)
 		r.Get("/", loginHandler.SelectProvider)
 		r.Post("/select", loginHandler.FederatedRedirect)
