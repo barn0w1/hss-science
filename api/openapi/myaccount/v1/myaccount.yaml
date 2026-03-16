@@ -1,0 +1,291 @@
+openapi: "3.0.3"
+info:
+  title: myaccount-bff
+  version: "1.0"
+  description: Backend-For-Frontend API for myaccount.hss-science.org
+
+paths:
+  /api/v1/auth/login:
+    get:
+      operationId: AuthLogin
+      summary: Initiate OIDC login
+      tags: [auth]
+      responses:
+        "302":
+          description: Redirect to accounts authorize endpoint
+
+  /api/v1/auth/callback:
+    get:
+      operationId: AuthCallback
+      summary: OIDC authorization code callback
+      tags: [auth]
+      parameters:
+        - in: query
+          name: code
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: state
+          required: true
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to SPA on successful login
+        "400":
+          $ref: "#/components/responses/Error"
+
+  /api/v1/auth/logout:
+    post:
+      operationId: AuthLogout
+      summary: Log out and revoke session
+      tags: [auth]
+      responses:
+        "200":
+          description: Logout URL to redirect to
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/auth/me:
+    get:
+      operationId: AuthMe
+      summary: Check authentication status
+      tags: [auth]
+      responses:
+        "200":
+          description: Authentication status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+
+  /api/v1/profile:
+    get:
+      operationId: GetProfile
+      summary: Get current user profile
+      tags: [profile]
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    patch:
+      operationId: UpdateProfile
+      summary: Update current user profile
+      tags: [profile]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/providers:
+    get:
+      operationId: ListProviders
+      summary: List linked federated providers
+      tags: [providers]
+      responses:
+        "200":
+          description: List of linked providers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FederatedProvider"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/providers/{identityId}:
+    delete:
+      operationId: UnlinkProvider
+      summary: Unlink a federated provider
+      tags: [providers]
+      parameters:
+        - in: path
+          name: identityId
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Provider unlinked
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions:
+    get:
+      operationId: ListSessions
+      summary: List active sessions
+      tags: [sessions]
+      responses:
+        "200":
+          description: List of active sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      operationId: RevokeAllOtherSessions
+      summary: Revoke all sessions except current
+      tags: [sessions]
+      responses:
+        "204":
+          description: All other sessions revoked
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /api/v1/sessions/{sessionId}:
+    delete:
+      operationId: RevokeSession
+      summary: Revoke a specific session
+      tags: [sessions]
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Session revoked
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/Error"
+
+components:
+  schemas:
+    Profile:
+      type: object
+      properties:
+        user_id:
+          type: string
+        email:
+          type: string
+        email_verified:
+          type: boolean
+        name:
+          type: string
+        given_name:
+          type: string
+        family_name:
+          type: string
+        picture:
+          type: string
+        name_is_local:
+          type: boolean
+        picture_is_local:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        picture:
+          type: string
+
+    Session:
+      type: object
+      properties:
+        session_id:
+          type: string
+        device_name:
+          type: string
+        ip_address:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        last_used_at:
+          type: string
+          format: date-time
+        is_current:
+          type: boolean
+
+    FederatedProvider:
+      type: object
+      properties:
+        identity_id:
+          type: string
+        provider:
+          type: string
+        provider_email:
+          type: string
+        last_login_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+
+    MeResponse:
+      type: object
+      properties:
+        logged_in:
+          type: boolean
+        user_id:
+          type: string
+
+    LogoutResponse:
+      type: object
+      properties:
+        redirect_to:
+          type: string
+
+  responses:
+    Error:
+      description: Error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

@@ -607,3 +607,74 @@ func (r *TokenRepository) createRefreshForTest(ctx context.Context, id, userID s
 	)
 	return err
 }
+
+func TestTokenRepository_GetLatestDeviceSessionID(t *testing.T) {
+	t.Run("not_found", func(t *testing.T) {
+		testhelper.CleanTables(t, testDB)
+		repo := NewTokenRepository(testDB)
+		dsid, err := repo.GetLatestDeviceSessionID(context.Background(), "unknown-user", "test-client")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if dsid != "" {
+			t.Errorf("expected empty string, got %q", dsid)
+		}
+	})
+
+	t.Run("nullable", func(t *testing.T) {
+		testhelper.CleanTables(t, testDB)
+		ctx := context.Background()
+		userID := ulid.Make().String()
+		_, err := testDB.ExecContext(ctx, `INSERT INTO users (id, email) VALUES ($1, $2)`, userID, "nullable@example.com")
+		if err != nil {
+			t.Fatalf("insert user: %v", err)
+		}
+		repo := NewTokenRepository(testDB)
+		if err := repo.createRefreshForTest(ctx, ulid.Make().String(), userID, time.Now().UTC().Add(time.Hour), time.Now().UTC()); err != nil {
+			t.Fatalf("create refresh: %v", err)
+		}
+		dsid, err := repo.GetLatestDeviceSessionID(ctx, userID, "test-client")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if dsid != "" {
+			t.Errorf("expected empty string for NULL device_session_id, got %q", dsid)
+		}
+	})
+
+	t.Run("found", func(t *testing.T) {
+		testhelper.CleanTables(t, testDB)
+		ctx := context.Background()
+		userID := ulid.Make().String()
+		_, err := testDB.ExecContext(ctx, `INSERT INTO users (id, email) VALUES ($1, $2)`, userID, "found@example.com")
+		if err != nil {
+			t.Fatalf("insert user: %v", err)
+		}
+		repo := NewTokenRepository(testDB)
+		expectedDSID := ulid.Make().String()
+		_, err = testDB.ExecContext(ctx,
+			`INSERT INTO device_sessions (id, user_id) VALUES ($1, $2)`,
+			expectedDSID, userID,
+		)
+		if err != nil {
+			t.Fatalf("insert device session: %v", err)
+		}
+		_, err = testDB.ExecContext(ctx,
+			`INSERT INTO refresh_tokens (id, token_hash, client_id, user_id, audience, scopes, auth_time, amr, expiration, device_session_id)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+			ulid.Make().String(), "hash-dsid-found", "test-client", userID,
+			`{"test-client"}`, `{"openid"}`, time.Now().UTC(), `{"fed"}`,
+			time.Now().UTC().Add(time.Hour), expectedDSID,
+		)
+		if err != nil {
+			t.Fatalf("insert refresh token with dsid: %v", err)
+		}
+		dsid, err := repo.GetLatestDeviceSessionID(ctx, userID, "test-client")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if dsid != expectedDSID {
+			t.Errorf("expected dsid %q, got %q", expectedDSID, dsid)
+		}
+	})
+}

@@ -29,6 +29,7 @@ type TokenRepository interface {
 	Revoke(ctx context.Context, tokenID, clientID string) error
 	RevokeRefreshToken(ctx context.Context, tokenHash, clientID string) error
 	DeleteExpired(ctx context.Context, before time.Time) (int64, int64, error)
+	GetLatestDeviceSessionID(ctx context.Context, userID, clientID string) (string, error)
 }
 
 type AuthRequestService interface {
@@ -57,6 +58,7 @@ type TokenService interface {
 	Revoke(ctx context.Context, tokenID, clientID string) error
 	RevokeRefreshToken(ctx context.Context, rawToken, clientID string) error
 	DeleteExpired(ctx context.Context, before time.Time) (int64, int64, error)
+	GetLatestDeviceSessionID(ctx context.Context, userID, clientID string) (string, error)
 }
 
 type LoginCompleter interface {
