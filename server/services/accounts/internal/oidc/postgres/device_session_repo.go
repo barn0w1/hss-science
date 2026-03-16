@@ -105,7 +105,7 @@ func (r *DeviceSessionRepository) RevokeByID(ctx context.Context, id, userID str
 
 func (r *DeviceSessionRepository) ListActiveByUserID(
 	ctx context.Context, userID string,
-) ([]*oidcdom.DeviceSession, error) {
+) (sessions []*oidcdom.DeviceSession, err error) {
 	rows, err := r.db.QueryxContext(ctx,
 		`SELECT id, user_id, user_agent, ip_address, device_name, created_at, last_used_at, revoked_at
 		 FROM device_sessions
@@ -114,8 +114,11 @@ func (r *DeviceSessionRepository) ListActiveByUserID(
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var sessions []*oidcdom.DeviceSession
+	defer func() {
+		if cerr := rows.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 	for rows.Next() {
 		var ds oidcdom.DeviceSession
 		var revokedAt sql.NullTime
