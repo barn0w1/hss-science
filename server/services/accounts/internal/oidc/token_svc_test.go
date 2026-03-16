@@ -54,6 +54,27 @@ func (m *mockTokenRepo) GetLatestDeviceSessionID(_ context.Context, _, _ string)
 	return "", m.err
 }
 
+func TestTokenService_GetLatestDeviceSessionID(t *testing.T) {
+	t.Run("delegates to repo", func(t *testing.T) {
+		svc := NewTokenService(&mockTokenRepo{})
+		dsid, err := svc.GetLatestDeviceSessionID(context.Background(), "user-1", "client-1")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if dsid != "" {
+			t.Errorf("expected empty string, got %q", dsid)
+		}
+	})
+
+	t.Run("propagates repo error", func(t *testing.T) {
+		svc := NewTokenService(&mockTokenRepo{err: errors.New("db error")})
+		_, err := svc.GetLatestDeviceSessionID(context.Background(), "u", "c")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+	})
+}
+
 func TestTokenService_CreateAccess(t *testing.T) {
 	repo := &mockTokenRepo{}
 	svc := NewTokenService(repo)
