@@ -31,7 +31,7 @@ func (m *mockAuthRequestRepo) GetByCode(_ context.Context, _ string) (*AuthReque
 	return m.ar, nil
 }
 func (m *mockAuthRequestRepo) SaveCode(_ context.Context, _, _ string) error { return m.err }
-func (m *mockAuthRequestRepo) CompleteLogin(_ context.Context, _, _ string, _ time.Time, _ []string) error {
+func (m *mockAuthRequestRepo) CompleteLogin(_ context.Context, _, _ string, _ time.Time, _ []string, _ string) error {
 	return m.err
 }
 func (m *mockAuthRequestRepo) Delete(_ context.Context, _ string) error { return m.err }
@@ -117,7 +117,7 @@ func TestAuthRequestService_Create(t *testing.T) {
 
 func TestAuthRequestService_CompleteLogin(t *testing.T) {
 	svc := NewAuthRequestService(&mockAuthRequestRepo{}, 30*time.Minute)
-	err := svc.CompleteLogin(context.Background(), "ar-1", "user-1", time.Now().UTC(), []string{"federated"})
+	err := svc.CompleteLogin(context.Background(), "ar-1", "user-1", time.Now().UTC(), []string{"federated"}, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

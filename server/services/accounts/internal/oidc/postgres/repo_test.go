@@ -140,7 +140,7 @@ func TestAuthRequestRepository_CRUD(t *testing.T) {
 
 	userID := ulid.Make().String()
 	now := time.Now().UTC()
-	if err := repo.CompleteLogin(ctx, ar.ID, userID, now, []string{"federated"}); err != nil {
+	if err := repo.CompleteLogin(ctx, ar.ID, userID, now, []string{"federated"}, ""); err != nil {
 		t.Fatalf("CompleteLogin: %v", err)
 	}
 

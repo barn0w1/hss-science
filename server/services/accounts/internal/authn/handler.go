@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/oklog/ulid/v2"
 	"golang.org/x/oauth2"
 
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/identity"
@@ -17,20 +18,27 @@ import (
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/pkg/crypto"
 )
 
+const (
+	deviceCookieName   = "dsid"
+	deviceCookieMaxAge = 63072000 // 2 years
+)
+
 type Handler struct {
-	providers   []*Provider
-	providerMap map[string]*Provider
-	loginUC     *CompleteFederatedLogin
-	cipher      crypto.Cipher
-	callbackURL func(context.Context, string) string
-	tmpl        *template.Template
-	logger      *slog.Logger
+	providers      []*Provider
+	providerMap    map[string]*Provider
+	loginUC        *CompleteFederatedLogin
+	deviceSessions oidcdom.DeviceSessionService
+	cipher         crypto.Cipher
+	callbackURL    func(context.Context, string) string
+	tmpl           *template.Template
+	logger         *slog.Logger
 }
 
 func NewHandler(
 	providers []*Provider,
 	identitySvc identity.Service,
 	loginCompleter oidcdom.LoginCompleter,
+	deviceSessions oidcdom.DeviceSessionService,
 	cipher crypto.Cipher,
 	callbackURL func(context.Context, string) string,
 	logger *slog.Logger,
@@ -41,13 +49,14 @@ func NewHandler(
 	}
 	tmpl := template.Must(template.ParseFS(templateFS, "templates/select_provider.html"))
 	return &Handler{
-		providers:   providers,
-		providerMap: pm,
-		loginUC:     NewCompleteFederatedLogin(identitySvc, loginCompleter),
-		cipher:      cipher,
-		callbackURL: callbackURL,
-		tmpl:        tmpl,
-		logger:      logger,
+		providers:      providers,
+		providerMap:    pm,
+		loginUC:        NewCompleteFederatedLogin(identitySvc, loginCompleter),
+		deviceSessions: deviceSessions,
+		cipher:         cipher,
+		callbackURL:    callbackURL,
+		tmpl:           tmpl,
+		logger:         logger,
 	}
 }
 
@@ -61,6 +70,18 @@ func (h *Handler) SelectProvider(w http.ResponseWriter, r *http.Request) {
 	if authRequestID == "" {
 		http.Error(w, "missing authRequestID", http.StatusBadRequest)
 		return
+	}
+
+	if _, err := r.Cookie(deviceCookieName); err != nil {
+		http.SetCookie(w, &http.Cookie{
+			Name:     deviceCookieName,
+			Value:    ulid.Make().String(),
+			MaxAge:   deviceCookieMaxAge,
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteLaxMode,
+			Path:     "/",
+		})
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -154,7 +175,44 @@ func (h *Handler) FederatedCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.loginUC.Execute(r.Context(), state.Provider, *claims, state.AuthRequestID); err != nil {
+	user, err := h.loginUC.FindOrCreateUser(r.Context(), state.Provider, *claims)
+	if err != nil {
+		h.logger.Error("user resolution failed", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	dsID := ""
+	if cookie, err := r.Cookie(deviceCookieName); err == nil {
+		dsID = cookie.Value
+	}
+	if dsID == "" {
+		dsID = ulid.Make().String()
+	}
+
+	ds, err := h.deviceSessions.FindOrCreate(
+		r.Context(), dsID, user.ID,
+		r.UserAgent(), clientIP(r), parseDeviceName(r.UserAgent()),
+	)
+	if err != nil {
+		h.logger.Error("device session find-or-create failed", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	if ds.ID != dsID {
+		http.SetCookie(w, &http.Cookie{
+			Name:     deviceCookieName,
+			Value:    ds.ID,
+			MaxAge:   deviceCookieMaxAge,
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteLaxMode,
+			Path:     "/",
+		})
+	}
+
+	if err := h.loginUC.CompleteLogin(r.Context(), state.AuthRequestID, user.ID, ds.ID); err != nil {
 		h.logger.Error("login completion failed", "error", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return

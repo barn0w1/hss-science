@@ -79,7 +79,7 @@ func TestTokenService_CreateAccessAndRefresh(t *testing.T) {
 
 	accessID, refreshToken, err := svc.CreateAccessAndRefresh(context.Background(),
 		"client-1", "user-1", []string{"client-1"}, []string{"openid"},
-		accessExp, refreshExp, authTime, []string{"fed"}, "old-token")
+		accessExp, refreshExp, authTime, []string{"fed"}, "old-token", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

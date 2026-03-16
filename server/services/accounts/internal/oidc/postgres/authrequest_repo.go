@@ -42,7 +42,7 @@ func (r *AuthRequestRepository) GetByID(ctx context.Context, id string) (*oidc.A
 	return r.scanOne(ctx,
 		`SELECT id, client_id, redirect_uri, state, nonce, scopes, response_type, response_mode,
 		        code_challenge, code_challenge_method, prompt, max_age, login_hint,
-		        user_id, auth_time, amr, is_done, code, created_at
+		        user_id, auth_time, amr, is_done, code, created_at, device_session_id
 		 FROM auth_requests WHERE id = $1`, id)
 }
 
@@ -50,7 +50,7 @@ func (r *AuthRequestRepository) GetByCode(ctx context.Context, code string) (*oi
 	return r.scanOne(ctx,
 		`SELECT id, client_id, redirect_uri, state, nonce, scopes, response_type, response_mode,
 		        code_challenge, code_challenge_method, prompt, max_age, login_hint,
-		        user_id, auth_time, amr, is_done, code, created_at
+		        user_id, auth_time, amr, is_done, code, created_at, device_session_id
 		 FROM auth_requests WHERE code = $1`, code)
 }
 
@@ -60,10 +60,10 @@ func (r *AuthRequestRepository) SaveCode(ctx context.Context, id, code string) e
 	return err
 }
 
-func (r *AuthRequestRepository) CompleteLogin(ctx context.Context, id, userID string, authTime time.Time, amr []string) error {
+func (r *AuthRequestRepository) CompleteLogin(ctx context.Context, id, userID string, authTime time.Time, amr []string, deviceSessionID string) error {
 	_, err := r.db.ExecContext(ctx,
-		`UPDATE auth_requests SET user_id = $1, auth_time = $2, amr = $3, is_done = true WHERE id = $4`,
-		userID, authTime, pq.Array(amr), id)
+		`UPDATE auth_requests SET user_id = $1, auth_time = $2, amr = $3, is_done = true, device_session_id = $4 WHERE id = $5`,
+		userID, authTime, pq.Array(amr), nilIfEmptyStr(deviceSessionID), id)
 	return err
 }
 
@@ -87,12 +87,13 @@ func (r *AuthRequestRepository) scanOne(ctx context.Context, query string, args 
 	var userID *string
 	var authTime *time.Time
 	var code *string
+	var deviceSessionID *string
 	err := row.Scan(
 		&ar.ID, &ar.ClientID, &ar.RedirectURI, &ar.State, &ar.Nonce,
 		&scopes, &ar.ResponseType, &ar.ResponseMode,
 		&ar.CodeChallenge, &ar.CodeChallengeMethod,
 		&prompt, &ar.MaxAge, &ar.LoginHint,
-		&userID, &authTime, &amr, &ar.IsDone, &code, &ar.CreatedAt,
+		&userID, &authTime, &amr, &ar.IsDone, &code, &ar.CreatedAt, &deviceSessionID,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -112,5 +113,15 @@ func (r *AuthRequestRepository) scanOne(ctx context.Context, query string, args 
 	if code != nil {
 		ar.Code = *code
 	}
+	if deviceSessionID != nil {
+		ar.DeviceSessionID = *deviceSessionID
+	}
 	return &ar, nil
+}
+
+func nilIfEmptyStr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }

@@ -44,12 +44,17 @@ func (r *TokenRepository) CreateAccessAndRefresh(ctx context.Context, access *oi
 
 	if currentRefreshToken != "" {
 		var oldAccessTokenID sql.NullString
+		var oldDeviceSessionID sql.NullString
 		err = tx.QueryRowContext(ctx,
-			`SELECT access_token_id FROM refresh_tokens WHERE token_hash = $1`,
+			`SELECT access_token_id, device_session_id FROM refresh_tokens WHERE token_hash = $1`,
 			currentRefreshToken,
-		).Scan(&oldAccessTokenID)
+		).Scan(&oldAccessTokenID, &oldDeviceSessionID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("lookup old refresh token: %w", err)
+		}
+
+		if refresh.DeviceSessionID == "" && oldDeviceSessionID.Valid {
+			refresh.DeviceSessionID = oldDeviceSessionID.String
 		}
 
 		if oldAccessTokenID.Valid && oldAccessTokenID.String != "" {
@@ -87,15 +92,26 @@ func (r *TokenRepository) CreateAccessAndRefresh(ctx context.Context, access *oi
 	}
 
 	_, err = tx.ExecContext(ctx,
-		`INSERT INTO refresh_tokens (id, token_hash, client_id, user_id, audience, scopes, auth_time, amr, access_token_id, expiration)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		`INSERT INTO refresh_tokens
+		 (id, token_hash, client_id, user_id, audience, scopes, auth_time, amr, access_token_id, expiration, device_session_id)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
 		refresh.ID, refresh.Token, refresh.ClientID, refresh.UserID,
 		pq.Array(refresh.Audience), pq.Array(refresh.Scopes),
 		refresh.AuthTime, pq.Array(refresh.AMR),
 		refresh.AccessTokenID, refresh.Expiration,
+		nilIfEmpty(refresh.DeviceSessionID),
 	)
 	if err != nil {
 		return err
+	}
+
+	if refresh.DeviceSessionID != "" {
+		if _, err = tx.ExecContext(ctx,
+			`UPDATE device_sessions SET last_used_at = now() WHERE id = $1`,
+			refresh.DeviceSessionID,
+		); err != nil {
+			return fmt.Errorf("update device session last_used_at: %w", err)
+		}
 	}
 
 	return tx.Commit()
@@ -110,7 +126,7 @@ func (r *TokenRepository) GetByID(ctx context.Context, tokenID string) (*oidc.To
 
 func (r *TokenRepository) GetRefreshToken(ctx context.Context, tokenHash string) (*oidc.RefreshToken, error) {
 	row := r.db.QueryRowxContext(ctx,
-		`SELECT id, token_hash, client_id, user_id, audience, scopes, auth_time, amr, access_token_id, expiration, created_at
+		`SELECT id, token_hash, client_id, user_id, audience, scopes, auth_time, amr, access_token_id, expiration, created_at, device_session_id
 		 FROM refresh_tokens WHERE token_hash = $1 AND expiration > now()`, tokenHash)
 	return r.scanRefreshToken(row)
 }
@@ -210,8 +226,9 @@ func (r *TokenRepository) scanRefreshToken(row *sqlx.Row) (*oidc.RefreshToken, e
 	var rt oidc.RefreshToken
 	var audience, scopes, amr pq.StringArray
 	var accessTokenID *string
+	var deviceSessionID *string
 	err := row.Scan(&rt.ID, &rt.Token, &rt.ClientID, &rt.UserID, &audience, &scopes,
-		&rt.AuthTime, &amr, &accessTokenID, &rt.Expiration, &rt.CreatedAt)
+		&rt.AuthTime, &amr, &accessTokenID, &rt.Expiration, &rt.CreatedAt, &deviceSessionID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("refresh token: %w", domerr.ErrNotFound)
@@ -223,6 +240,9 @@ func (r *TokenRepository) scanRefreshToken(row *sqlx.Row) (*oidc.RefreshToken, e
 	rt.AMR = amr
 	if accessTokenID != nil {
 		rt.AccessTokenID = *accessTokenID
+	}
+	if deviceSessionID != nil {
+		rt.DeviceSessionID = *deviceSessionID
 	}
 	return &rt, nil
 }

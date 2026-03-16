@@ -33,7 +33,7 @@ func RunMigrations(db *sqlx.DB) error {
 
 func CleanTables(t testing.TB, db *sqlx.DB) {
 	t.Helper()
-	for _, table := range []string{"refresh_tokens", "tokens", "auth_requests", "federated_identities", "users", "clients"} {
+	for _, table := range []string{"refresh_tokens", "tokens", "auth_requests", "device_sessions", "federated_identities", "users", "clients"} {
 		if _, err := db.Exec("DELETE FROM " + table); err != nil {
 			t.Fatalf("failed to clean table %s: %v", table, err)
 		}

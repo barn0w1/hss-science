@@ -21,17 +21,23 @@ func NewCompleteFederatedLogin(identitySvc identity.Service, loginComp oidcdom.L
 	}
 }
 
-func (uc *CompleteFederatedLogin) Execute(ctx context.Context, provider string, claims identity.FederatedClaims, authRequestID string) (string, error) {
+func (uc *CompleteFederatedLogin) FindOrCreateUser(
+	ctx context.Context, provider string, claims identity.FederatedClaims,
+) (*identity.User, error) {
 	user, err := uc.identity.FindOrCreateByFederatedLogin(ctx, provider, claims)
 	if err != nil {
-		return "", fmt.Errorf("federated login: %w", err)
+		return nil, fmt.Errorf("federated login: %w", err)
 	}
+	return user, nil
+}
 
+func (uc *CompleteFederatedLogin) CompleteLogin(
+	ctx context.Context, authRequestID, userID, deviceSessionID string,
+) error {
 	authTime := time.Now().UTC()
 	amr := []string{"fed"}
-	if err := uc.loginComp.CompleteLogin(ctx, authRequestID, user.ID, authTime, amr); err != nil {
-		return "", fmt.Errorf("complete login: %w", err)
+	if err := uc.loginComp.CompleteLogin(ctx, authRequestID, userID, authTime, amr, deviceSessionID); err != nil {
+		return fmt.Errorf("complete login: %w", err)
 	}
-
-	return user.ID, nil
+	return nil
 }

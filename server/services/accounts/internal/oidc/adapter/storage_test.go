@@ -400,7 +400,7 @@ func TestStorage_RevokeToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if oidcErr := s.RevokeToken(ctx, tokenID, "user-1", "test-client"); oidcErr != nil {
+	if oidcErr := s.RevokeToken(ctx, tokenID, "", "test-client"); oidcErr != nil {
 		t.Fatalf("RevokeToken: %v", oidcErr)
 	}
 }

@@ -60,7 +60,7 @@ func (s *tokenService) CreateAccessAndRefresh(
 	ctx context.Context, clientID, subject string,
 	audience, scopes []string,
 	accessExpiration, refreshExpiration, authTime time.Time,
-	amr []string, currentRefreshToken string,
+	amr []string, currentRefreshToken, deviceSessionID string,
 ) (accessID, rawRefreshToken string, err error) {
 	now := time.Now().UTC()
 	accessID = newID()
@@ -82,17 +82,18 @@ func (s *tokenService) CreateAccessAndRefresh(
 		CreatedAt:      now,
 	}
 	refresh := &RefreshToken{
-		ID:            refreshID,
-		Token:         hashRefreshToken(rawRefreshToken),
-		ClientID:      clientID,
-		UserID:        subject,
-		Audience:      audience,
-		Scopes:        scopes,
-		AuthTime:      authTime,
-		AMR:           amr,
-		AccessTokenID: accessID,
-		Expiration:    refreshExpiration,
-		CreatedAt:     now,
+		ID:              refreshID,
+		Token:           hashRefreshToken(rawRefreshToken),
+		ClientID:        clientID,
+		UserID:          subject,
+		Audience:        audience,
+		Scopes:          scopes,
+		AuthTime:        authTime,
+		AMR:             amr,
+		AccessTokenID:   accessID,
+		Expiration:      refreshExpiration,
+		CreatedAt:       now,
+		DeviceSessionID: deviceSessionID,
 	}
 
 	currentHash := ""

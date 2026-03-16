@@ -88,6 +88,9 @@ func runServer(cfg *config.Config, db *sqlx.DB, tokenSvc oidcdom.TokenService, l
 	authReqSvc := oidcdom.NewAuthRequestService(authReqRepo, time.Duration(cfg.AuthRequestTTLMinutes)*time.Minute)
 	clientSvc := oidcdom.NewClientService(clientRepo)
 
+	deviceSessionRepo := oidcpg.NewDeviceSessionRepository(db)
+	deviceSessionSvc := oidcdom.NewDeviceSessionService(deviceSessionRepo)
+
 	signingKey := oidcadapter.NewSigningKey(cfg.SigningKeys.Current)
 	publicKeys := oidcadapter.NewPublicKeySet(cfg.SigningKeys.Current, cfg.SigningKeys.Previous)
 
@@ -121,6 +124,7 @@ func runServer(cfg *config.Config, db *sqlx.DB, tokenSvc oidcdom.TokenService, l
 		upstreamProviders,
 		identitySvc,
 		authReqSvc,
+		deviceSessionSvc,
 		crypto.NewAESCipher(cfg.CryptoKey),
 		op.AuthCallbackURL(provider),
 		logger,
@@ -149,6 +153,7 @@ func runServer(cfg *config.Config, db *sqlx.DB, tokenSvc oidcdom.TokenService, l
 		if cfg.RateLimitEnabled {
 			r.Use(loginLimiter.Middleware())
 		}
+		r.Use(appmiddleware.LoginPageSecurityHeaders())
 		r.Use(interceptor.Handler)
 		r.Get("/", loginHandler.SelectProvider)
 		r.Post("/select", loginHandler.FederatedRedirect)
@@ -178,6 +183,7 @@ func runServer(cfg *config.Config, db *sqlx.DB, tokenSvc oidcdom.TokenService, l
 	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
 	go runAuthRequestCleanup(cleanupCtx, authReqSvc, time.Duration(cfg.AuthRequestTTLMinutes)*time.Minute, logger)
 	go runTokenCleanupLoop(cleanupCtx, tokenSvc, time.Hour, logger)
+	go runDeviceSessionCleanup(cleanupCtx, deviceSessionSvc, 30*24*time.Hour, logger)
 
 	if cfg.RateLimitEnabled {
 		go func() {
@@ -290,6 +296,27 @@ func runTokenCleanupLoop(ctx context.Context, svc oidcdom.TokenService, interval
 					"access_tokens", access,
 					"refresh_tokens", refresh,
 				)
+			}
+		}
+	}
+}
+
+func runDeviceSessionCleanup(ctx context.Context, svc oidcdom.DeviceSessionService, maxAge time.Duration, logger *slog.Logger) {
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			cutoff := time.Now().UTC().Add(-maxAge)
+			n, err := svc.DeleteRevokedBefore(ctx, cutoff)
+			if err != nil {
+				logger.Error("device session cleanup failed", "error", err)
+				continue
+			}
+			if n > 0 {
+				logger.Info("cleaned up revoked device sessions", "count", n)
 			}
 		}
 	}

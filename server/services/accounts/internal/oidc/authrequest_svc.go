@@ -49,8 +49,8 @@ func (s *authRequestService) SaveCode(ctx context.Context, id, code string) erro
 	return s.repo.SaveCode(ctx, id, code)
 }
 
-func (s *authRequestService) CompleteLogin(ctx context.Context, id, userID string, authTime time.Time, amr []string) error {
-	return s.repo.CompleteLogin(ctx, id, userID, authTime, amr)
+func (s *authRequestService) CompleteLogin(ctx context.Context, id, userID string, authTime time.Time, amr []string, deviceSessionID string) error {
+	return s.repo.CompleteLogin(ctx, id, userID, authTime, amr, deviceSessionID)
 }
 
 func (s *authRequestService) Delete(ctx context.Context, id string) error {
