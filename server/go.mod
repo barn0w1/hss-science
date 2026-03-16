@@ -3,6 +3,7 @@ module github.com/barn0w1/hss-science/server
 go 1.26
 
 require (
+	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/coreos/go-oidc/v3 v3.17.0
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/go-jose/go-jose/v4 v4.1.3
@@ -87,6 +88,7 @@ require (
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/vmware-labs/yaml-jsonpath v0.3.2 // indirect
 	github.com/woodsbury/decimal128 v1.3.0 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zitadel/logging v0.7.0 // indirect
 	github.com/zitadel/schema v1.3.2 // indirect
