@@ -7,14 +7,14 @@ import (
 
 func validSource() MapSource {
 	return MapSource{
-		"OIDC_ISSUER":           "https://accounts.example.com",
-		"CLIENT_ID":             "test-client",
-		"CLIENT_SECRET":         "test-secret",
-		"REDIRECT_URL":          "https://example.com/callback",
-		"ACCOUNTS_GRPC_ADDR":    "accounts:50051",
-		"REDIS_URL":             "redis://localhost:6379/0",
-		"SESSION_KEY":           "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
-		"CORS_ALLOWED_ORIGINS":  "https://example.com",
+		"OIDC_ISSUER":          "https://accounts.example.com",
+		"CLIENT_ID":            "test-client",
+		"CLIENT_SECRET":        "test-secret",
+		"REDIRECT_URL":         "https://example.com/callback",
+		"ACCOUNTS_GRPC_ADDR":   "accounts:50051",
+		"REDIS_URL":            "redis://localhost:6379/0",
+		"SESSION_KEY":          "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+		"CORS_ALLOWED_ORIGINS": "https://example.com",
 	}
 }
 
