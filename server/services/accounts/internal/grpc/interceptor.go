@@ -19,18 +19,10 @@ import (
 
 type contextKey int
 
-const (
-	ctxKeyUserID  contextKey = iota
-	ctxKeyTokenID contextKey = iota
-)
+const ctxKeyUserID contextKey = iota
 
 func UserIDFromContext(ctx context.Context) string {
 	v, _ := ctx.Value(ctxKeyUserID).(string)
-	return v
-}
-
-func tokenIDFromContext(ctx context.Context) string {
-	v, _ := ctx.Value(ctxKeyTokenID).(string)
 	return v
 }
 
@@ -38,7 +30,6 @@ type jwtClaims struct {
 	Subject string `json:"sub"`
 	Expiry  int64  `json:"exp"`
 	Issuer  string `json:"iss"`
-	TokenID string `json:"jti"`
 }
 
 func NewJWTAuthInterceptor(publicKeys *oidcadapter.PublicKeySet, issuer string) grpc.UnaryServerInterceptor {
@@ -67,7 +58,6 @@ func NewJWTAuthInterceptor(publicKeys *oidcadapter.PublicKeySet, issuer string) 
 		}
 
 		ctx = context.WithValue(ctx, ctxKeyUserID, claims.Subject)
-		ctx = context.WithValue(ctx, ctxKeyTokenID, claims.TokenID)
 		return handler(ctx, req)
 	}
 }
