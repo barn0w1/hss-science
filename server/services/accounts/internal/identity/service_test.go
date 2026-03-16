@@ -16,6 +16,9 @@ type mockRepo struct {
 	createWithFederatedIdentityFn   func(ctx context.Context, user *User, fi *FederatedIdentity) error
 	updateUserFromClaimsFn          func(ctx context.Context, userID string, claims FederatedClaims, updatedAt time.Time) error
 	updateFederatedIdentityClaimsFn func(ctx context.Context, provider, providerSubject string, claims FederatedClaims, lastLoginAt time.Time) error
+	listFederatedIdentitiesFn       func(ctx context.Context, userID string) ([]*FederatedIdentity, error)
+	deleteFederatedIdentityFn       func(ctx context.Context, id, userID string) error
+	updateLocalProfileFn            func(ctx context.Context, userID string, name, picture *string, updatedAt time.Time) error
 }
 
 func (m *mockRepo) GetByID(ctx context.Context, id string) (*User, error) {
@@ -32,6 +35,24 @@ func (m *mockRepo) UpdateUserFromClaims(ctx context.Context, userID string, clai
 }
 func (m *mockRepo) UpdateFederatedIdentityClaims(ctx context.Context, provider, providerSubject string, claims FederatedClaims, lastLoginAt time.Time) error {
 	return m.updateFederatedIdentityClaimsFn(ctx, provider, providerSubject, claims, lastLoginAt)
+}
+func (m *mockRepo) ListFederatedIdentities(ctx context.Context, userID string) ([]*FederatedIdentity, error) {
+	if m.listFederatedIdentitiesFn != nil {
+		return m.listFederatedIdentitiesFn(ctx, userID)
+	}
+	return nil, nil
+}
+func (m *mockRepo) DeleteFederatedIdentity(ctx context.Context, id, userID string) error {
+	if m.deleteFederatedIdentityFn != nil {
+		return m.deleteFederatedIdentityFn(ctx, id, userID)
+	}
+	return nil
+}
+func (m *mockRepo) UpdateLocalProfile(ctx context.Context, userID string, name, picture *string, updatedAt time.Time) error {
+	if m.updateLocalProfileFn != nil {
+		return m.updateLocalProfileFn(ctx, userID, name, picture, updatedAt)
+	}
+	return nil
 }
 
 func TestGetUser_Found(t *testing.T) {

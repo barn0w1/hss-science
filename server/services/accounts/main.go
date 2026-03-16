@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/barn0w1/hss-science/server/services/accounts/config"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/authn"
+	grpcserver "github.com/barn0w1/hss-science/server/services/accounts/internal/grpc"
 	"github.com/barn0w1/hss-science/server/services/accounts/internal/identity"
 	identitypg "github.com/barn0w1/hss-science/server/services/accounts/internal/identity/postgres"
 	appmiddleware "github.com/barn0w1/hss-science/server/services/accounts/internal/middleware"
@@ -93,6 +95,19 @@ func runServer(cfg *config.Config, db *sqlx.DB, tokenSvc oidcdom.TokenService, l
 
 	signingKey := oidcadapter.NewSigningKey(cfg.SigningKeys.Current)
 	publicKeys := oidcadapter.NewPublicKeySet(cfg.SigningKeys.Current, cfg.SigningKeys.Previous)
+
+	grpcSrv := grpcserver.NewServer(identitySvc, deviceSessionSvc, publicKeys, cfg.Issuer)
+	grpcListener, err := net.Listen("tcp", ":"+cfg.GRPCPort)
+	if err != nil {
+		logger.Error("failed to listen on gRPC port", "error", err, "port", cfg.GRPCPort)
+		os.Exit(1)
+	}
+	go func() {
+		logger.Info("gRPC server starting", "port", cfg.GRPCPort)
+		if err := grpcSrv.Serve(grpcListener); err != nil {
+			logger.Error("gRPC server exited", "error", err)
+		}
+	}()
 
 	storage := oidcadapter.NewStorageAdapter(
 		&userClaimsBridge{svc: identitySvc}, authReqSvc, clientSvc, tokenSvc,
@@ -226,6 +241,7 @@ func runServer(cfg *config.Config, db *sqlx.DB, tokenSvc oidcdom.TokenService, l
 
 	logger.Info("shutting down server")
 	cleanupCancel()
+	grpcSrv.GracefulStop()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {

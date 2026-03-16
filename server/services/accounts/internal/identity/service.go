@@ -23,6 +23,7 @@ func (s *identityService) GetUser(ctx context.Context, userID string) (*User, er
 	if err != nil {
 		return nil, fmt.Errorf("identity.GetUser(%s): %w", userID, err)
 	}
+	applyLocalOverrides(user)
 	return user, nil
 }
 
@@ -85,6 +86,44 @@ func (s *identityService) FindOrCreateByFederatedLogin(
 		return nil, fmt.Errorf("identity.FindOrCreate: create: %w", err)
 	}
 	return user, nil
+}
+
+func (s *identityService) UpdateProfile(
+	ctx context.Context, userID string, name, picture *string,
+) (*User, error) {
+	now := time.Now().UTC()
+	if err := s.repo.UpdateLocalProfile(ctx, userID, name, picture, now); err != nil {
+		return nil, fmt.Errorf("identity.UpdateProfile: %w", err)
+	}
+	return s.GetUser(ctx, userID)
+}
+
+func (s *identityService) ListLinkedProviders(
+	ctx context.Context, userID string,
+) ([]*FederatedIdentity, error) {
+	fis, err := s.repo.ListFederatedIdentities(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("identity.ListLinkedProviders: %w", err)
+	}
+	return fis, nil
+}
+
+func (s *identityService) UnlinkProvider(
+	ctx context.Context, userID, identityID string,
+) error {
+	if err := s.repo.DeleteFederatedIdentity(ctx, identityID, userID); err != nil {
+		return fmt.Errorf("identity.UnlinkProvider: %w", err)
+	}
+	return nil
+}
+
+func applyLocalOverrides(u *User) {
+	if u.LocalName != nil && *u.LocalName != "" {
+		u.Name = *u.LocalName
+	}
+	if u.LocalPicture != nil && *u.LocalPicture != "" {
+		u.Picture = *u.LocalPicture
+	}
 }
 
 func newID() string {

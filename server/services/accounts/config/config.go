@@ -31,6 +31,7 @@ type SigningKeySet struct {
 
 type Config struct {
 	Port        string
+	GRPCPort    string
 	Issuer      string
 	DatabaseURL string
 	CryptoKey   [32]byte
@@ -63,6 +64,7 @@ func Load() (*Config, error) {
 func LoadFrom(src ConfigSource) (*Config, error) {
 	cfg := &Config{
 		Port:               getFrom(src, "PORT", "8080"),
+		GRPCPort:           getFrom(src, "GRPC_PORT", "50051"),
 		Issuer:             src.Get("ISSUER"),
 		DatabaseURL:        src.Get("DATABASE_URL"),
 		GoogleClientID:     src.Get("GOOGLE_CLIENT_ID"),

@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package accounts.v1;
+
+option go_package = "github.com/barn0w1/hss-science/server/gen/accounts/v1;accountsv1";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+service AccountManagementService {
+  rpc GetMyProfile(GetMyProfileRequest)       returns (Profile);
+  rpc UpdateMyProfile(UpdateMyProfileRequest) returns (Profile);
+
+  rpc ListLinkedProviders(ListLinkedProvidersRequest) returns (ListLinkedProvidersResponse);
+  rpc UnlinkProvider(UnlinkProviderRequest)           returns (google.protobuf.Empty);
+
+  rpc ListActiveSessions(ListActiveSessionsRequest)         returns (ListActiveSessionsResponse);
+  rpc RevokeSession(RevokeSessionRequest)                   returns (google.protobuf.Empty);
+  rpc RevokeAllOtherSessions(RevokeAllOtherSessionsRequest) returns (google.protobuf.Empty);
+}
+
+message Profile {
+  string user_id          = 1;
+  string email            = 2;
+  bool   email_verified   = 3;
+  string name             = 4;
+  string given_name       = 5;
+  string family_name      = 6;
+  string picture          = 7;
+  bool   name_is_local    = 8;
+  bool   picture_is_local = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message GetMyProfileRequest {}
+
+message UpdateMyProfileRequest {
+  optional string name    = 1;
+  optional string picture = 2;
+}
+
+message FederatedProviderInfo {
+  string identity_id    = 1;
+  string provider       = 2;
+  string provider_email = 3;
+  google.protobuf.Timestamp last_login_at = 4;
+}
+
+message ListLinkedProvidersRequest {}
+
+message ListLinkedProvidersResponse {
+  repeated FederatedProviderInfo providers = 1;
+}
+
+message UnlinkProviderRequest {
+  string identity_id = 1;
+}
+
+message Session {
+  string session_id   = 1;
+  string device_name  = 2;
+  string ip_address   = 3;
+  google.protobuf.Timestamp created_at   = 4;
+  google.protobuf.Timestamp last_used_at = 5;
+}
+
+message ListActiveSessionsRequest {}
+
+message ListActiveSessionsResponse {
+  repeated Session sessions = 1;
+}
+
+message RevokeSessionRequest {
+  string session_id = 1;
+}
+
+message RevokeAllOtherSessionsRequest {
+  string current_session_id = 1;
+}

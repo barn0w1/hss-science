@@ -1,0 +1,3 @@
+ALTER TABLE users
+  ADD COLUMN local_name    TEXT DEFAULT NULL,
+  ADD COLUMN local_picture TEXT DEFAULT NULL;

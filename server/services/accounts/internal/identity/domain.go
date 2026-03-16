@@ -12,6 +12,9 @@ type User struct {
 	Picture       string
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+
+	LocalName    *string
+	LocalPicture *string
 }
 
 type FederatedIdentity struct {
