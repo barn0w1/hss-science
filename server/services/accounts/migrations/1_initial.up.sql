@@ -6,6 +6,8 @@ CREATE TABLE users (
     given_name     TEXT        NOT NULL DEFAULT '',
     family_name    TEXT        NOT NULL DEFAULT '',
     picture        TEXT        NOT NULL DEFAULT '',
+    local_name    TEXT DEFAULT NULL,
+    local_picture TEXT DEFAULT NULL,
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -68,6 +70,7 @@ CREATE TABLE auth_requests (
     amr                   TEXT[],
     is_done               BOOLEAN     NOT NULL DEFAULT false,
     code                  TEXT,
+    device_session_id     TEXT,
     created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -101,9 +104,35 @@ CREATE TABLE refresh_tokens (
     auth_time        TIMESTAMPTZ NOT NULL,
     amr              TEXT[]      NOT NULL DEFAULT '{}',
     access_token_id  TEXT,
+    device_session_id TEXT,
     expiration       TIMESTAMPTZ NOT NULL,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX tokens_expiration_idx ON tokens (expiration);
 CREATE INDEX refresh_tokens_expiration_idx ON refresh_tokens (expiration);
+
+CREATE TABLE device_sessions (
+    id            TEXT        PRIMARY KEY,
+    user_id       TEXT        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_agent    TEXT        NOT NULL DEFAULT '',
+    ip_address    TEXT        NOT NULL DEFAULT '',
+    device_name   TEXT        NOT NULL DEFAULT '',
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_used_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    revoked_at    TIMESTAMPTZ
+);
+
+CREATE INDEX device_sessions_user_id_idx ON device_sessions (user_id);
+CREATE INDEX device_sessions_revoked_idx ON device_sessions (user_id) WHERE revoked_at IS NULL;
+
+ALTER TABLE refresh_tokens
+    ADD CONSTRAINT refresh_tokens_device_session_fk
+    FOREIGN KEY (device_session_id) REFERENCES device_sessions(id) ON DELETE SET NULL;
+
+CREATE INDEX refresh_tokens_device_session_idx ON refresh_tokens (device_session_id)
+    WHERE device_session_id IS NOT NULL;
+
+ALTER TABLE auth_requests
+    ADD CONSTRAINT auth_requests_device_session_fk
+    FOREIGN KEY (device_session_id) REFERENCES device_sessions(id) ON DELETE SET NULL;
