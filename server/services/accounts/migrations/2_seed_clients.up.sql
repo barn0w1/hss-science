@@ -8,7 +8,7 @@
 INSERT INTO clients (id, secret_hash, redirect_uris, post_logout_redirect_uris, response_types, grant_types, access_token_type, allowed_scopes)
 VALUES (
     'myaccount-bff',
-    '$2y$10$kW1BVsK04v0IaV1/gcRyTOIijR.VVIBvs0IdppR2YHFdGyuqu01u.',
+    '$2y$10$Zykp79naIGXTRfjkw1BHquGWjkzODhbpf/29HhT2H4uXtYUCp6W72',
     '{"https://myaccount.hss-science.org/api/v1/auth/callback"}',
     '{"https://myaccount.hss-science.org/"}',
     '{"code"}',
