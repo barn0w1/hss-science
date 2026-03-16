@@ -50,6 +50,9 @@ func (m *mockTokenRepo) RevokeRefreshToken(_ context.Context, _, _ string) error
 func (m *mockTokenRepo) DeleteExpired(_ context.Context, _ time.Time) (int64, int64, error) {
 	return 0, 0, m.err
 }
+func (m *mockTokenRepo) GetLatestDeviceSessionID(_ context.Context, _, _ string) (string, error) {
+	return "", m.err
+}
 
 func TestTokenService_CreateAccess(t *testing.T) {
 	repo := &mockTokenRepo{}

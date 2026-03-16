@@ -25,11 +25,11 @@ type Config struct {
 	Port           string
 	OIDCIssuer     string
 	ClientID       string
-	ClientSecret   string
+	ClientSecret   string //nolint:gosec // loaded from env, not hardcoded
 	RedirectURL    string
 	AccountsGRPC   string
 	RedisURL       string
-	SessionKey     [32]byte
+	SessionKey     [32]byte //nolint:gosec // loaded from env, not hardcoded
 	SessionIdleTTL time.Duration
 	SessionHardTTL time.Duration
 	CORSOrigins    []string

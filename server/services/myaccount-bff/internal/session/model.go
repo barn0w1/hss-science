@@ -4,8 +4,8 @@ import "time"
 
 type Session struct {
 	UserID          string    `json:"user_id"`
-	AccessToken     string    `json:"access_token"`
-	RefreshToken    string    `json:"refresh_token"`
+	AccessToken     string    `json:"access_token"`  //nolint:gosec // stored server-side in Redis, never sent to browser
+	RefreshToken    string    `json:"refresh_token"` //nolint:gosec // stored server-side in Redis, never sent to browser
 	IDToken         string    `json:"id_token"`
 	TokenExpiry     time.Time `json:"token_expiry"`
 	DeviceSessionID string    `json:"device_session_id"`

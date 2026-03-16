@@ -62,11 +62,17 @@ func (s *Store) Delete(ctx context.Context, sid string) error {
 }
 
 func (s *Store) AcquireRefreshLock(ctx context.Context, sid string) (bool, error) {
-	ok, err := s.rdb.SetNX(ctx, lockPrefix+sid, "1", lockTTL).Result()
+	_, err := s.rdb.SetArgs(ctx, lockPrefix+sid, "1", redis.SetArgs{
+		Mode: "NX",
+		TTL:  lockTTL,
+	}).Result()
 	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return false, nil
+		}
 		return false, fmt.Errorf("acquire refresh lock: %w", err)
 	}
-	return ok, nil
+	return true, nil
 }
 
 func (s *Store) ReleaseRefreshLock(ctx context.Context, sid string) error {

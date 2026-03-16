@@ -558,6 +558,14 @@ func TestStorage_GetPrivateClaimsFromScopes_DSIDPresent(t *testing.T) {
 	dsid := ulid.Make().String()
 
 	_, err := storageTestDB.ExecContext(ctx,
+		`INSERT INTO device_sessions (id, user_id) VALUES ($1, $2)`,
+		dsid, user.ID,
+	)
+	if err != nil {
+		t.Fatalf("insert device session: %v", err)
+	}
+
+	_, err = storageTestDB.ExecContext(ctx,
 		`INSERT INTO refresh_tokens (id, token_hash, client_id, user_id, audience, scopes, auth_time, amr, expiration, device_session_id)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
 		ulid.Make().String(), "hash-test-dsid", "test-client", user.ID,

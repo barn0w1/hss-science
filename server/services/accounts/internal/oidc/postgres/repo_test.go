@@ -653,6 +653,13 @@ func TestTokenRepository_GetLatestDeviceSessionID(t *testing.T) {
 		repo := NewTokenRepository(testDB)
 		expectedDSID := ulid.Make().String()
 		_, err = testDB.ExecContext(ctx,
+			`INSERT INTO device_sessions (id, user_id) VALUES ($1, $2)`,
+			expectedDSID, userID,
+		)
+		if err != nil {
+			t.Fatalf("insert device session: %v", err)
+		}
+		_, err = testDB.ExecContext(ctx,
 			`INSERT INTO refresh_tokens (id, token_hash, client_id, user_id, audience, scopes, auth_time, amr, expiration, device_session_id)
 			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
 			ulid.Make().String(), "hash-dsid-found", "test-client", userID,
