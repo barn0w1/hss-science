@@ -1,0 +1,16 @@
+@theme {
+  /* Duration */
+  --motion-duration-short1:  50ms;
+  --motion-duration-short2:  100ms;
+  --motion-duration-medium1: 200ms;
+  --motion-duration-medium2: 300ms;
+  --motion-duration-long1:   450ms;
+  --motion-duration-long2:   600ms;
+
+  /* Easing — M3のphysics-based */
+  --motion-easing-standard:        cubic-bezier(0.2, 0, 0, 1);
+  --motion-easing-standard-decel:  cubic-bezier(0, 0, 0, 1);
+  --motion-easing-standard-accel:  cubic-bezier(0.3, 0, 1, 1);
+  --motion-easing-emphasized:      cubic-bezier(0.2, 0, 0, 1);
+  --motion-easing-spring:          cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}

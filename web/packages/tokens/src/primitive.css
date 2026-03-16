@@ -1,0 +1,19 @@
+@theme {
+  --palette-blue-10:  #001b3d;
+  --palette-blue-40:  #2563eb;
+  --palette-blue-80:  #aac7ff;
+  --palette-blue-95:  #dce8ff;
+  --palette-blue-99:  #f8f9ff;
+
+  --palette-neutral-10:  #1a1c1e;
+  --palette-neutral-40:  #5f6368;
+  --palette-neutral-90:  #e3e3e3;
+  --palette-neutral-95:  #f1f1f1;
+  --palette-neutral-99:  #fafafa;
+
+  --palette-red-40:  #ba1a1a;
+  --palette-red-90:  #ffdad6;
+
+  --palette-green-40: #146c2e;
+  --palette-green-90: #b7f2c6;
+}

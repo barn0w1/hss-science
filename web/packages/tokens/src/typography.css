@@ -1,0 +1,26 @@
+/* src/typography.css */
+@theme {
+  --font-family-base: 'Google Sans', 'Roboto', system-ui, sans-serif;
+  --font-family-mono: 'Roboto Mono', monospace;
+
+  /* M3のtype scale */
+  --typescale-display-large:   57px;
+  --typescale-display-medium:  45px;
+  --typescale-display-small:   36px;
+
+  --typescale-headline-large:  32px;
+  --typescale-headline-medium: 28px;
+  --typescale-headline-small:  24px;
+
+  --typescale-title-large:     22px;
+  --typescale-title-medium:    16px;
+  --typescale-title-small:     14px;
+
+  --typescale-body-large:      16px;
+  --typescale-body-medium:     14px;
+  --typescale-body-small:      12px;
+
+  --typescale-label-large:     14px;
+  --typescale-label-medium:    12px;
+  --typescale-label-small:     11px;
+}

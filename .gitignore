@@ -36,5 +36,4 @@ go.work.sum
 
 node_modules/
 
-# AI Agent reference materials (Do not commit external source code)
-server/.agent/references/
+server/.llm/

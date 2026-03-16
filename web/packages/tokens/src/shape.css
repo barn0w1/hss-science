@@ -1,0 +1,10 @@
+@theme {
+  --shape-none:    0px;
+  --shape-xs:      4px;
+  --shape-sm:      8px;
+  --shape-md:      12px;
+  --shape-lg:      16px;
+  --shape-xl:      28px;
+  --shape-2xl:     32px;
+  --shape-full:    9999px;  /* pill */
+}

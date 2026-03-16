@@ -1,0 +1,25 @@
+@theme {
+  /* Primary */
+  --color-primary:           var(--palette-blue-40);
+  --color-on-primary:        #ffffff;
+  --color-primary-container: var(--palette-blue-95);
+  --color-on-primary-container: var(--palette-blue-10);
+
+  /* Surface */
+  --color-surface:           var(--palette-neutral-99);
+  --color-surface-variant:   var(--palette-neutral-95);
+  --color-on-surface:        var(--palette-neutral-10);
+  --color-on-surface-muted:  var(--palette-neutral-40);
+
+  /* Outline */
+  --color-outline:           var(--palette-neutral-40);
+  --color-outline-variant:   var(--palette-neutral-90);
+
+  /* Error */
+  --color-error:             var(--palette-red-40);
+  --color-error-container:   var(--palette-red-90);
+
+  /* Success */
+  --color-success:           var(--palette-green-40);
+  --color-success-container: var(--palette-green-90);
+}
