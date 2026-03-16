@@ -298,8 +298,17 @@ func (s *StorageAdapter) SetIntrospectionFromToken(ctx context.Context, introspe
 	return nil
 }
 
-func (s *StorageAdapter) GetPrivateClaimsFromScopes(_ context.Context, _, _ string, _ []string) (map[string]any, error) {
-	return map[string]any{}, nil
+func (s *StorageAdapter) GetPrivateClaimsFromScopes(ctx context.Context, userID, clientID string, _ []string) (map[string]any, error) {
+	dsid, err := s.tokens.GetLatestDeviceSessionID(ctx, userID, clientID)
+	if err != nil {
+		slog.Warn("GetPrivateClaimsFromScopes: could not fetch device session id",
+			"user_id", userID, "client_id", clientID, "error", err)
+		return map[string]any{}, nil
+	}
+	if dsid == "" {
+		return map[string]any{}, nil
+	}
+	return map[string]any{"dsid": dsid}, nil
 }
 
 func (s *StorageAdapter) GetKeyByIDAndClientID(_ context.Context, _, _ string) (*jose.JSONWebKey, error) {

@@ -134,3 +134,7 @@ func (s *tokenService) RevokeRefreshToken(ctx context.Context, rawToken, clientI
 func (s *tokenService) DeleteExpired(ctx context.Context, before time.Time) (int64, int64, error) {
 	return s.repo.DeleteExpired(ctx, before)
 }
+
+func (s *tokenService) GetLatestDeviceSessionID(ctx context.Context, userID, clientID string) (string, error) {
+	return s.repo.GetLatestDeviceSessionID(ctx, userID, clientID)
+}

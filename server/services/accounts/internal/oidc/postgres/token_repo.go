@@ -253,3 +253,25 @@ func nilIfEmpty(s string) *string {
 	}
 	return &s
 }
+
+func (r *TokenRepository) GetLatestDeviceSessionID(ctx context.Context, userID, clientID string) (string, error) {
+	var dsid sql.NullString
+	err := r.db.QueryRowxContext(ctx,
+		`SELECT device_session_id
+		 FROM refresh_tokens
+		 WHERE user_id = $1 AND client_id = $2 AND expiration > now()
+		 ORDER BY created_at DESC
+		 LIMIT 1`,
+		userID, clientID,
+	).Scan(&dsid)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", fmt.Errorf("get latest device session id: %w", err)
+	}
+	if dsid.Valid {
+		return dsid.String, nil
+	}
+	return "", nil
+}

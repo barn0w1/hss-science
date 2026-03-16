@@ -550,6 +550,34 @@ func TestStorage_GetPrivateClaimsFromScopes(t *testing.T) {
 	}
 }
 
+func TestStorage_GetPrivateClaimsFromScopes_DSIDPresent(t *testing.T) {
+	testhelper.CleanTables(t, storageTestDB)
+	s := newTestAdapter(t)
+	ctx := context.Background()
+	user := seedTestUser(t)
+	dsid := ulid.Make().String()
+
+	_, err := storageTestDB.ExecContext(ctx,
+		`INSERT INTO refresh_tokens (id, token_hash, client_id, user_id, audience, scopes, auth_time, amr, expiration, device_session_id)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		ulid.Make().String(), "hash-test-dsid", "test-client", user.ID,
+		`{"test-client"}`, `{"openid"}`,
+		time.Now().UTC(), `{"federated"}`,
+		time.Now().UTC().Add(7*24*time.Hour), dsid,
+	)
+	if err != nil {
+		t.Fatalf("insert refresh token with dsid: %v", err)
+	}
+
+	claims, err := s.GetPrivateClaimsFromScopes(ctx, user.ID, "test-client", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if claims["dsid"] != dsid {
+		t.Errorf("expected dsid %q, got %v", dsid, claims["dsid"])
+	}
+}
+
 func TestStorage_GetKeyByIDAndClientID(t *testing.T) {
 	s := newTestAdapter(t)
 	_, err := s.GetKeyByIDAndClientID(context.Background(), "kid", "client")
