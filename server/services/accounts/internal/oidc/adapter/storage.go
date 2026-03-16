@@ -144,10 +144,11 @@ func (s *StorageAdapter) CreateAccessAndRefreshTokens(ctx context.Context, reque
 	accessExp := time.Now().UTC().Add(s.accessTTL)
 	refreshExp := time.Now().UTC().Add(s.refreshTTL)
 	authTime, amr := extractAuthTimeAMR(request)
+	deviceSessionID := extractDeviceSessionID(request)
 
 	accessID, refreshToken, err := s.tokens.CreateAccessAndRefresh(ctx,
 		clientIDFromRequest(request), request.GetSubject(), request.GetAudience(), request.GetScopes(),
-		accessExp, refreshExp, authTime, amr, currentRefreshToken)
+		accessExp, refreshExp, authTime, amr, currentRefreshToken, deviceSessionID)
 	if err != nil {
 		if errors.Is(err, domerr.ErrNotFound) {
 			return "", "", time.Time{}, op.ErrInvalidRefreshToken
@@ -177,7 +178,8 @@ func (s *StorageAdapter) TerminateSession(ctx context.Context, userID, clientID 
 
 func (s *StorageAdapter) RevokeToken(ctx context.Context, tokenOrTokenID, userID, clientID string) *oidc.Error {
 	if userID != "" {
-		if err := s.tokens.Revoke(ctx, tokenOrTokenID, clientID); err != nil {
+		// GetRefreshTokenInfo succeeded — this IS a refresh token
+		if err := s.tokens.RevokeRefreshToken(ctx, tokenOrTokenID, clientID); err != nil {
 			if errors.Is(err, domerr.ErrNotFound) {
 				return oidc.ErrInvalidRequest().WithDescription("token not found")
 			}
@@ -185,7 +187,8 @@ func (s *StorageAdapter) RevokeToken(ctx context.Context, tokenOrTokenID, userID
 		}
 		return nil
 	}
-	if err := s.tokens.RevokeRefreshToken(ctx, tokenOrTokenID, clientID); err != nil {
+	// GetRefreshTokenInfo failed — this is an access token
+	if err := s.tokens.Revoke(ctx, tokenOrTokenID, clientID); err != nil {
 		if errors.Is(err, domerr.ErrNotFound) {
 			return oidc.ErrInvalidRequest().WithDescription("token not found")
 		}
@@ -407,6 +410,16 @@ func extractAuthTimeAMR(request op.TokenRequest) (time.Time, []string) {
 		amr = ag.GetAMR()
 	}
 	return authTime, amr
+}
+
+func extractDeviceSessionID(request op.TokenRequest) string {
+	type deviceSessionGetter interface {
+		GetDeviceSessionID() string
+	}
+	if g, ok := request.(deviceSessionGetter); ok {
+		return g.GetDeviceSessionID()
+	}
+	return ""
 }
 
 func promptToStrings(prompts []string) []string {

@@ -17,3 +17,29 @@ func SecurityHeaders() func(http.Handler) http.Handler {
 		})
 	}
 }
+
+// LoginPageSecurityHeaders sets security headers appropriate for the HTML login page.
+// In addition to the standard headers, it adds a Content-Security-Policy
+// tailored to the inline-styled login template.
+func LoginPageSecurityHeaders() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			h := w.Header()
+			h.Set("X-Content-Type-Options", "nosniff")
+			h.Set("X-Frame-Options", "DENY")
+			h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+			h.Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
+			h.Set("Content-Security-Policy",
+				"default-src 'none'; "+
+					"style-src 'unsafe-inline'; "+
+					"script-src 'unsafe-inline'; "+
+					"img-src 'self' data: https:; "+
+					"connect-src 'none'; "+
+					"form-action 'self'; "+
+					"frame-ancestors 'none'; "+
+					"base-uri 'self'",
+			)
+			next.ServeHTTP(w, r)
+		})
+	}
+}

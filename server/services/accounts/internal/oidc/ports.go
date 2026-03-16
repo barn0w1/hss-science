@@ -10,7 +10,7 @@ type AuthRequestRepository interface {
 	GetByID(ctx context.Context, id string) (*AuthRequest, error)
 	GetByCode(ctx context.Context, code string) (*AuthRequest, error)
 	SaveCode(ctx context.Context, id, code string) error
-	CompleteLogin(ctx context.Context, id, userID string, authTime time.Time, amr []string) error
+	CompleteLogin(ctx context.Context, id, userID string, authTime time.Time, amr []string, deviceSessionID string) error
 	Delete(ctx context.Context, id string) error
 	DeleteExpiredBefore(ctx context.Context, before time.Time) (int64, error)
 }
@@ -36,7 +36,7 @@ type AuthRequestService interface {
 	GetByID(ctx context.Context, id string) (*AuthRequest, error)
 	GetByCode(ctx context.Context, code string) (*AuthRequest, error)
 	SaveCode(ctx context.Context, id, code string) error
-	CompleteLogin(ctx context.Context, id, userID string, authTime time.Time, amr []string) error
+	CompleteLogin(ctx context.Context, id, userID string, authTime time.Time, amr []string, deviceSessionID string) error
 	Delete(ctx context.Context, id string) error
 	DeleteExpiredBefore(ctx context.Context, before time.Time) (int64, error)
 }
@@ -49,7 +49,7 @@ type ClientService interface {
 
 type TokenService interface {
 	CreateAccess(ctx context.Context, clientID, subject string, audience, scopes []string, expiration time.Time) (tokenID string, err error)
-	CreateAccessAndRefresh(ctx context.Context, clientID, subject string, audience, scopes []string, accessExpiration, refreshExpiration, authTime time.Time, amr []string, currentRefreshToken string) (accessID, refreshToken string, err error)
+	CreateAccessAndRefresh(ctx context.Context, clientID, subject string, audience, scopes []string, accessExpiration, refreshExpiration, authTime time.Time, amr []string, currentRefreshToken, deviceSessionID string) (accessID, refreshToken string, err error)
 	GetByID(ctx context.Context, tokenID string) (*Token, error)
 	GetRefreshToken(ctx context.Context, rawToken string) (*RefreshToken, error)
 	GetRefreshInfo(ctx context.Context, rawToken string) (userID, tokenID string, err error)
@@ -60,5 +60,19 @@ type TokenService interface {
 }
 
 type LoginCompleter interface {
-	CompleteLogin(ctx context.Context, authRequestID, userID string, authTime time.Time, amr []string) error
+	CompleteLogin(ctx context.Context, authRequestID, userID string, authTime time.Time, amr []string, deviceSessionID string) error
+}
+
+type DeviceSessionRepository interface {
+	FindOrCreate(ctx context.Context, id, userID, userAgent, ipAddress, deviceName string) (*DeviceSession, error)
+	RevokeByID(ctx context.Context, id, userID string) error
+	ListActiveByUserID(ctx context.Context, userID string) ([]*DeviceSession, error)
+	DeleteRevokedBefore(ctx context.Context, before time.Time) (int64, error)
+}
+
+type DeviceSessionService interface {
+	FindOrCreate(ctx context.Context, id, userID, userAgent, ipAddress, deviceName string) (*DeviceSession, error)
+	RevokeByID(ctx context.Context, id, userID string) error
+	ListActiveByUserID(ctx context.Context, userID string) ([]*DeviceSession, error)
+	DeleteRevokedBefore(ctx context.Context, before time.Time) (int64, error)
 }

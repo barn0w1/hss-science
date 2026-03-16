@@ -249,3 +249,54 @@ func TestSelectProvider_MissingAuthRequestID(t *testing.T) {
 		t.Errorf("expected 400, got %d", rec.Code)
 	}
 }
+
+func TestSelectProvider_SetsCookieWhenMissing(t *testing.T) {
+	h := testHandler(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/login?authRequestID=ar-123", nil)
+	rec := httptest.NewRecorder()
+
+	h.SelectProvider(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	cookies := rec.Result().Cookies()
+	var found bool
+	for _, c := range cookies {
+		if c.Name == deviceCookieName {
+			found = true
+			if c.Value == "" {
+				t.Error("expected non-empty cookie value")
+			}
+			if !c.HttpOnly {
+				t.Error("expected HttpOnly cookie")
+			}
+			if c.MaxAge != deviceCookieMaxAge {
+				t.Errorf("expected MaxAge %d, got %d", deviceCookieMaxAge, c.MaxAge)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("expected %s cookie to be set", deviceCookieName)
+	}
+}
+
+func TestSelectProvider_KeepsExistingCookie(t *testing.T) {
+	h := testHandler(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/login?authRequestID=ar-123", nil)
+	req.AddCookie(&http.Cookie{Name: deviceCookieName, Value: "existing-id"})
+	rec := httptest.NewRecorder()
+
+	h.SelectProvider(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == deviceCookieName {
+			t.Error("expected no new cookie when one already exists")
+		}
+	}
+}

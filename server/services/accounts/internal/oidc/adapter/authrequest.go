@@ -16,17 +16,18 @@ func NewAuthRequest(ar *oidcdom.AuthRequest) *AuthRequest {
 	return &AuthRequest{domain: ar}
 }
 
-func (a *AuthRequest) GetID() string          { return a.domain.ID }
-func (a *AuthRequest) GetACR() string         { return "" }
-func (a *AuthRequest) GetAMR() []string       { return a.domain.AMR }
-func (a *AuthRequest) GetClientID() string    { return a.domain.ClientID }
-func (a *AuthRequest) GetRedirectURI() string { return a.domain.RedirectURI }
-func (a *AuthRequest) GetScopes() []string    { return a.domain.Scopes }
-func (a *AuthRequest) GetState() string       { return a.domain.State }
-func (a *AuthRequest) GetSubject() string     { return a.domain.UserID }
-func (a *AuthRequest) GetNonce() string       { return a.domain.Nonce }
-func (a *AuthRequest) GetAuthTime() time.Time { return a.domain.AuthTime }
-func (a *AuthRequest) Done() bool             { return a.domain.IsDone }
+func (a *AuthRequest) GetID() string              { return a.domain.ID }
+func (a *AuthRequest) GetACR() string             { return "" }
+func (a *AuthRequest) GetAMR() []string           { return a.domain.AMR }
+func (a *AuthRequest) GetClientID() string        { return a.domain.ClientID }
+func (a *AuthRequest) GetRedirectURI() string     { return a.domain.RedirectURI }
+func (a *AuthRequest) GetScopes() []string        { return a.domain.Scopes }
+func (a *AuthRequest) GetState() string           { return a.domain.State }
+func (a *AuthRequest) GetSubject() string         { return a.domain.UserID }
+func (a *AuthRequest) GetNonce() string           { return a.domain.Nonce }
+func (a *AuthRequest) GetAuthTime() time.Time     { return a.domain.AuthTime }
+func (a *AuthRequest) Done() bool                 { return a.domain.IsDone }
+func (a *AuthRequest) GetDeviceSessionID() string { return a.domain.DeviceSessionID }
 
 func (a *AuthRequest) GetAudience() []string {
 	return []string{a.domain.ClientID}

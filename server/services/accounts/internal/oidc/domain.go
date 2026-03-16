@@ -22,6 +22,7 @@ type AuthRequest struct {
 	IsDone              bool
 	Code                string
 	CreatedAt           time.Time
+	DeviceSessionID     string
 }
 
 type Client struct {
@@ -54,15 +55,27 @@ type Token struct {
 }
 
 type RefreshToken struct {
-	ID            string
-	Token         string
-	ClientID      string
-	UserID        string
-	Audience      []string
-	Scopes        []string
-	AuthTime      time.Time
-	AMR           []string
-	AccessTokenID string
-	Expiration    time.Time
-	CreatedAt     time.Time
+	ID              string
+	Token           string
+	ClientID        string
+	UserID          string
+	Audience        []string
+	Scopes          []string
+	AuthTime        time.Time
+	AMR             []string
+	AccessTokenID   string
+	Expiration      time.Time
+	CreatedAt       time.Time
+	DeviceSessionID string
+}
+
+type DeviceSession struct {
+	ID         string
+	UserID     string
+	UserAgent  string
+	IPAddress  string
+	DeviceName string
+	CreatedAt  time.Time
+	LastUsedAt time.Time
+	RevokedAt  *time.Time
 }
