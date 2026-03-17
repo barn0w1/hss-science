@@ -1,10 +1,22 @@
-@theme {
-  --shape-none:    0px;
-  --shape-xs:      4px;
-  --shape-sm:      8px;
-  --shape-md:      12px;
-  --shape-lg:      16px;
-  --shape-xl:      28px;
-  --shape-2xl:     32px;
-  --shape-full:    9999px;  /* pill */
+/* =============================================================================
+ * M3 System Shape Tokens
+ * Spec: https://m3.material.io/styles/shape/shape-scale-tokens
+ *
+ * All corners use border-radius.  "Cut" corners are not supported in M3 web.
+ * ============================================================================= */
+
+:root {
+  --md-sys-shape-corner-none:        0px;
+  --md-sys-shape-corner-extra-small: 4px;
+  --md-sys-shape-corner-small:       8px;
+  --md-sys-shape-corner-medium:      12px;
+  --md-sys-shape-corner-large:       16px;
+  --md-sys-shape-corner-extra-large: 28px;
+  --md-sys-shape-corner-full:        9999px; /* pill */
+
+  /* Top-only variants (useful for bottom sheets, cards docked to an edge) */
+  --md-sys-shape-corner-extra-small-top: 4px 4px 0 0;
+  --md-sys-shape-corner-large-end:       0 16px 16px 0;
+  --md-sys-shape-corner-large-top:       16px 16px 0 0;
+  --md-sys-shape-corner-extra-large-top: 28px 28px 0 0;
 }

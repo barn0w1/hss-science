@@ -1,16 +1,48 @@
-@theme {
-  /* Duration */
-  --motion-duration-short1:  50ms;
-  --motion-duration-short2:  100ms;
-  --motion-duration-medium1: 200ms;
-  --motion-duration-medium2: 300ms;
-  --motion-duration-long1:   450ms;
-  --motion-duration-long2:   600ms;
+/* =============================================================================
+ * M3 System Motion Tokens
+ * Spec: https://m3.material.io/styles/motion/overview
+ *
+ * Duration tokens control how long animations take.
+ * Easing tokens define the acceleration curve.
+ * ============================================================================= */
 
-  /* Easing — M3のphysics-based */
-  --motion-easing-standard:        cubic-bezier(0.2, 0, 0, 1);
-  --motion-easing-standard-decel:  cubic-bezier(0, 0, 0, 1);
-  --motion-easing-standard-accel:  cubic-bezier(0.3, 0, 1, 1);
-  --motion-easing-emphasized:      cubic-bezier(0.2, 0, 0, 1);
-  --motion-easing-spring:          cubic-bezier(0.175, 0.885, 0.32, 1.275);
+:root {
+  /* ── Duration ─────────────────────────────────────────────── */
+  /* "Short" — small utility motions (icon swap, chip check) */
+  --md-sys-motion-duration-short1: 50ms;
+  --md-sys-motion-duration-short2: 100ms;
+  --md-sys-motion-duration-short3: 150ms;
+  --md-sys-motion-duration-short4: 200ms;
+
+  /* "Medium" — component-level transitions (FAB expand, dialog open) */
+  --md-sys-motion-duration-medium1: 250ms;
+  --md-sys-motion-duration-medium2: 300ms;
+  --md-sys-motion-duration-medium3: 350ms;
+  --md-sys-motion-duration-medium4: 400ms;
+
+  /* "Long" — page / container-scale transitions */
+  --md-sys-motion-duration-long1: 450ms;
+  --md-sys-motion-duration-long2: 500ms;
+  --md-sys-motion-duration-long3: 550ms;
+  --md-sys-motion-duration-long4: 600ms;
+
+  /* "Extra long" — complex / full-screen transitions */
+  --md-sys-motion-duration-extra-long1: 700ms;
+  --md-sys-motion-duration-extra-long2: 800ms;
+  --md-sys-motion-duration-extra-long3: 900ms;
+  --md-sys-motion-duration-extra-long4: 1000ms;
+
+  /* ── Easing ───────────────────────────────────────────────── */
+  /* Standard — most UI transitions; starts fast, ends slow */
+  --md-sys-motion-easing-standard:       cubic-bezier(0.2, 0, 0, 1);
+  --md-sys-motion-easing-standard-decel: cubic-bezier(0, 0, 0, 1);
+  --md-sys-motion-easing-standard-accel: cubic-bezier(0.3, 0, 1, 1);
+
+  /* Emphasized — expressive / attention-drawing transitions */
+  --md-sys-motion-easing-emphasized:       cubic-bezier(0.2, 0, 0, 1);
+  --md-sys-motion-easing-emphasized-decel: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --md-sys-motion-easing-emphasized-accel: cubic-bezier(0.3, 0, 0.8, 0.15);
+
+  /* Legacy alias kept for backward compatibility */
+  --md-sys-motion-easing-linear: cubic-bezier(0, 0, 1, 1);
 }
