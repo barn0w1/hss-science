@@ -35,5 +35,4 @@ go.work.sum
 # .vscode/
 
 node_modules/
-
-server/.llm/
+.llm/
