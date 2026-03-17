@@ -3,10 +3,47 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
+	pb "github.com/barn0w1/hss-science/server/gen/accounts/v1"
 	"github.com/barn0w1/hss-science/server/services/myaccount-bff/internal/accounts"
 	"github.com/barn0w1/hss-science/server/services/myaccount-bff/internal/middleware"
 )
+
+type profileResponse struct {
+	UserID         string `json:"user_id"`
+	Email          string `json:"email"`
+	EmailVerified  bool   `json:"email_verified"`
+	Name           string `json:"name"`
+	GivenName      string `json:"given_name"`
+	FamilyName     string `json:"family_name"`
+	Picture        string `json:"picture"`
+	NameIsLocal    bool   `json:"name_is_local"`
+	PictureIsLocal bool   `json:"picture_is_local"`
+	CreatedAt      string `json:"created_at,omitempty"`
+	UpdatedAt      string `json:"updated_at,omitempty"`
+}
+
+func toProfileResponse(p *pb.Profile) profileResponse {
+	resp := profileResponse{
+		UserID:         p.GetUserId(),
+		Email:          p.GetEmail(),
+		EmailVerified:  p.GetEmailVerified(),
+		Name:           p.GetName(),
+		GivenName:      p.GetGivenName(),
+		FamilyName:     p.GetFamilyName(),
+		Picture:        p.GetPicture(),
+		NameIsLocal:    p.GetNameIsLocal(),
+		PictureIsLocal: p.GetPictureIsLocal(),
+	}
+	if p.GetCreatedAt() != nil {
+		resp.CreatedAt = p.GetCreatedAt().AsTime().Format(time.RFC3339)
+	}
+	if p.GetUpdatedAt() != nil {
+		resp.UpdatedAt = p.GetUpdatedAt().AsTime().Format(time.RFC3339)
+	}
+	return resp
+}
 
 type ProfileHandler struct {
 	accounts *accounts.Client
@@ -25,7 +62,7 @@ func (h *ProfileHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(profile)
+	_ = json.NewEncoder(w).Encode(toProfileResponse(profile))
 }
 
 type updateProfileRequest struct {
@@ -49,5 +86,5 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(profile)
+	_ = json.NewEncoder(w).Encode(toProfileResponse(profile))
 }

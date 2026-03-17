@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"google.golang.org/grpc/codes"
@@ -49,10 +50,10 @@ func (h *SessionsHandler) List(w http.ResponseWriter, r *http.Request) {
 			IsCurrent:  s.GetSessionId() == sess.DeviceSessionID,
 		}
 		if s.GetCreatedAt() != nil {
-			resp.CreatedAt = s.GetCreatedAt().AsTime().UTC().Format("2006-01-02T15:04:05Z")
+			resp.CreatedAt = s.GetCreatedAt().AsTime().Format(time.RFC3339)
 		}
 		if s.GetLastUsedAt() != nil {
-			resp.LastUsedAt = s.GetLastUsedAt().AsTime().UTC().Format("2006-01-02T15:04:05Z")
+			resp.LastUsedAt = s.GetLastUsedAt().AsTime().Format(time.RFC3339)
 		}
 		result = append(result, resp)
 	}
