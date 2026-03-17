@@ -76,7 +76,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [drive, chat]
+        app: [myaccount-spa]
 
     steps:
       - uses: actions/checkout@v6

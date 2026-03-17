@@ -1,19 +1,107 @@
-@theme {
-  --palette-blue-10:  #001b3d;
-  --palette-blue-40:  #2563eb;
-  --palette-blue-80:  #aac7ff;
-  --palette-blue-95:  #dce8ff;
-  --palette-blue-99:  #f8f9ff;
+/* =============================================================================
+ * M3 Reference Palette Tokens
+ * Source: Material Theme Builder export — do not edit manually.
+ * These are raw colour values; semantic mapping lives in semantic.css.
+ * ============================================================================= */
 
-  --palette-neutral-10:  #1a1c1e;
-  --palette-neutral-40:  #5f6368;
-  --palette-neutral-90:  #e3e3e3;
-  --palette-neutral-95:  #f1f1f1;
-  --palette-neutral-99:  #fafafa;
+:root {
+  /* ---------------------------------------------------------------------------
+   * Primary palette  (blue–navy)
+   * --------------------------------------------------------------------------- */
+  --md-ref-palette-primary-0:   #000000;
+  --md-ref-palette-primary-10:  rgb(0 27 62);       /* standard */
+  --md-ref-palette-primary-20:  rgb(10 48 95);      /* standard */
+  --md-ref-palette-primary-25:  rgb(19 54 101);     /* mc */
+  --md-ref-palette-primary-30:  rgb(40 71 119);     /* standard */
+  --md-ref-palette-primary-35:  rgb(55 85 134);     /* mc */
+  --md-ref-palette-primary-40:  rgb(65 95 145);     /* standard */
+  --md-ref-palette-primary-50:  rgb(80 109 160);    /* mc */
+  --md-ref-palette-primary-60:  rgb(116 145 199);   /* dark-mc */
+  --md-ref-palette-primary-70:  rgb(166 195 252);   /* dark-hc */
+  --md-ref-palette-primary-80:  rgb(170 199 255);   /* standard */
+  --md-ref-palette-primary-87:  rgb(205 221 255);   /* dark-mc */
+  --md-ref-palette-primary-90:  rgb(214 227 255);   /* standard */
+  --md-ref-palette-primary-95:  rgb(235 240 255);   /* dark-hc */
+  --md-ref-palette-primary-99:  rgb(249 249 255);
+  --md-ref-palette-primary-100: #ffffff;
 
-  --palette-red-40:  #ba1a1a;
-  --palette-red-90:  #ffdad6;
+  /* ---------------------------------------------------------------------------
+   * Secondary palette  (blue-grey)
+   * --------------------------------------------------------------------------- */
+  --md-ref-palette-secondary-0:   #000000;
+  --md-ref-palette-secondary-10:  rgb(19 28 43);     /* standard */
+  --md-ref-palette-secondary-20:  rgb(40 49 65);     /* standard */
+  --md-ref-palette-secondary-25:  rgb(46 54 71);     /* mc */
+  --md-ref-palette-secondary-30:  rgb(62 71 89);     /* standard */
+  --md-ref-palette-secondary-35:  rgb(65 73 91);     /* mc/hc */
+  --md-ref-palette-secondary-40:  rgb(86 95 113);    /* standard */
+  --md-ref-palette-secondary-50:  rgb(100 109 128);  /* mc */
+  --md-ref-palette-secondary-60:  rgb(136 145 165);  /* dark-mc */
+  --md-ref-palette-secondary-70:  rgb(186 195 216);  /* dark-hc */
+  --md-ref-palette-secondary-80:  rgb(190 198 220);  /* standard */
+  --md-ref-palette-secondary-87:  rgb(212 220 242);  /* dark-mc */
+  --md-ref-palette-secondary-90:  rgb(218 226 249);  /* standard */
+  --md-ref-palette-secondary-100: #ffffff;
 
-  --palette-green-40: #146c2e;
-  --palette-green-90: #b7f2c6;
+  /* ---------------------------------------------------------------------------
+   * Tertiary palette  (mauve–purple)
+   * --------------------------------------------------------------------------- */
+  --md-ref-palette-tertiary-0:   #000000;
+  --md-ref-palette-tertiary-10:  rgb(40 19 46);     /* standard */
+  --md-ref-palette-tertiary-20:  rgb(63 40 68);     /* standard */
+  --md-ref-palette-tertiary-25:  rgb(69 46 74);     /* mc */
+  --md-ref-palette-tertiary-30:  rgb(87 62 92);     /* standard */
+  --md-ref-palette-tertiary-35:  rgb(89 64 94);     /* hc */
+  --md-ref-palette-tertiary-40:  rgb(112 85 117);   /* standard */
+  --md-ref-palette-tertiary-50:  rgb(127 100 132);  /* mc */
+  --md-ref-palette-tertiary-60:  rgb(164 135 169);  /* dark-mc */
+  --md-ref-palette-tertiary-70:  rgb(216 184 220);  /* dark-hc */
+  --md-ref-palette-tertiary-80:  rgb(221 188 224);  /* standard */
+  --md-ref-palette-tertiary-90:  rgb(250 216 253);  /* standard */
+  --md-ref-palette-tertiary-95:  rgb(255 233 255);  /* dark-hc */
+  --md-ref-palette-tertiary-100: #ffffff;
+
+  /* ---------------------------------------------------------------------------
+   * Error palette  (red)
+   * --------------------------------------------------------------------------- */
+  --md-ref-palette-error-0:   #000000;
+  --md-ref-palette-error-10:  rgb(105 0 5);        /* standard */
+  --md-ref-palette-error-30:  rgb(147 0 10);       /* standard */
+  --md-ref-palette-error-40:  rgb(186 26 26);      /* standard */
+  --md-ref-palette-error-80:  rgb(255 180 171);    /* standard */
+  --md-ref-palette-error-90:  rgb(255 218 214);    /* standard */
+  --md-ref-palette-error-100: #ffffff;
+
+  /* ---------------------------------------------------------------------------
+   * Neutral palette  (slightly blue-tinted cool grey)
+   * Covers both light-mode high tones and dark-mode low tones.
+   * --------------------------------------------------------------------------- */
+  --md-ref-palette-neutral-0:   #000000;
+  --md-ref-palette-neutral-4:   rgb(12 14 19);     /* dark surface-container-lowest */
+  --md-ref-palette-neutral-6:   rgb(17 19 24);     /* dark surface / background */
+  --md-ref-palette-neutral-10:  rgb(25 28 32);     /* light on-surface */
+  --md-ref-palette-neutral-12:  rgb(29 32 36);     /* dark surface-container */
+  --md-ref-palette-neutral-17:  rgb(40 42 47);     /* dark surface-container-high */
+  --md-ref-palette-neutral-20:  rgb(46 48 54);     /* light inverse-surface */
+  --md-ref-palette-neutral-22:  rgb(51 53 58);     /* dark surface-container-highest */
+  --md-ref-palette-neutral-24:  rgb(55 57 62);     /* dark surface-bright */
+  --md-ref-palette-neutral-87:  rgb(217 217 224);  /* light surface-dim */
+  --md-ref-palette-neutral-89:  rgb(226 226 233);  /* dark inverse-surface / light container-highest */
+  --md-ref-palette-neutral-91:  rgb(231 232 238);  /* light surface-container-high */
+  --md-ref-palette-neutral-93:  rgb(237 237 244);  /* light surface-container */
+  --md-ref-palette-neutral-94:  rgb(240 240 247);  /* light inverse-on-surface */
+  --md-ref-palette-neutral-96:  rgb(243 243 250);  /* light surface-container-low */
+  --md-ref-palette-neutral-99:  rgb(249 249 255);  /* light surface / background */
+  --md-ref-palette-neutral-100: #ffffff;
+
+  /* ---------------------------------------------------------------------------
+   * Neutral Variant palette  (blue-grey, for structural / outline roles)
+   * --------------------------------------------------------------------------- */
+  --md-ref-palette-neutral-variant-0:   #000000;
+  --md-ref-palette-neutral-variant-30:  rgb(68 71 78);    /* on-surface-variant (light), surface-variant (dark) */
+  --md-ref-palette-neutral-variant-50:  rgb(116 119 127); /* outline (light) */
+  --md-ref-palette-neutral-variant-60:  rgb(142 144 153); /* outline (dark) */
+  --md-ref-palette-neutral-variant-80:  rgb(196 198 208); /* on-surface-variant (dark), outline-variant (light) */
+  --md-ref-palette-neutral-variant-90:  rgb(224 226 236); /* surface-variant (light) */
+  --md-ref-palette-neutral-variant-100: #ffffff;
 }
