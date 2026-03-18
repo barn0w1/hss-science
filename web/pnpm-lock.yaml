@@ -95,6 +95,9 @@ importers:
       '@fontsource-variable/geist':
         specifier: ^5.2.8
         version: 5.2.8
+      '@fontsource-variable/inter':
+        specifier: ^5.2.8
+        version: 5.2.8
       '@hss/tokens':
         specifier: workspace:*
         version: link:../../packages/tokens
