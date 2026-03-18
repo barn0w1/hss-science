@@ -643,6 +643,147 @@ Implement via a `useKeyboardShortcuts` hook registered on `document`.
 
 ---
 
+## Todo List
+
+### Phase 1 — Project Setup
+
+- [ ] Install runtime dependencies: `zustand`, `react-router-dom`, `msw`
+- [ ] Run `npx msw init public/` to copy the service worker file
+- [ ] Install shadcn components: `dialog`, `dropdown-menu`, `context-menu`, `tooltip`, `sonner`, `input`, `scroll-area`, `separator`, `avatar`, `badge`, `progress`, `skeleton`, `breadcrumb`, `sheet`, `command`, `popover`
+
+---
+
+### Phase 2 — Types & Fixtures
+
+- [ ] Create `src/types/domain.ts` with all branded types (`NodeId`, `SpaceId`, `UserId`, `ContentHash`) and interfaces (`FileNode`, `FolderNode`, `SymlinkNode`, `DriveNode`, `Space`, `SpaceMember`, `User`)
+- [ ] Create `src/lib/format.ts` with `formatBytes(n)`, `formatDate(iso)`, `getMimeIcon(mimeType)` stubs
+- [ ] Create `src/lib/tree.ts` with `buildBreadcrumb(nodeId, nodesById)` implementation
+- [ ] Create `src/mocks/fixtures.ts` with `ALICE`, `PERSONAL_SPACE`, `TEAM_SPACE`, and `NODES` array (personal root, Documents folder + 2 files, Images folder, team root + Assets folder)
+- [ ] Create `src/mocks/handlers/auth.ts` — `GET /api/me`
+- [ ] Create `src/mocks/handlers/spaces.ts` — `GET /api/spaces`, `GET /api/spaces/:spaceId`
+- [ ] Create `src/mocks/handlers/nodes.ts` — `GET /api/spaces/:spaceId/nodes`, `GET /api/nodes/:nodeId`
+- [ ] Create `src/mocks/browser.ts` combining all handlers into `setupWorker`
+- [ ] Update `src/main.tsx` to bootstrap MSW before rendering (`enableMocking().then(render)`)
+
+---
+
+### Phase 3 — Stores
+
+- [ ] Create `src/store/auth.store.ts` — `AuthState` type + initial state (`user: null`, `isLoading: true`)
+- [ ] Create `src/store/drive.store.ts` — `DriveState` type + initial state (navigation, selection, clipboard stubs)
+- [ ] Create `src/store/ui.store.ts` — `UIState` type + initial state (viewMode, sort, search, previewNodeId, sidebarCollapsed) with `persist` middleware
+
+---
+
+### Phase 4 — Layout Shell & Routing
+
+- [ ] Update `src/App.tsx` to use `createBrowserRouter` with `AppShell` as root layout, routes: `/drive/:spaceId?/:nodeId?`, `/trash`, `*`
+- [ ] Create `src/components/layout/AppShell.tsx` — full-height flex container with `<Sidebar>` + `<Outlet>`, wires auth hydration on mount
+- [ ] Create `src/components/layout/Sidebar.tsx` — fixed-width panel, renders `SidebarNav` + `SidebarSpaceSwitcher`
+- [ ] Create `src/components/layout/SidebarNav.tsx` — Trash link; active state driven by `useLocation`
+- [ ] Create `src/components/layout/SidebarSpaceSwitcher.tsx` — lists all spaces from `GET /api/spaces`; active space highlighted; navigates to space root on click
+- [ ] Create `src/components/layout/TopBar.tsx` — breadcrumb slot (left), search input (centre), theme toggle + user avatar (right)
+- [ ] Create `src/pages/DrivePage.tsx` — reads `:spaceId` and `:nodeId` from params, syncs into `drive.store`, renders `DriveView`
+- [ ] Create `src/pages/TrashPage.tsx` — reads deleted nodes from store, renders `NodeList`
+- [ ] Create `src/pages/NotFoundPage.tsx`
+
+---
+
+### Phase 5 — Drive View & Node Display
+
+- [ ] Create `src/components/drive/DriveView.tsx` — fetches children via `GET /api/spaces/:spaceId/nodes?parentId=`, applies client-side sort + search filter from `ui.store`, renders `NodeGrid` or `NodeList` based on `viewMode`
+- [ ] Create `src/components/drive/NodeIcon.tsx` — returns a coloured Lucide icon based on `kind` and `mimeType` (folder=FolderIcon, image=ImageIcon+purple, pdf=FileTextIcon+blue, video=VideoIcon+red, audio=MusicIcon+green, archive=ArchiveIcon+yellow, code=CodeIcon+cyan, default=FileIcon)
+- [ ] Create `src/components/drive/NodeCard.tsx` — grid card: large icon, name (truncated), size/date line, selection ring, hover state
+- [ ] Create `src/components/drive/NodeGrid.tsx` — responsive CSS grid of `NodeCard` items; handles click-to-select and double-click-to-open (folders) / click-to-preview (files)
+- [ ] Create `src/components/drive/NodeRow.tsx` — list row: icon, name, kind badge, size, updated date, selection checkbox; hover state
+- [ ] Create `src/components/drive/NodeList.tsx` — table layout of `NodeRow` items with sortable column headers; handles click interactions
+- [ ] Create `src/components/drive/SelectionBar.tsx` — floating bar appears when `selectedIds.size > 0`; shows count + bulk actions (delete, copy, cut)
+
+---
+
+### Phase 6 — Navigation & Breadcrumb
+
+- [ ] Implement `navigateTo` and `setCurrentSpace` actions in `drive.store`
+- [ ] Create `src/components/drive/Breadcrumb.tsx` — builds ancestor chain via `buildBreadcrumb`; collapses middle segments into a `…` popover when overflow; each segment is a link that calls `navigateTo`
+- [ ] Sync URL ↔ store: `DrivePage` reads params on mount + on param change, pushes to store; store actions call `router.navigate`
+
+---
+
+### Phase 7 — Toolbar & Filtering
+
+- [ ] Create `src/components/drive/ToolBar.tsx` — "+ New" dropdown (New Folder), grid/list toggle, sort dropdown (name / updated / size / kind, asc/desc), search input wired to `ui.store.searchQuery`
+- [ ] Implement client-side search filter in `DriveView` — filters node list by `name.includes(searchQuery)` (case-insensitive)
+- [ ] Implement client-side sort in `DriveView` — sorts by `sortField` / `sortDir`, folders always before files
+
+---
+
+### Phase 8 — Store Actions
+
+- [ ] Implement `select` in `drive.store` — single click replaces selection; Cmd+click toggles; Shift+click extends range from `lastSelectedId`
+- [ ] Implement `selectAll` / `clearSelection` in `drive.store`
+- [ ] Implement `copy` / `cut` / `clearClipboard` in `drive.store`
+- [ ] Implement `setViewMode`, `setSort`, `setSearchQuery`, `openPreview`, `closePreview`, `toggleSidebar` in `ui.store`
+- [ ] Implement `setUser` in `auth.store`; call it in `AppShell` after fetching `/api/me`
+
+---
+
+### Phase 9 — Context Menu & Dialogs
+
+- [ ] Create `src/components/drive/NodeContextMenu.tsx` — wraps `ContextMenu` from shadcn; groups: Open / Rename / Copy / Cut / Delete / Properties; each item dispatches to store or opens a dialog
+- [ ] Create `src/components/dialogs/NewFolderDialog.tsx` — dialog with a name input; on confirm, adds a `FolderNode` to a `localNodes` slice in `drive.store`
+- [ ] Create `src/components/dialogs/DeleteConfirmDialog.tsx` — lists selected node names; on confirm, marks them `deleted: true` in store
+- [ ] Create `src/components/drive/NodeRenameInput.tsx` — inline input replacing the node name; auto-selects name without extension on mount; commits on Enter/blur, cancels on Escape; updates node name in store
+
+---
+
+### Phase 10 — Preview Panel
+
+- [ ] Create `src/components/preview/PreviewPanel.tsx` — `Sheet` (slide-in from right, 320px); shows node name, kind, size, mimeType, contentHash (truncated), createdAt, updatedAt, createdBy; close button and Escape dismiss
+- [ ] Create `src/components/preview/GenericPreview.tsx` — large centred `NodeIcon` + metadata grid for non-previewable types
+- [ ] Wire `openPreview` / `closePreview` — file click in `NodeGrid`/`NodeList` opens panel; folder click navigates instead
+
+---
+
+### Phase 11 — Share Dialog
+
+- [ ] Create `src/components/dialogs/ShareDialog.tsx` — lists `space.members` with avatar, display name, email, and role badge (owner / editor / viewer); read-only (no mutations in mock)
+
+---
+
+### Phase 12 — Command Palette
+
+- [ ] Create a `useCommandPaletteItems()` hook that builds a flat list of spaces + nodes from fixture data (label, icon, action)
+- [ ] Wire `Command` (shadcn) into a modal triggered by `Cmd+K`; items navigate to spaces/nodes or trigger actions (New Folder, Trash); fuzzy filtering built into the `Command` component
+
+---
+
+### Phase 13 — Keyboard Shortcuts
+
+- [ ] Create `src/hooks/useKeyboardShortcuts.ts` — registers `keydown` on `document`, calls store actions:
+  - `/` → focus search input
+  - `Cmd+K` → open command palette
+  - `Cmd+A` → `selectAll` with current folder's node IDs
+  - `Delete` / `Backspace` → open `DeleteConfirmDialog` if selection non-empty
+  - `F2` → trigger rename on focused node
+  - `Escape` → `clearSelection`, close preview, close any open dialog
+  - `Enter` → open/navigate focused node
+  - `ArrowUp` / `ArrowDown` / `ArrowLeft` / `ArrowRight` → move focus in grid/list
+- [ ] Mount `useKeyboardShortcuts` in `AppShell`
+
+---
+
+### Phase 14 — Polish
+
+- [ ] Add `animate-pulse` skeleton cards/rows in `NodeGrid`/`NodeList` shown while data is loading
+- [ ] Add empty-state component in `DriveView` — centred icon + message + CTA when folder has no children
+- [ ] Add `Sonner` toaster in `AppShell`; fire toast on delete (with undo action that restores nodes in store)
+- [ ] Audit all interactive elements for 100ms hover transitions (`transition-colors duration-100`)
+- [ ] Verify dark mode on every component — check contrast on muted text, borders, selection rings
+- [ ] Make sidebar collapsible on mobile (`< 768px`): hide sidebar, show hamburger in TopBar that toggles it as an overlay
+- [ ] Test keyboard navigation end-to-end: Tab order, Enter/Escape on all dialogs, arrow-key focus in grid and list views
+
+---
+
 ## Notes & Decisions
 
 - **No real auth**: mock always returns `user-alice`. Auth store hydrates from `GET /api/me` on mount.
