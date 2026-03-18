@@ -172,7 +172,6 @@ src/
 │
 ├── pages/
 │   ├── DrivePage.tsx          ← /drive/:spaceId?/:nodeId?
-│   ├── SharedPage.tsx         ← /shared
 │   ├── TrashPage.tsx          ← /trash
 │   └── NotFoundPage.tsx
 │
@@ -190,7 +189,6 @@ src/
 import { createBrowserRouter, RouterProvider, redirect } from "react-router-dom"
 import { AppShell }     from "@/components/layout/AppShell"
 import { DrivePage }    from "@/pages/DrivePage"
-import { SharedPage }   from "@/pages/SharedPage"
 import { TrashPage }    from "@/pages/TrashPage"
 import { NotFoundPage } from "@/pages/NotFoundPage"
 
@@ -200,7 +198,6 @@ const router = createBrowserRouter([
     children: [
       { index: true, loader: () => redirect("/drive") },
       { path: "drive/:spaceId?/:nodeId?", element: <DrivePage /> },
-      { path: "shared", element: <SharedPage /> },
       { path: "trash",  element: <TrashPage />  },
       { path: "*",      element: <NotFoundPage /> },
     ],
@@ -233,7 +230,7 @@ export const ALICE: User = {
 
 export const PERSONAL_SPACE: Space = {
   id: "space-personal" as SpaceId,
-  name: "My Drive",
+  name: "@personal",
   personal: true,
   ownerId: ALICE.id,
   members: [{ userId: ALICE.id, role: "owner" }],
@@ -537,16 +534,16 @@ export const useUIStore = create<UIState>()(
 ┌──────────────────────────────────────────────────────────────┐
 │  Sidebar (240px)          │  Main Area                       │
 │  ┌────────────────────┐   │  ┌──────────────────────────┐    │
-│  │ Logo / Space Name  │   │  │ TopBar                   │    │
+│  │ Logo               │   │  │ TopBar                   │    │
 │  │ ─────────────────  │   │  │  Breadcrumb  Search  ⋯  │    │
-│  │ My Drive           │   │  ├──────────────────────────┤    │
-│  │ Shared with me     │   │  │ ToolBar                  │    │
-│  │ Trash              │   │  │  + New  ▤ Grid/List Sort │    │
-│  │ ─────────────────  │   │  ├──────────────────────────┤    │
-│  │ SPACES             │   │  │                          │    │
-│  │  ● My Drive        │   │  │  NodeGrid / NodeList     │    │
+│  │ Trash              │   │  ├──────────────────────────┤    │
+│  │ ─────────────────  │   │  │ ToolBar                  │    │
+│  │ SPACES             │   │  │  + New  ▤ Grid/List Sort │    │
+│  │  ● @personal       │   │  ├──────────────────────────┤    │
 │  │  ○ Team Alpha      │   │  │                          │    │
-│  └────────────────────┘   │  └──────────────────────────┘    │
+│  │                    │   │  │  NodeGrid / NodeList     │    │
+│  └────────────────────┘   │  │                          │    │
+│                           │  └──────────────────────────┘    │
 │                           │              │                   │
 │                           │  PreviewPanel (slide-in, 320px)  │
 └──────────────────────────────────────────────────────────────┘
@@ -653,3 +650,5 @@ Implement via a `useKeyboardShortcuts` hook registered on `document`.
 - **Mutations are UI-only**: create/rename/delete operations update Zustand store state directly; no API calls are made. The fixture data is the read source; store state is the write surface.
 - **Symlink resolution**: `SymlinkNode.targetId` resolved client-side before display; broken symlinks show a warning icon.
 - **Trash**: nodes marked `deleted: true` in a local Zustand slice; `TrashPage` reads from that slice.
+- **No "Shared with me"**: sharing is Space-level only (owner / editor / viewer on a Space). There is no per-file sharing and therefore no shared-with-me view. The sidebar lists Spaces only.
+- **Personal space naming**: the personal space carries name `"@personal"` — it is not special-cased in the UI beyond the `personal: true` flag on `Space`. The sidebar renders it like any other space entry.
