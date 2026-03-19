@@ -206,7 +206,7 @@ server/services/myaccount-bff/
 
 ### B.2 — `config/config.go`
 
-Pattern mirrors `services/accounts/config/config.go` exactly: `ConfigSource` interface,
+Pattern mirrors `services/identity-service/config/config.go` exactly: `ConfigSource` interface,
 `OSEnvSource`, `MapSource`, `LoadFrom(src)`.
 
 ```go
@@ -1022,7 +1022,7 @@ Content-Security-Policy: default-src 'none'   ← BFF serves no HTML/JS
 
 ### B.15 — `Dockerfile`
 
-Mirror `services/accounts/Dockerfile` exactly:
+Mirror `services/identity-service/Dockerfile` exactly:
 - Multi-stage build: `golang:1.26-alpine` builder → `gcr.io/distroless/static-debian12` runtime
 - Build args: `SERVICE=myaccount-bff`
 - `go build -ldflags="-s -w" -o /app ./services/myaccount-bff`

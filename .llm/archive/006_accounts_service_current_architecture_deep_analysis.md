@@ -1,7 +1,7 @@
 # 006 - Accounts Service: Current Architecture Deep Analysis
 
 **Date:** 2026-03-02
-**Scope:** `server/services/accounts/` -- every file outside of `server/.agent/archive/` and `web/`
+**Scope:** `server/services/identity-service/` -- every file outside of `server/.agent/archive/` and `web/`
 **Purpose:** Comprehensive analysis of the current codebase to identify architectural debts, coupling issues, mixed responsibilities, and domain boundary violations, in preparation for a modular-monolith refactoring.
 
 ---
@@ -16,7 +16,7 @@ The accounts service is a standalone OIDC Provider (OP) that delegates actual us
 ### Current Package Layout
 
 ```
-services/accounts/
+services/identity-service/
   main.go              # Entrypoint: wiring, routing, HTTP server lifecycle
   config/              # Configuration loading from environment variables
   model/               # Data structs (AuthRequest, Client, User, FederatedIdentity, Token, RefreshToken)

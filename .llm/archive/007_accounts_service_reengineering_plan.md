@@ -65,7 +65,7 @@ These decisions were made during Iteration 1 and are **not open for revisiting**
 ### 2.1 Directory Tree
 
 ```
-services/accounts/
+services/identity-service/
   main.go                               -- identity.Service + authn.Handler + authReqAdapter bridge
   internal/
     pkg/domerr/errors.go                -- ErrNotFound, ErrAlreadyExists, ErrUnauthorized, ErrInternal
@@ -830,8 +830,8 @@ This section shows the exact state of `main.go` imports and wiring before and af
 
 ```go
 import (
-    "github.com/barn0w1/hss-science/server/services/accounts/oidcprovider"
-    "github.com/barn0w1/hss-science/server/services/accounts/repo"
+    "github.com/barn0w1/hss-science/server/services/identity-service/oidcprovider"
+    "github.com/barn0w1/hss-science/server/services/identity-service/repo"
 )
 
 clientRepo  := repo.NewClientRepository(db)
@@ -853,9 +853,9 @@ func (a *authReqAdapter) CompleteLogin(...) error { ... }
 
 ```go
 import (
-    oidcadapter "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc/adapter"
-    oidcdom    "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc"
-    oidcpg    "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc/postgres"
+    oidcadapter "github.com/barn0w1/hss-science/server/services/identity-service/internal/oidc/adapter"
+    oidcdom    "github.com/barn0w1/hss-science/server/services/identity-service/internal/oidc"
+    oidcpg    "github.com/barn0w1/hss-science/server/services/identity-service/internal/oidc/postgres"
 )
 
 // Repos
@@ -960,21 +960,21 @@ All 20 test functions keep their names and assertions unchanged. Only the constr
 
 ## 5. Iteration 2 Implementation Checklist
 
-Each item is small enough to verify independently. "Compiles" means `go build ./services/accounts/...` passes.
+Each item is small enough to verify independently. "Compiles" means `go build ./services/identity-service/...` passes.
 
 ### Step 1: Add `internal/oidc/domain.go`
 
 - [x] Create `internal/oidc/domain.go` with exactly 4 structs: `AuthRequest`, `Client`, `Token`, `RefreshToken`
 - [x] Zero imports except `"time"`
 - [x] No `db:` tags on any field
-- [x] **Verify:** `go build ./services/accounts/...` compiles (no other files changed)
+- [x] **Verify:** `go build ./services/identity-service/...` compiles (no other files changed)
 
 ### Step 2: Add `internal/oidc/ports.go`
 
 - [x] Create `internal/oidc/ports.go` with exactly 6 interfaces: `AuthRequestRepository`, `ClientRepository`, `TokenRepository`, `AuthRequestService`, `ClientService`, `TokenService`
 - [x] All signatures match Section 4.2 exactly
 - [x] Import only `"context"` and `"time"` — no other packages
-- [x] **Verify:** `go build ./services/accounts/...` compiles
+- [x] **Verify:** `go build ./services/identity-service/...` compiles
 
 ### Step 3: Create `internal/oidc/postgres/authrequest_repo.go`
 
@@ -984,7 +984,7 @@ Each item is small enough to verify independently. "Compiles" means `go build ./
 - [x] All nullable columns (`user_id`, `auth_time`, `code`, `max_age`) scanned as pointers
 - [x] `sql.ErrNoRows` → `domerr.ErrNotFound` in `GetByID` and `GetByCode`
 - [x] Compile-time check: `var _ oidc.AuthRequestRepository = (*AuthRequestRepository)(nil)`
-- [x] **Verify:** `go build ./services/accounts/...` compiles
+- [x] **Verify:** `go build ./services/identity-service/...` compiles
 
 ### Step 4: Create `internal/oidc/postgres/client_repo.go`
 
@@ -992,7 +992,7 @@ Each item is small enough to verify independently. "Compiles" means `go build ./
 - [x] All array columns scanned as `pq.StringArray`
 - [x] `sql.ErrNoRows` → `domerr.ErrNotFound` in `GetByID`
 - [x] Compile-time check: `var _ oidc.ClientRepository = (*ClientRepository)(nil)`
-- [x] **Verify:** `go build ./services/accounts/...` compiles
+- [x] **Verify:** `go build ./services/identity-service/...` compiles
 
 ### Step 5: Create `internal/oidc/postgres/token_repo.go`
 
@@ -1005,7 +1005,7 @@ Each item is small enough to verify independently. "Compiles" means `go build ./
 - [x] Nullable columns (`refresh_token_id`, `access_token_id`) scanned as `*string`
 - [x] `sql.ErrNoRows` → `domerr.ErrNotFound` in `GetByID`, `GetRefreshToken`, `GetRefreshInfo`
 - [x] Compile-time check: `var _ oidc.TokenRepository = (*TokenRepository)(nil)`
-- [x] **Verify:** `go build ./services/accounts/...` compiles
+- [x] **Verify:** `go build ./services/identity-service/...` compiles
 
 ### Step 6: Create `internal/oidc/postgres/repo_test.go`
 
@@ -1013,7 +1013,7 @@ Each item is small enough to verify independently. "Compiles" means `go build ./
 - [x] `TestClientRepository_GetByID`: assert `domerr.ErrNotFound` (not `sql.ErrNoRows`) for not-found case
 - [x] `TestAuthRequestRepository_CRUD`: use `*oidcdom.AuthRequest`; verify GetByID after 31-min-old record returns `domerr.ErrNotFound` (or skip TTL test and leave it to service test)
 - [x] `TestTokenRepository_*`: use `*oidcdom.Token`/`*oidcdom.RefreshToken`; IDs set by test harness (can be `ulid.Make().String()`)
-- [x] **Verify:** `go test ./services/accounts/internal/oidc/postgres/...` passes
+- [x] **Verify:** `go test ./services/identity-service/internal/oidc/postgres/...` passes
 
 ### Step 7: Create `internal/oidc/authrequest_svc.go`
 
@@ -1032,7 +1032,7 @@ Each item is small enough to verify independently. "Compiles" means `go build ./
 - [x] Test: `GetByCode` same two cases
 - [x] Test: `Create` delegates to repo unchanged
 - [x] Test: `CompleteLogin` delegates unchanged
-- [x] **Verify:** `go test ./services/accounts/internal/oidc/...` passes
+- [x] **Verify:** `go test ./services/identity-service/internal/oidc/...` passes
 
 ### Step 9: Create `internal/oidc/client_svc.go`
 
@@ -1049,7 +1049,7 @@ Each item is small enough to verify independently. "Compiles" means `go build ./
 - [x] Test: `ClientCredentials` wrong secret returns `domerr.ErrUnauthorized`
 - [x] Test: `ClientCredentials` no client returns `domerr.ErrNotFound`
 - [x] Test: `AuthorizeSecret` same three cases
-- [x] **Verify:** `go test ./services/accounts/internal/oidc/...` passes
+- [x] **Verify:** `go test ./services/identity-service/internal/oidc/...` passes
 
 ### Step 11: Create `internal/oidc/token_svc.go`
 
@@ -1066,7 +1066,7 @@ Each item is small enough to verify independently. "Compiles" means `go build ./
 - [x] Test: `CreateAccess` returns non-empty ULID
 - [x] Test: `CreateAccessAndRefresh` returns two non-empty IDs; calls `repo.CreateAccessAndRefresh` with correct cross-references
 - [x] Test: error propagation for all methods
-- [x] **Verify:** `go test ./services/accounts/internal/oidc/...` passes
+- [x] **Verify:** `go test ./services/identity-service/internal/oidc/...` passes
 
 ### Step 13: Move adapter files from `oidcprovider/`
 
@@ -1076,7 +1076,7 @@ Each item is small enough to verify independently. "Compiles" means `go build ./
 - [x] Create `internal/oidc/adapter/keys.go` — copy `oidcprovider/keys.go` unchanged
 - [x] Create `internal/oidc/adapter/provider.go` — copy `oidcprovider/provider.go`; change `storage *Storage` → `storage op.Storage` in `NewProvider` signature
 - [x] Move/adapt corresponding `_test.go` files
-- [x] **Verify:** `go build ./services/accounts/...` compiles (adapter package exists; still not wired in)
+- [x] **Verify:** `go build ./services/identity-service/...` compiles (adapter package exists; still not wired in)
 
 ### Step 14: Create `internal/oidc/adapter/storage.go`
 
@@ -1087,21 +1087,21 @@ Each item is small enough to verify independently. "Compiles" means `go build ./
 - [x] `clientIDFromRequest`, `extractAuthTimeAMR`, `promptToStrings`, `clampMaxAge` as private helpers
 - [x] `clientCredentialsTokenRequest` private struct with 3 getters
 - [x] Compile-time check: `var _ op.Storage = (*StorageAdapter)(nil)`
-- [x] **Verify:** `go build ./services/accounts/...` compiles
+- [x] **Verify:** `go build ./services/identity-service/...` compiles
 
 ### Step 15: Move `oidcprovider/storage_test.go` → `internal/oidc/adapter/storage_test.go`
 
 - [x] Update `TestMain` from `storageTestDB` package var to the new package
 - [x] Change `newTestStorage` → `newTestAdapter` per Section 4.10
 - [x] Change all `&AuthRequest{model: &model.AuthRequest{...}}` → `&AuthRequest{domain: &oidcdom.AuthRequest{...}}`
-- [x] **Verify:** `go test ./services/accounts/internal/oidc/adapter/...` passes (all 20 tests)
+- [x] **Verify:** `go test ./services/identity-service/internal/oidc/adapter/...` passes (all 20 tests)
 
 ### Step 16: Add `AuthRequestTTLMinutes` to `config.Config`
 
 - [x] Add `AuthRequestTTLMinutes int` field to `config.Config`
 - [x] In `config.Load()`: `cfg.AuthRequestTTLMinutes = getEnvInt("AUTH_REQUEST_TTL_MINUTES", 30)` with range validation `1–60`
 - [x] Update `.env.example` with `AUTH_REQUEST_TTL_MINUTES=30`
-- [x] **Verify:** `go test ./services/accounts/config/...` passes
+- [x] **Verify:** `go test ./services/identity-service/config/...` passes
 
 ### Step 17: Rewire `main.go` (atomic switch)
 
@@ -1110,21 +1110,21 @@ Each item is small enough to verify independently. "Compiles" means `go build ./
 - [x] Build new repos, services, adapter per Section 4.9
 - [x] Replace `authReqAdapter` bridge struct with `authReqBridge` wrapping `oidcdom.AuthRequestService`
 - [x] Call `oidcadapter.NewProvider(...)` (not `oidcprovider.NewProvider`)
-- [x] **Verify:** `go build ./services/accounts/...` compiles
+- [x] **Verify:** `go build ./services/identity-service/...` compiles
 
 ### Step 18: Delete legacy packages
 
 - [x] Delete `model/` directory (3 files: `authrequest.go`, `client.go`, `token.go`)
 - [x] Delete `repo/` directory (4 files: `authrequest.go`, `client.go`, `token.go`, `repo_test.go`)
 - [x] Delete `oidcprovider/` directory (9 files)
-- [x] **Verify:** `go build ./services/accounts/...` compiles
+- [x] **Verify:** `go build ./services/identity-service/...` compiles
 
 ### Step 19: Final verification
 
-- [x] `go build ./services/accounts/...` — clean
-- [x] `go vet ./services/accounts/...` — clean
-- [x] `go test ./services/accounts/...` — all pass
-- [x] `golangci-lint run ./services/accounts/...` — 0 issues
+- [x] `go build ./services/identity-service/...` — clean
+- [x] `go vet ./services/identity-service/...` — clean
+- [x] `go test ./services/identity-service/...` — all pass
+- [x] `golangci-lint run ./services/identity-service/...` — 0 issues
 - [x] Confirm no `db:` tags outside `internal/*/postgres/` packages
 - [x] Confirm no imports of `model`, `repo`, or `oidcprovider` anywhere
 - [x] Confirm `main.go` imports only `internal/`, `config/`, standard library, and third-party packages
@@ -1187,7 +1187,7 @@ Add a periodic goroutine that runs `DELETE FROM auth_requests WHERE created_at <
 After all iterations:
 
 ```
-services/accounts/
+services/identity-service/
   main.go
   Dockerfile
   .env.example

@@ -22,10 +22,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: accounts
-            dockerfile: ./server/services/accounts/Dockerfile
+          - name: identity-service
+            dockerfile: ./server/services/identity-service/Dockerfile
             context: .
-            image-name: accounts
+            image-name: identity-service
             type: backend
           
           - name: myaccount-bff
