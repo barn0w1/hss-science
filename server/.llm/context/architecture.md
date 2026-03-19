@@ -341,6 +341,8 @@ No foreign keys to any other service's tables. This table is entirely self-conta
 
 Migrations are managed by plain `.sql` files (no ORM migration framework). Files are named `NNNN_description.sql` and applied in order. The blob-service owns its schema; no other service may reference `blobs` via foreign key.
 
+> Annotation: We use `golang-migrate` managed by an external system. You MUST use paired `.up.sql` and `.down.sql` files (e.g., `001_create_blobs_table.up.sql` and `001_create_blobs_table.down.sql`).These files MUST be placed strictly in the `server/services/blob-service/migrations/` directory.
+
 ---
 
 ## 6. Configuration
