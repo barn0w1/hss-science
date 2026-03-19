@@ -622,32 +622,32 @@ For auth tests, use a local OIDC test server (generate a test RSA key pair, serv
 
 ## Implementation Order Summary
 
-| # | Phase | Output |
-|---|-------|--------|
-| 0 | Add AWS SDK v2 to go.mod | Updated `go.mod` / `go.sum` |
-| 1 | Write proto, run buf generate | `api/proto/blob/v1/blob.proto`, `server/gen/blob/v1/` |
-| 2 | Scaffold directories + config | Directory tree, `config/config.go` |
-| 3 | Domain layer | `internal/domain/*.go` (4 files) |
-| M | Migration files | `migrations/001_*.up.sql`, `*.down.sql` |
-| 4 | PostgreSQL repository | `internal/repository/postgres/blob_repo.go` |
-| 5 | S3 storage adapter | `internal/storage/s3/r2_client.go` |
-| 6 | Application layer | `internal/app/blob_app.go` |
-| 7 | gRPC transport | `internal/transport/grpc/server.go`, `interceptor/auth.go` |
-| 8 | Main entry point | `cmd/server/main.go` |
-| T | Tests | `*_test.go` files throughout |
+| # | Phase | Output | Status |
+|---|-------|--------|--------|
+| 0 | Add AWS SDK v2 to go.mod | Updated `go.mod` / `go.sum` | ✅ DONE |
+| 1 | Write proto, run buf generate | `api/proto/blob/v1/blob.proto`, `server/gen/blob/v1/` | ✅ DONE |
+| 2 | Scaffold directories + config | Directory tree, `config/config.go` | ✅ DONE |
+| 3 | Domain layer | `internal/domain/*.go` (4 files) | ✅ DONE |
+| M | Migration files | `migrations/001_*.up.sql`, `*.down.sql` | ✅ DONE |
+| 4 | PostgreSQL repository | `internal/repository/postgres/blob_repo.go` | ✅ DONE |
+| 5 | S3 storage adapter | `internal/storage/s3/r2_client.go` | ✅ DONE |
+| 6 | Application layer | `internal/app/blob_app.go` | ✅ DONE |
+| 7 | gRPC transport | `internal/transport/grpc/server.go`, `interceptor/auth.go` | ✅ DONE |
+| 8 | Main entry point | `cmd/server/main.go` | ✅ DONE |
+| T | Tests | `*_test.go` files throughout | ✅ DONE |
 
 ---
 
 ## Checklist for "Done"
 
-- [ ] `buf generate` produces `server/gen/blob/v1/` without errors
-- [ ] `go build ./services/blob-service/...` passes with no warnings
-- [ ] `go vet ./services/blob-service/...` passes cleanly
-- [ ] All domain unit tests pass (`go test ./services/blob-service/internal/domain/...`)
-- [ ] All app unit tests pass (`go test ./services/blob-service/internal/app/...`)
-- [ ] PostgreSQL integration tests pass (`go test ./services/blob-service/internal/repository/...`)
-- [ ] gRPC handler integration tests pass (`go test ./services/blob-service/internal/transport/...`)
-- [ ] No binary file data is ever read or written by blob-service (architecture invariant)
-- [ ] `CAS invariant: R2Key == BlobID` is enforced in `NewBlob` and asserted in tests
-- [ ] All gRPC errors use the correct status codes from `architecture.md §3.3`
-- [ ] `migrations/001_create_blobs_table.up.sql` and `.down.sql` exist and are valid SQL
+- [x] `buf generate` produces `server/gen/blob/v1/` without errors
+- [x] `go build ./services/blob-service/...` passes with no warnings
+- [x] `go vet ./services/blob-service/...` passes cleanly
+- [x] All domain unit tests pass (`go test ./services/blob-service/internal/domain/...`)
+- [x] All app unit tests pass (`go test ./services/blob-service/internal/app/...`)
+- [x] PostgreSQL integration tests pass (`go test ./services/blob-service/internal/repository/...`)
+- [x] gRPC handler integration tests pass (`go test ./services/blob-service/internal/transport/...`)
+- [x] No binary file data is ever read or written by blob-service (architecture invariant)
+- [x] `CAS invariant: R2Key == BlobID` is enforced in `NewBlob` and asserted in tests
+- [x] All gRPC errors use the correct status codes from `architecture.md §3.3`
+- [x] `migrations/001_create_blobs_table.up.sql` and `.down.sql` exist and are valid SQL
