@@ -33,6 +33,12 @@ jobs:
             context: .
             image-name: myaccount-bff
             type: backend
+          
+          - name: blob-service
+            dockerfile: ./server/services/blob-service/Dockerfile
+            context: .
+            image-name: blob-service
+            type: backend
 
           - name: myaccount-spa
             dockerfile: ./web/apps/myaccount-spa/Dockerfile
