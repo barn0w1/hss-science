@@ -62,7 +62,7 @@ No changes needed to:
 
 ## 1. Database Migration
 
-### File: `services/accounts/migrations/3_device_sessions.up.sql` (new)
+### File: `services/identity-service/migrations/3_device_sessions.up.sql` (new)
 
 ```sql
 -- Device sessions table: one row per browser/device identity
@@ -99,7 +99,7 @@ Device session revocation is a logical operation: set `revoked_at` and DELETE th
 **Rationale for nullable `device_session_id` on `refresh_tokens`:**
 Existing tokens in production will have no device session. Adding a NOT NULL constraint would break any rolling deployment without a backfill. NULL means "legacy token created before device sessions were introduced."
 
-### File: `services/accounts/migrations/3_device_sessions.down.sql` (new)
+### File: `services/identity-service/migrations/3_device_sessions.down.sql` (new)
 
 ```sql
 ALTER TABLE auth_requests DROP COLUMN IF EXISTS device_session_id;
@@ -227,8 +227,8 @@ import (
     "github.com/jmoiron/sqlx"
     "github.com/oklog/ulid/v2"
 
-    oidcdom "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc"
-    "github.com/barn0w1/hss-science/server/services/accounts/internal/pkg/domerr"
+    oidcdom "github.com/barn0w1/hss-science/server/services/identity-service/internal/oidc"
+    "github.com/barn0w1/hss-science/server/services/identity-service/internal/pkg/domerr"
 )
 
 var _ oidcdom.DeviceSessionRepository = (*DeviceSessionRepository)(nil)
@@ -1394,7 +1394,7 @@ Implement in this sequence to ensure each step compiles and tests pass before pr
 
 ### Phase 14 — Test Sweep
 
-- [ ] Run `go build ./...` from `services/accounts/` — resolve any compile errors
+- [ ] Run `go build ./...` from `services/identity-service/` — resolve any compile errors
 - [ ] Run `go vet ./...` — resolve any vet warnings
 - [ ] Run `go test ./...` — all unit and integration tests pass
 - [ ] Verify `testhelper/testdb.go` `CleanTables` order is correct: `refresh_tokens → tokens → auth_requests → device_sessions → federated_identities → users → clients`

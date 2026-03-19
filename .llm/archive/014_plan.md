@@ -1,6 +1,6 @@
 # gRPC Account Management API — Implementation Plan
 
-_Based on full source read of `server/services/accounts/` as of 2026-03-16._
+_Based on full source read of `server/services/identity-service/` as of 2026-03-16._
 
 ---
 
@@ -38,11 +38,11 @@ instances as the existing HTTP/OIDC server on `:8080`.
 | `api/proto/accounts/v1/account_management.proto` | Service definition |
 | `server/gen/accounts/v1/account_management.pb.go` | Generated (buf generate) |
 | `server/gen/accounts/v1/account_management_grpc.pb.go` | Generated (buf generate) |
-| `server/services/accounts/migrations/4_local_profile.up.sql` | Add `local_name`, `local_picture` columns |
-| `server/services/accounts/internal/grpc/server.go` | `grpc.Server` factory |
-| `server/services/accounts/internal/grpc/interceptor.go` | JWT auth unary interceptor |
-| `server/services/accounts/internal/grpc/errors.go` | `domerr` → gRPC status mapping |
-| `server/services/accounts/internal/grpc/handler.go` | `AccountManagementServiceServer` implementation |
+| `server/services/identity-service/migrations/4_local_profile.up.sql` | Add `local_name`, `local_picture` columns |
+| `server/services/identity-service/internal/grpc/server.go` | `grpc.Server` factory |
+| `server/services/identity-service/internal/grpc/interceptor.go` | JWT auth unary interceptor |
+| `server/services/identity-service/internal/grpc/errors.go` | `domerr` → gRPC status mapping |
+| `server/services/identity-service/internal/grpc/handler.go` | `AccountManagementServiceServer` implementation |
 
 ### Modified files
 | File | Change |
@@ -184,7 +184,7 @@ session without a DB lookup on the token.
 
 ## 4. Database Migration
 
-**Path**: `server/services/accounts/migrations/4_local_profile.up.sql`
+**Path**: `server/services/identity-service/migrations/4_local_profile.up.sql`
 
 ```sql
 ALTER TABLE users
@@ -601,7 +601,7 @@ This handles all three update semantics without requiring dynamic SQL.
 
 ## 6. gRPC Package
 
-**New directory**: `server/services/accounts/internal/grpc/`
+**New directory**: `server/services/identity-service/internal/grpc/`
 
 The package is named `grpcserver` to avoid shadowing the `google.golang.org/grpc`
 import alias in calling code. Import alias in `main.go`: `grpcserver "...internal/grpc"`.
@@ -629,7 +629,7 @@ import (
     "google.golang.org/grpc/metadata"
     "google.golang.org/grpc/status"
 
-    oidcadapter "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc/adapter"
+    oidcadapter "github.com/barn0w1/hss-science/server/services/identity-service/internal/oidc/adapter"
 )
 
 type contextKey int
@@ -771,7 +771,7 @@ import (
     "google.golang.org/grpc/codes"
     "google.golang.org/grpc/status"
 
-    "github.com/barn0w1/hss-science/server/services/accounts/internal/pkg/domerr"
+    "github.com/barn0w1/hss-science/server/services/identity-service/internal/pkg/domerr"
 )
 
 // domainStatus converts a domain error to a gRPC status error.
@@ -803,9 +803,9 @@ package grpcserver
 import (
     "google.golang.org/grpc"
 
-    oidcadapter "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc/adapter"
-    oidcdom "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc"
-    "github.com/barn0w1/hss-science/server/services/accounts/internal/identity"
+    oidcadapter "github.com/barn0w1/hss-science/server/services/identity-service/internal/oidc/adapter"
+    oidcdom "github.com/barn0w1/hss-science/server/services/identity-service/internal/oidc"
+    "github.com/barn0w1/hss-science/server/services/identity-service/internal/identity"
     pb "github.com/barn0w1/hss-science/server/gen/accounts/v1"
 )
 
@@ -857,8 +857,8 @@ import (
     "google.golang.org/protobuf/types/known/emptypb"
     "google.golang.org/protobuf/types/known/timestamppb"
 
-    oidcdom "github.com/barn0w1/hss-science/server/services/accounts/internal/oidc"
-    "github.com/barn0w1/hss-science/server/services/accounts/internal/identity"
+    oidcdom "github.com/barn0w1/hss-science/server/services/identity-service/internal/oidc"
+    "github.com/barn0w1/hss-science/server/services/identity-service/internal/identity"
     pb "github.com/barn0w1/hss-science/server/gen/accounts/v1"
 )
 
@@ -1025,7 +1025,7 @@ structured logging if needed.
 
 ## 7. Config Changes
 
-**File**: `server/services/accounts/config/config.go`
+**File**: `server/services/identity-service/config/config.go`
 
 Add `GRPCPort string` to the `Config` struct:
 
@@ -1064,7 +1064,7 @@ GRPC_PORT=50051
 import (
     "net"
     ...
-    grpcserver "github.com/barn0w1/hss-science/server/services/accounts/internal/grpc"
+    grpcserver "github.com/barn0w1/hss-science/server/services/identity-service/internal/grpc"
 )
 ```
 

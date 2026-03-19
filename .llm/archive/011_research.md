@@ -1,7 +1,7 @@
 # Accounts Service — Deep Research Report
 
 > Generated: 2026-03-16
-> Scope: `hss-science/server/services/accounts` (entire codebase)
+> Scope: `hss-science/server/services/identity-service` (entire codebase)
 > Purpose: Pre-production elevation planning, with device/session management in mind for a future myaccount BFF
 
 ---
@@ -400,7 +400,7 @@ Go module version: `1.26`. All dependencies appear current.
 ## 10. File Index
 
 ```
-services/accounts/
+services/identity-service/
 ├── main.go                              # Entry point, wiring
 ├── Dockerfile                           # Two-stage distroless build
 ├── .env.example                         # Full env var documentation

@@ -8,7 +8,7 @@
 
 ## 1. Current State
 
-The `accounts` service is a fully implemented OIDC Provider (OP) for the hss-science platform. It lives at `server/services/accounts/` and compiles, lints, and passes all 102 tests.
+The `accounts` service is a fully implemented OIDC Provider (OP) for the hss-science platform. It lives at `server/services/identity-service/` and compiles, lints, and passes all 102 tests.
 
 ### What exists
 
@@ -31,10 +31,10 @@ The `accounts` service is a fully implemented OIDC Provider (OP) for the hss-sci
 ### Verification status
 
 ```
-go build ./services/accounts/...     # clean
-go vet ./services/accounts/...       # clean
-golangci-lint run ./services/accounts/...  # 0 issues
-go test ./services/accounts/... -count=1   # 102 tests, all pass
+go build ./services/identity-service/...     # clean
+go vet ./services/identity-service/...       # clean
+golangci-lint run ./services/identity-service/...  # 0 issues
+go test ./services/identity-service/... -count=1   # 102 tests, all pass
 ```
 
 ### Key dependencies added to `go.mod`
@@ -150,7 +150,7 @@ The `oidc.IntrospectionResponse` type embeds `UserInfoProfile` and `UserInfoEmai
 
 ### 4.10 File and package conventions
 
-- All source under `server/services/accounts/` -- bounded context.
+- All source under `server/services/identity-service/` -- bounded context.
 - Package `oidcprovider` (not `oidc` or `provider`) to avoid name collisions with the library.
 - Package `login` for federated login handlers -- separate from `oidcprovider` to keep OIDC protocol code separate from authentication UI.
 - Exported constructors follow the `New*` pattern: `NewStorage`, `NewClient`, `NewAuthRequest`, `NewSigningKey`, `NewPublicKey`, `NewProvider`, `NewHandler`, `NewUpstreamProviders`.
@@ -163,7 +163,7 @@ The `oidc.IntrospectionResponse` type embeds `UserInfoProfile` and `UserInfoEmai
 Quick reference for the next agent:
 
 ```
-server/services/accounts/
+server/services/identity-service/
 ├── main.go                         # Entrypoint: wiring, router, health endpoints
 ├── Dockerfile                      # Multi-stage build
 ├── .env.example                    # Required env vars with comments

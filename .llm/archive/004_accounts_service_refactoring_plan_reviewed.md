@@ -372,7 +372,7 @@ The refactoring items should be implemented in this order to minimize risk and e
 | 4 | **R4** -- Configurable token lifetimes | Adds new config fields and modifies Storage constructor. Must happen before R2 so the constructor signature is stable before interfaces are extracted. |
 | 5 | **R2** -- Repository interfaces | The most structurally significant change. Done last so all other constructor changes are settled. All 102 tests must still pass. |
 
-After each step: `go build ./services/accounts/...`, `go vet ./services/accounts/...`, `golangci-lint run ./services/accounts/...`, and `go test ./services/accounts/... -count=1` must all pass cleanly.
+After each step: `go build ./services/identity-service/...`, `go vet ./services/identity-service/...`, `golangci-lint run ./services/identity-service/...`, and `go test ./services/identity-service/... -count=1` must all pass cleanly.
 
 ---
 
@@ -438,10 +438,10 @@ These are carried forward from `002_accounts_handoff.md` section 4 and must be p
 
 After all refactoring is complete:
 
-- [ ] `go build ./services/accounts/...` -- clean
-- [ ] `go vet ./services/accounts/...` -- clean
-- [ ] `golangci-lint run ./services/accounts/...` -- 0 issues (no `//nolint:gosec` needed)
-- [ ] `go test ./services/accounts/... -count=1` -- all tests pass (count should be >= 102)
+- [ ] `go build ./services/identity-service/...` -- clean
+- [ ] `go vet ./services/identity-service/...` -- clean
+- [ ] `golangci-lint run ./services/identity-service/...` -- 0 issues (no `//nolint:gosec` needed)
+- [ ] `go test ./services/identity-service/... -count=1` -- all tests pass (count should be >= 102)
 - [ ] No new test files import `github.com/testcontainers/testcontainers-go` that didn't before (keep the testcontainers dependency confined)
 - [ ] `migrations/001_initial.sql` is the sole source of truth for DDL
 - [ ] No inline DDL strings remain in test files
@@ -521,21 +521,21 @@ Bare `&http.Server{Addr, Handler}` triggers gosec G112 (Slowloris). Adding `Read
 
 ### Step 1: R5 -- Seed Client Placeholder Documentation
 - [x] Add `-- WARNING` comment block to `migrations/002_seed_clients.sql`
-- [x] Verify `go build ./services/accounts/...` passes
+- [x] Verify `go build ./services/identity-service/...` passes
 
 ### Step 2: R1 -- Shared Test Migration Helper
 - [x] Create `migrations/embed.go` with `//go:embed *.sql`
 - [x] Create `testhelper/testdb.go` with `RunMigrations` and `CleanTables`
 - [x] Update `repo/repo_test.go`: remove `runMigrations()` and `cleanTables()`, use testhelper
 - [x] Update `oidcprovider/storage_test.go`: remove `runMigrations()` and `cleanTables()`, use testhelper
-- [x] Verify `go build ./services/accounts/...` passes
-- [x] Verify `go test ./services/accounts/... -count=1` passes (all 102 tests)
+- [x] Verify `go build ./services/identity-service/...` passes
+- [x] Verify `go test ./services/identity-service/... -count=1` passes (all 102 tests)
 
 ### Step 3: R3 -- Graceful Shutdown
 - [x] Update `main.go`: replace `http.ListenAndServe` with `http.Server` + graceful shutdown + HTTP timeouts
 - [x] Remove `//nolint:gosec` suppression
-- [x] Verify `go build ./services/accounts/...` passes
-- [x] Verify `golangci-lint run ./services/accounts/...` passes (no G112)
+- [x] Verify `go build ./services/identity-service/...` passes
+- [x] Verify `golangci-lint run ./services/identity-service/...` passes (no G112)
 
 ### Step 4: R4 -- Configurable Token Lifetimes
 - [x] Add `getEnvInt` helper and `strconv` import to `config/config.go`
@@ -545,20 +545,20 @@ Bare `&http.Server{Addr, Handler}` triggers gosec G112 (Slowloris). Adding `Read
 - [x] Update `oidcprovider/storage_test.go`: pass default durations to `newTestStorage`
 - [x] Update `main.go`: pass config token lifetimes to `NewStorage`
 - [x] Update `.env.example` with new env vars
-- [x] Verify `go build ./services/accounts/...` passes
-- [x] Verify `go test ./services/accounts/... -count=1` passes
+- [x] Verify `go build ./services/identity-service/...` passes
+- [x] Verify `go test ./services/identity-service/... -count=1` passes
 
 ### Step 5: R2 -- Repository Interfaces
 - [x] Add interface types to `oidcprovider/storage.go`, update `Storage` struct fields and `NewStorage` signature
 - [x] Add interface types to `login/handler.go`, update `Handler` struct fields and `NewHandler` signature
-- [x] Verify `go build ./services/accounts/...` passes
-- [x] Verify `go test ./services/accounts/... -count=1` passes (all 102 tests)
-- [x] Verify `golangci-lint run ./services/accounts/...` passes
+- [x] Verify `go build ./services/identity-service/...` passes
+- [x] Verify `go test ./services/identity-service/... -count=1` passes (all 102 tests)
+- [x] Verify `golangci-lint run ./services/identity-service/...` passes
 
 ### Final Verification
-- [x] `go build ./services/accounts/...` -- clean
-- [x] `go vet ./services/accounts/...` -- clean
-- [x] `golangci-lint run ./services/accounts/...` -- 0 issues
-- [x] `go test ./services/accounts/... -count=1` -- all tests pass (113: 102 original + 6 new config + 5 login handler)
+- [x] `go build ./services/identity-service/...` -- clean
+- [x] `go vet ./services/identity-service/...` -- clean
+- [x] `golangci-lint run ./services/identity-service/...` -- 0 issues
+- [x] `go test ./services/identity-service/... -count=1` -- all tests pass (113: 102 original + 6 new config + 5 login handler)
 - [x] No inline DDL strings remain in test files
 - [x] All architectural invariants preserved

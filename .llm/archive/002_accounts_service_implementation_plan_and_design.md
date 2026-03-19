@@ -1,7 +1,7 @@
 # Accounts Service -- Implementation Plan
 
 > **Status**: Implementation Complete -- all 13 phases (A through M) are done. All 39 tasks completed. Build, lint, vet, and full test suite pass.
-> This document describes the design for `server/services/accounts/`, the OIDC Provider (OP) / Identity service for the hss-science platform.
+> This document describes the design for `server/services/identity-service/`, the OIDC Provider (OP) / Identity service for the hss-science platform.
 
 ---
 
@@ -12,9 +12,9 @@ These are non-negotiable -- they come from CI, release pipeline, or go.mod:
 | Constraint | Source | Value |
 |---|---|---|
 | Go module path | `server/go.mod` | `github.com/barn0w1/hss-science/server` |
-| Service source path | `ci2.yaml` matrix | `server/services/accounts/` |
-| CI build target | `ci2.yaml` | `./services/accounts/...` |
-| Dockerfile path | `release.yaml` matrix | `./server/services/accounts/Dockerfile` |
+| Service source path | `ci2.yaml` matrix | `server/services/identity-service/` |
+| CI build target | `ci2.yaml` | `./services/identity-service/...` |
+| Dockerfile path | `release.yaml` matrix | `./server/services/identity-service/Dockerfile` |
 | Docker context | `release.yaml` | `.` (repo root) |
 | Image name | `release.yaml` | `ghcr.io/barn0w1/hss-science/accounts` |
 | Shared internal code | `ci2.yaml` change detection | `server/internal/**` |
@@ -270,7 +270,7 @@ Loaded at startup. Stored in-memory. Not persisted to DB.
 
 ### 6.8 Database Migrations
 
-Migration files will live in `server/services/accounts/migrations/`, following the bounded context principle -- each service owns its own schema. Migration execution is out of scope for this codebase (handled by infrastructure tooling).
+Migration files will live in `server/services/identity-service/migrations/`, following the bounded context principle -- each service owns its own schema. Migration execution is out of scope for this codebase (handled by infrastructure tooling).
 
 ---
 
@@ -292,7 +292,7 @@ PKCE: **Required** for the authorization code flow. `code_challenge_method=S256`
 ## 8. Proposed Directory Layout
 
 ```
-server/services/accounts/
+server/services/identity-service/
 ├── main.go                    # Entrypoint: config loading, wiring, HTTP server start
 ├── Dockerfile                 # Multi-stage Docker build
 ├── migrations/
@@ -637,7 +637,7 @@ func main() {
 
 ## 16. Database Schema
 
-Migration files in `server/services/accounts/migrations/`.
+Migration files in `server/services/identity-service/migrations/`.
 
 ### `001_initial.sql`
 
@@ -760,7 +760,7 @@ WORKDIR /app
 COPY server/go.mod server/go.sum ./
 RUN go mod download
 COPY server/ ./
-RUN CGO_ENABLED=0 go build -o /accounts ./services/accounts/
+RUN CGO_ENABLED=0 go build -o /accounts ./services/identity-service/
 
 # Runtime stage
 FROM gcr.io/distroless/static-debian12:nonroot
@@ -846,7 +846,7 @@ No E2E tests in the repo (per README policy -- E2E is done in staging).
 All questions from previous drafts have been resolved per author annotations:
 
 **Round 1:**
-1. **Database migrations** -> `server/services/accounts/migrations/` (bounded context).
+1. **Database migrations** -> `server/services/identity-service/migrations/` (bounded context).
 2. **Upstream IdP selection UI** -> Always show a provider selection page, even with one provider.
 3. **User merging** -> No auto-linking. Separate accounts per `(provider, provider_subject)`.
 4. **Logout / SSO sessions** -> Stateless OP. No session cookie. Rely on upstream IdP sessions.

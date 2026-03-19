@@ -1,6 +1,6 @@
 # OIDC Provider Architectural Evaluation
 
-**Target:** `server/services/accounts`
+**Target:** `server/services/identity-service`
 **Library:** `zitadel/oidc` v3.45.5
 **Date:** 2026-03-03
 **Classification:** Security & Architectural Due Diligence

@@ -1,7 +1,7 @@
 # Implementation Plan: Elevate accounts Service to Production-Grade
 
 **Source:** `OIDC_EVALUATION.md` findings
-**Base path:** `services/accounts/`
+**Base path:** `services/identity-service/`
 **Go module:** `github.com/barn0w1/hss-science/server`
 
 ---
@@ -1170,7 +1170,7 @@ migrations/4_token_expiry_indexes.down.sql
 ### Unit and integration tests
 
 ```bash
-cd services/accounts
+cd services/identity-service
 
 # Unit tests
 go test ./internal/oidc/...

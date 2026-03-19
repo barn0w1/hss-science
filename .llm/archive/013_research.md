@@ -1,7 +1,7 @@
 # accounts service — deep research
 
 _Last updated: 2026-03-16. Based on a full read of every source file under
-`server/services/accounts/`._
+`server/services/identity-service/`._
 
 ---
 
@@ -27,7 +27,7 @@ the hss-science platform. It:
 ## 2. Repository Layout
 
 ```
-server/services/accounts/
+server/services/identity-service/
 ├── main.go                        # wiring, HTTP router, cleanup goroutines
 ├── config/
 │   └── config.go                  # env-based config loading, RSA parse, bounds
@@ -510,7 +510,7 @@ service AccountManagement {
 
 4. **`oidc.DeviceSessionService`** — already has `ListActiveByUserID` and `RevokeByID` — no new domain methods needed, just expose via gRPC.
 
-5. **gRPC server** — new `server/services/accounts/internal/grpc/` package:
+5. **gRPC server** — new `server/services/identity-service/internal/grpc/` package:
    - JWT interceptor: extract + validate access token, inject user ID into context.
    - Handler implementations calling domain services.
    - Error mapping interceptor: domerr → gRPC status codes.
@@ -579,5 +579,5 @@ The gRPC API should enforce:
 5. **Multi-provider linking**: Do we add a flow for linking a second provider to an
    existing account? Currently impossible as there's no email-based merge.
 
-6. **Proto file location**: Under `server/services/accounts/proto/` or the
+6. **Proto file location**: Under `server/services/identity-service/proto/` or the
    existing repo-level proto path managed by `buf.yaml`?

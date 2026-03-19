@@ -27,9 +27,9 @@ updates:
         patterns:
           - "*"
 
-  # Docker Images for accounts service
+  # Docker Images for identity-service
   - package-ecosystem: "docker"
-    directory: "/server/services/accounts"
+    directory: "/server/services/identity-service"
     schedule:
       interval: "weekly"
       day: "friday"
