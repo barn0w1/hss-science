@@ -452,3 +452,7 @@ To prevent scope creep, the following are out of scope now and in future iterati
 - **Virus / content scanning**: Out of scope. May be implemented as an async side-channel by callers if required.
 - **Serving a public HTTP API**: All API surface is gRPC over an internal network. No public ingress.
 - **Thumbnailing / transcoding / transformation**: Callers are responsible for all content transformation. blob-service stores only the original bytes.
+
+## 10. Testing Strategy
+
+> Annotation: The implementation must include both Unit Tests and Integration Tests. Please refer to `server/go.mod` to determine the appropriate testing libraries and frameworks already available in this project.
