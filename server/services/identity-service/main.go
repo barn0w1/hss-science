@@ -233,7 +233,7 @@ func runServer(cfg *config.Config, db *sqlx.DB, tokenSvc oidcdom.TokenService, l
 		}
 	}()
 
-	logger.Info("accounts service started", "port", cfg.Port)
+	logger.Info("identity service started", "port", cfg.Port)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
