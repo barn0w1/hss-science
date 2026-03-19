@@ -38,6 +38,28 @@ updates:
         patterns:
           - "*"
 
+  # Docker Images for myaccount-bff
+  - package-ecosystem: "docker"
+    directory: "/server/services/myaccount-bff"
+    schedule:
+      interval: "weekly"
+      day: "friday"
+    groups:
+      docker-dependencies:
+        patterns:
+          - "*"
+  
+  # Docker Images for blob-service
+  - package-ecosystem: "docker"
+    directory: "/server/services/blob-service"
+    schedule:
+      interval: "weekly"
+      day: "friday"
+    groups:
+      docker-dependencies:
+        patterns:
+          - "*"
+
   # Web frontend
   # - package-ecosystem: "npm" 
   #   directory: "/web"
