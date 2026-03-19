@@ -25,6 +25,10 @@ jobs:
           - name: myaccount-bff
             path: server/services/myaccount-bff
             build: ./services/myaccount-bff/...
+          
+          - name: blob-service
+            path: server/services/blob-service
+            build: ./services/blob-service/...
 
     steps:
       - uses: actions/checkout@v6

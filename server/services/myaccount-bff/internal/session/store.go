@@ -31,7 +31,7 @@ func NewStore(rdb *redis.Client, idleTTL, hardTTL time.Duration) *Store {
 }
 
 func (s *Store) Save(ctx context.Context, sid string, sess *Session) error {
-	data, err := json.Marshal(sess)
+	data, err := json.Marshal(sess) //nolint:gosec // tokens stored server-side in Redis, never sent to client
 	if err != nil {
 		return fmt.Errorf("marshal session: %w", err)
 	}

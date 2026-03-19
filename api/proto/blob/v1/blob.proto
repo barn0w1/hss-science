@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package blob.v1;
+
+option go_package = "github.com/barn0w1/hss-science/server/gen/blob/v1;blobv1";
+
+import "google/protobuf/timestamp.proto";
+
+service BlobService {
+  rpc InitiateUpload           (InitiateUploadRequest)           returns (InitiateUploadResponse);
+  rpc CompleteUpload           (CompleteUploadRequest)           returns (CompleteUploadResponse);
+
+  rpc InitiateMultipartUpload  (InitiateMultipartUploadRequest)  returns (InitiateMultipartUploadResponse);
+  rpc CompleteMultipartUpload  (CompleteMultipartUploadRequest)  returns (CompleteMultipartUploadResponse);
+  rpc AbortMultipartUpload     (AbortMultipartUploadRequest)     returns (AbortMultipartUploadResponse);
+
+  rpc GetDownloadURL           (GetDownloadURLRequest)           returns (GetDownloadURLResponse);
+  rpc GetBlobInfo              (GetBlobInfoRequest)              returns (GetBlobInfoResponse);
+}
+
+enum UploadState {
+  UPLOAD_STATE_UNSPECIFIED = 0;
+  PENDING                  = 1;
+  COMMITTED                = 2;
+}
+
+message PartUploadURL {
+  int32  part_number       = 1;
+  string presigned_put_url = 2;
+}
+
+message CompletedPart {
+  int32  part_number = 1;
+  string etag        = 2;
+}
+
+message InitiateUploadRequest {
+  string blob_id       = 1;
+  int64  size_bytes    = 2;
+  string content_type  = 3;
+}
+
+message InitiateUploadResponse {
+  bool                      already_exists    = 1;
+  string                    presigned_put_url = 2;
+  google.protobuf.Timestamp url_expires_at    = 3;
+}
+
+message CompleteUploadRequest {
+  string blob_id = 1;
+}
+
+message CompleteUploadResponse {
+  string                    blob_id      = 1;
+  google.protobuf.Timestamp committed_at = 2;
+}
+
+message InitiateMultipartUploadRequest {
+  string blob_id      = 1;
+  int64  size_bytes   = 2;
+  string content_type = 3;
+  int32  part_count   = 4;
+}
+
+message InitiateMultipartUploadResponse {
+  bool                      already_exists = 1;
+  string                    upload_id      = 2;
+  repeated PartUploadURL    parts          = 3;
+  google.protobuf.Timestamp url_expires_at = 4;
+}
+
+message CompleteMultipartUploadRequest {
+  string                 blob_id   = 1;
+  string                 upload_id = 2;
+  repeated CompletedPart parts     = 3;
+}
+
+message CompleteMultipartUploadResponse {
+  string                    blob_id      = 1;
+  google.protobuf.Timestamp committed_at = 2;
+}
+
+message AbortMultipartUploadRequest {
+  string blob_id   = 1;
+  string upload_id = 2;
+}
+
+message AbortMultipartUploadResponse {}
+
+message GetDownloadURLRequest {
+  string blob_id     = 1;
+  int32  ttl_seconds = 2;
+}
+
+message GetDownloadURLResponse {
+  string                    presigned_get_url = 1;
+  google.protobuf.Timestamp url_expires_at    = 2;
+}
+
+message GetBlobInfoRequest {
+  string blob_id = 1;
+}
+
+message GetBlobInfoResponse {
+  string                    blob_id      = 1;
+  int64                     size_bytes   = 2;
+  string                    content_type = 3;
+  UploadState               upload_state = 4;
+  google.protobuf.Timestamp committed_at = 5;
+}
