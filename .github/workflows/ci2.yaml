@@ -100,7 +100,7 @@ jobs:
       # Install pnpm (Node.jsのキャッシュを効かせるため、先に実行するように順序を変更)
       - name: Install pnpm
         if: steps.filter.outputs.changed == 'true'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
         with:
           version: 9
 
