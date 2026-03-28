@@ -1,5 +1,6 @@
 FROM node:24-alpine AS base
 ENV PNPM_HOME="/pnpm"
+ENV PNPM_STORE_PATH="/pnpm/store"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 
@@ -10,6 +11,10 @@ FROM base AS fetch
 WORKDIR /app
 
 COPY web/pnpm-lock.yaml ./
+
+# store場所を確認（デバッグ）
+RUN pnpm store path
+
 RUN pnpm fetch
 
 # ========================
@@ -18,10 +23,13 @@ RUN pnpm fetch
 FROM base AS build
 WORKDIR /app
 
-COPY --from=fetch /root/.pnpm-store /root/.pnpm-store
+# storeコピー（パス固定版）
+COPY --from=fetch /pnpm/store /pnpm/store
+
+# 念のためここでも確認（デバッグ）
+RUN pnpm store path
 
 COPY web/package.json web/pnpm-workspace.yaml ./
-
 COPY web/apps ./apps
 COPY web/packages ./packages
 
@@ -38,7 +46,7 @@ RUN pnpm build
 FROM base AS runner
 WORKDIR /app
 
-COPY --from=fetch /root/.pnpm-store /root/.pnpm-store
+COPY --from=fetch /pnpm/store /pnpm/store
 
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
 COPY web/apps ./apps
