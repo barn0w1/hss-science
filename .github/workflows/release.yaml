@@ -40,12 +40,6 @@ jobs:
             image-name: blob-service
             type: backend
 
-          - name: myaccount-spa
-            dockerfile: ./web/apps/myaccount-spa/Dockerfile
-            context: .
-            image-name: myaccount-spa
-            type: frontend
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
