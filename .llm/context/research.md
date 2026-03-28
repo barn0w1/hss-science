@@ -9,7 +9,8 @@
 | Kratos public URL (SSR → Kratos, internal) | `http://kratos-public.identity.svc.cluster.local` |
 | Kratos browser URL (browser-facing, external) | `https://accounts.hss-science.org` |
 
-The SSR application calls Kratos at the internal cluster URL. The browser never calls Kratos directly; all self-service endpoints are proxied through or redirected by the SSR application.
+The SSR application calls Kratos at the internal cluster URL for server-to-server operations (for example flow fetch and session checks).
+In browser flows, the browser still navigates to Kratos public endpoints (initialization and form submission to `flow.ui.action`), typically on the same top-level domain and often behind the same ingress/reverse proxy.
 
 ---
 
@@ -62,7 +63,7 @@ Mental model: **Kratos owns state machine, policy, validation, and session outco
 
 This project uses **SSR browser flows**.
 
-### Full SSR lifecycle
+### Full SSR lifecycle (browser-initiated flow)
 
 ```
 1. Browser → GET /self-service/login/browser  (Accept: text/html)
@@ -78,8 +79,8 @@ This project uses **SSR browser flows**.
    (ui.action points to Kratos browser URL, e.g. https://accounts.hss-science.org/self-service/login?flow=<id>)
    Browser cookies accompany the request automatically
 
-5a. Validation error → Kratos returns updated flow with messages
-    → SSR re-fetches and re-renders with error messages
+5a. Validation error → Kratos `303`s back to UI with the same/new `?flow=<id>`
+    → SSR re-fetches `/self-service/login/flows?id=<id>` and re-renders with error messages
 
 5b. Success → Kratos issues session cookie + 303 to configured return URL
 ```
@@ -94,7 +95,8 @@ This project uses **SSR browser flows**.
 
 ### Domain constraints
 
-- The browser-facing Kratos URL (`accounts.hss-science.org`) and the UI application must share the same domain (or a compatible subdomain) for cookies to work correctly across redirects.
+- Kratos and UI must share the same **top-level domain** for browser-cookie-based flows.
+- Same-host (or same-domain path routing through a reverse proxy) is the simplest setup. Subdomains can work with cookie configuration, but are generally more fragile.
 - In this deployment both the UI and Kratos public API share `accounts.hss-science.org`, so the cookie domain constraint is satisfied.
 
 ### `return_to`
@@ -107,6 +109,8 @@ This project uses **SSR browser flows**.
 ---
 
 ## 3. Self-service flows
+
+Method availability is configuration-dependent and docs sections can differ by version/feature scope. Treat `flow.ui.nodes` as the source of truth for what to render and submit.
 
 ### 3.1 Login
 
@@ -141,7 +145,7 @@ This project uses **SSR browser flows**.
 
 **Flow states:** initialized → UI renders → submission → (validation loop) → success
 
-**Active method node groups:** `password`, `oidc`, `profile` (trait fields), `code`
+**Active method node groups:** commonly `password`, `oidc`, `profile` (trait fields); passwordless/WebAuthn-related groups can appear when those methods are enabled.
 
 **Key behavior:**
 - Form fields are generated from the **active identity schema** — do not assume email + password only.
@@ -161,7 +165,7 @@ This project uses **SSR browser flows**.
 
 **Pattern (SSR/browser):**
 1. Fetch logout token: `GET /self-service/logout/browser` (with session cookie) → returns `{ logout_url, logout_token }`
-2. Navigate browser to `logout_url` (or render a form that posts to it)
+2. Complete logout by navigating to `logout_url` via browser (or issuing an equivalent `GET` from your client)
 
 **`return_to`:** Can be appended to `logout_url` to control post-logout redirect.
 
@@ -264,7 +268,8 @@ Nodes are the **server-driven form schema**. The UI must never hardcode field na
 | `img` | Render image source (often a data URI) — used for TOTP QR code setup |
 | `script` | Load script with exact attributes (`src`, `integrity`, `crossorigin`, `async`) — required for WebAuthn/Passkey |
 
-Node attributes to respect: `name`, `type`, `value`, `required`, `disabled`, `label`, `node_type`, `autocomplete`, `onclick`.
+Node attributes to respect: `name`, `type`, `value`, `required`, `disabled`, `node_type`, `autocomplete`, `onclick`.
+Label text is typically exposed in `node.meta.label` rather than `node.attributes`.
 
 **Grouping:** `node.group` identifies the method (`default`, `password`, `oidc`, `profile`, `code`, `webauthn`, `passkey`, `totp`, `lookup_secret`). Render groups as separate form sections or visually distinct areas, but all submit to the same `flow.ui.action`.
 
@@ -281,7 +286,7 @@ Message IDs are stable and suitable for i18n. Always render the server-provided 
 
 ### 4.3 CSRF handling (browser SSR)
 
-- **Forward browser cookies to Kratos** on every SSR-side fetch (flow init and flow fetch).
+- **Forward browser cookies to Kratos** on every SSR-side call that depends on browser state (`/self-service/*/flows`, `/sessions/whoami`, and flow init when proxied through SSR).
 - Include the hidden `csrf_token` node in every form submission.
 - Do not strip or rewrite the `Set-Cookie` headers Kratos sends back through the SSR proxy.
 - On CSRF failure: do not retry blindly — re-initialize the flow to get fresh nodes and a fresh cookie.
@@ -299,7 +304,7 @@ Flows have an `expires_at` timestamp. When a flow expires or an invalid flow ID 
 
 When Kratos encounters a user-facing system error in a browser flow:
 - It redirects to the configured error UI URL with `?id=<error-id>`.
-- The error page must call `GET /self-service/errors?id=<error-id>` and render the returned payload (`code`, `message`, `reason`, optional `debug`).
+- The error page must call `GET /self-service/errors?id=<error-id>` and render the returned payload. In practice this is usually an object carrying `code`, `message`, `reason`, and optional `debug` fields.
 - Provide a safe fallback UX if the fetch fails.
 
 The error UI URL is configured in Kratos at `selfservice.flows.error.ui_url`.
@@ -327,7 +332,7 @@ Key fields to read:
 
 In SPA/native integration, Kratos may return `422` with `error.id = browser_location_change_required` and a `redirect_browser_to` URL. This is **not** a fatal error.
 
-In this SSR project this scenario is less common, but may arise with OIDC or passkey methods. When encountered:
+In a strict SSR browser-post flow this is uncommon, but it can appear on AJAX/SDK code paths (including SPA-like UX segments). When encountered:
 1. Read `redirect_browser_to` from the response body.
 2. Issue a server-side redirect (`303`) to that URL, or return it to the browser for navigation.
 3. Continue the flow from the new URL (which will include a `?flow=<id>` parameter).
@@ -348,12 +353,13 @@ In this SSR project this scenario is less common, but may arise with OIDC or pas
 
 | Action | Endpoint | Caller |
 |---|---|---|
-| Init browser flow | `GET /self-service/<flow>/browser` | SSR app (forwards browser cookies) |
+| Init browser flow | `GET /self-service/<flow>/browser` | Browser directly (or SSR route that proxies/redirects) |
 | Fetch flow data | `GET /self-service/<flow>/flows?id=<id>` | SSR app (forwards browser cookies) |
 | Submit form | `POST <flow.ui.action>` | Browser (native HTML form POST) |
 | Fetch error details | `GET /self-service/errors?id=<id>` | SSR app |
 | Session check | `GET /sessions/whoami` | SSR app (forwards browser cookies) |
-| Fetch logout token | `GET /self-service/logout/browser` | SSR app (forwards browser cookies) |
+| Fetch logout token | `GET /self-service/logout/browser` | SSR app or browser (with session cookie) |
+| Complete logout | `GET /self-service/logout?token=<logout_token>` | Browser (navigation) or client GET |
 
 In this deployment, SSR-to-Kratos calls use `http://kratos-public.identity.svc.cluster.local`. `flow.ui.action` values returned by Kratos will contain the **external** Kratos browser URL (`https://accounts.hss-science.org/self-service/...`) — these are the URLs the **browser** submits forms to directly.
 
@@ -368,7 +374,7 @@ In this deployment, SSR-to-Kratos calls use `http://kratos-public.identity.svc.c
 5. **Flow expiration** — detect expired/invalid flow IDs, re-initialize, and re-render.
 6. **Error flow page** — implement a dedicated error route that fetches and renders `/self-service/errors?id=<id>`.
 7. **Session truth** — use `/sessions/whoami` for route guards and auth state.
-8. **`422` handling** — detect `browser_location_change_required` and redirect to `redirect_browser_to`.
+8. **`422` handling (AJAX/SDK paths)** — detect `browser_location_change_required` and redirect to `redirect_browser_to`.
 9. **`return_to`** — propagate `return_to` when chaining flows; use `selfservice.allowed_return_urls` to configure allowed targets.
 10. **Privileged session / AAL** — detect and handle re-auth and step-up requirements gracefully.
 11. **Method dispatch** — submit exactly the intended method value; avoid double-submitting method selectors.
