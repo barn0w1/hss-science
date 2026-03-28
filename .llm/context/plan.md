@@ -191,10 +191,11 @@ export async function handleFlowError(
 | Condition | Action |
 |---|---|
 | Not a `ResponseError` | Re-throw as-is |
+| `error.id === "session_already_available"` | `throw redirect("/settings")` |
 | status 410 or `error.id === "self_service_flow_expired"` | `throw redirect(initUrl(flowType))` |
 | status 401 / `session_inactive` | `throw redirect("/login")` |
-| status 403 / `session_refresh_required` | `throw redirect(initUrl("login") + "?refresh=true")` |
-| status 422 / `browser_location_change_required` | Read `redirect_browser_to` from body; `throw redirect(redirectBrowserTo)` |
+| status 403 / `session_refresh_required` | `throw redirect(initUrl("login") + "?refresh=true&return_to=" + encodeURIComponent(request.url))` |
+| status 422 / `browser_location_change_required` | Read `redirect_browser_to` from body; redirect only if present, otherwise throw 502 |
 | Anything else | `throw data("Upstream error", { status: 502 })` |
 
 Parse the error body with `error.response.clone().json()` (wrapped in try/catch for safety). Import `ErrorBrowserLocationChangeRequiredFromJSON` from the SDK for the 422 case.
@@ -236,6 +237,7 @@ interface FlowFormProps {
   <!-- node.type === "input"  → <label> + <input> + <FlowMessages messages={node.messages} /> -->
   <!-- node.type === "text"   → <div>{node.attributes.text.text}</div> -->
   <!-- node.type === "img"    → <img src={node.attributes.src} /> -->
+  <!-- node.type === "div"    → <div id/class/data-* ... /> -->
   <!-- node.type === "script" → <script ...attributes /> -->
   <!-- node.type === "a"      → <a ...attributes /> -->
 </form>
@@ -323,8 +325,8 @@ This route is the target of `<a href="/logout">` links. The browser navigates he
 3. If missing → `throw redirect(initUrl("settings"))`
 4. Try `const flow = await frontend.getSettingsFlow({ id: flowId, cookie: getCookie(request) })`
 5. Catch:
-   - 403 / `session_refresh_required` → `throw redirect(initUrl("login") + "?refresh=true&return_to=" + encodeURIComponent("/settings"))`
-   - Others → `await handleFlowError(error, "settings", request)`
+  - 403 / `session_refresh_required` → `throw redirect(initUrl("login") + "?refresh=true&return_to=" + encodeURIComponent(request.url))`
+  - Others → `await handleFlowError(error, "settings", request)`
 6. Return `{ flow, session }`
 
 **Component:**
@@ -361,9 +363,12 @@ flow.state === "sent_email":
   <p>A recovery code has been sent. Enter it below.</p>
   <FlowForm ui={flow.ui} />
 
+flow.state === "passed_challenge":
+  <p>Redirecting...</p>
+  — Recovery success transitions into settings flow; final redirect honors `return_to` when configured
+
 default (unexpected state):
   <p>Redirecting...</p>
-  — Kratos handles the final redirect to /settings on success
 ```
 
 The `FlowForm` component renders the correct inputs for each state automatically — `flow.ui.nodes` changes between states. No per-state field inspection needed.
@@ -425,15 +430,16 @@ flow.state === "passed_challenge":
 | Situation | Status | error.id | Handling |
 |---|---|---|---|
 | `?flow=` missing | — | — | `redirect(initUrl(flowType))` |
+| Already authenticated while fetching login/registration flow | — | `session_already_available` | `redirect("/settings")` |
 | Flow expired | 410 | `self_service_flow_expired` | `redirect(initUrl(flowType))` |
 | No active session | 401 | `session_inactive` | `redirect("/login")` |
-| Privileged session required | 403 | `session_refresh_required` | `redirect(initUrl("login") + "?refresh=true")` |
-| Browser location change | 422 | `browser_location_change_required` | `redirect(redirect_browser_to)` |
+| Privileged session required | 403 | `session_refresh_required` | `redirect(initUrl("login") + "?refresh=true&return_to=" + encodeURIComponent(request.url))` |
+| Browser location change | 422 | `browser_location_change_required` | `redirect(redirect_browser_to)` when present, otherwise `throw data(...)` |
 | Kratos system error | — | — | Kratos redirects browser to `/error?id=<id>` |
 | Unexpected upstream error | 5xx | — | `throw data(...)` → route `ErrorBoundary` |
 | Unexpected JS error | — | — | root `ErrorBoundary` |
 
-All `ResponseError` parsing uses `error.response.clone().json()` wrapped in try/catch to guard against non-JSON bodies.
+All `ResponseError` parsing uses `error.response.clone().json()` wrapped in try/catch to guard against non-JSON bodies. Guard `redirect_browser_to` because it is optional in SDK types.
 
 ---
 
@@ -478,7 +484,7 @@ These must hold throughout the implementation:
 
 ## 12. Out of scope (this phase)
 
-- TOTP / WebAuthn / Passkeys / OIDC — do not implement, but `FlowForm` must render `text`, `img`, `script` node types gracefully (no crashes) in case they appear
+- TOTP / WebAuthn / Passkeys / OIDC — do not implement, but `FlowForm` must render `text`, `img`, `script`, and `div` node types gracefully (no crashes) in case they appear
 - AAL2 step-up flows
 - i18n / message ID localization (render `message.text` as-is)
 - Polished UI / design system
