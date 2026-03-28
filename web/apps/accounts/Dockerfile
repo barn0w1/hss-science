@@ -4,17 +4,13 @@ ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 
 # ========================
-# deps
+# fetch
 # ========================
-FROM base AS deps
+FROM base AS fetch
 WORKDIR /app
 
-COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
-
-COPY web/apps ./apps
-COPY web/packages ./packages
-
-RUN pnpm install --frozen-lockfile
+COPY web/pnpm-lock.yaml ./
+RUN pnpm fetch
 
 # ========================
 # build
@@ -22,7 +18,14 @@ RUN pnpm install --frozen-lockfile
 FROM base AS build
 WORKDIR /app
 
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=fetch /root/.pnpm-store /root/.pnpm-store
+
+COPY web/package.json web/pnpm-workspace.yaml ./
+
+COPY web/apps ./apps
+COPY web/packages ./packages
+
+RUN pnpm install --offline --frozen-lockfile
 
 COPY web/ ./
 
@@ -35,11 +38,13 @@ RUN pnpm build
 FROM base AS runner
 WORKDIR /app
 
+COPY --from=fetch /root/.pnpm-store /root/.pnpm-store
+
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
 COPY web/apps ./apps
 COPY web/packages ./packages
 
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --offline --frozen-lockfile --prod
 
 COPY --from=build /app/apps/accounts/build ./apps/accounts/build
 
