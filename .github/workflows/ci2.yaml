@@ -80,7 +80,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [myaccount-spa]
+        app: [accounts]
 
     steps:
       - uses: actions/checkout@v6
