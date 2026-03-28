@@ -12,7 +12,7 @@ WORKDIR /app
 
 COPY web/pnpm-lock.yaml ./
 
-# store場所を確認（デバッグ）
+# デバッグ（後で削除OK）
 RUN pnpm store path
 
 RUN pnpm fetch
@@ -23,13 +23,13 @@ RUN pnpm fetch
 FROM base AS build
 WORKDIR /app
 
-# storeコピー（パス固定版）
+# storeコピー
 COPY --from=fetch /pnpm/store /pnpm/store
 
-# 念のためここでも確認（デバッグ）
 RUN pnpm store path
 
-COPY web/package.json web/pnpm-workspace.yaml ./
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
+
 COPY web/apps ./apps
 COPY web/packages ./packages
 
