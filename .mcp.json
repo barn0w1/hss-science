@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "expert-mcp": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--project",
+        "/home/ubuntu/workspace/dev-tools/expert_mcp",
+        "/home/ubuntu/workspace/dev-tools/expert_mcp/main.py"
+      ],
+      "env": {}
+    }
+  }
+}
