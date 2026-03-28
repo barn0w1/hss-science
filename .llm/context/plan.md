@@ -497,29 +497,29 @@ These must hold throughout the implementation:
 
 ### Phase 0 — Setup
 
-- [ ] Add `"@ory/kratos-client-fetch": "^26.2.0"` to `dependencies` in `web/apps/accounts/package.json`
-- [ ] Run `pnpm install` inside `web/apps/accounts/` to install the new dependency
-- [ ] Confirm `@ory/kratos-client-fetch` types are visible (e.g. `import type { FrontendApi } from "@ory/kratos-client-fetch"` resolves without error)
+- [x] Add `"@ory/kratos-client-fetch": "^26.2.0"` to `dependencies` in `web/apps/accounts/package.json`
+- [x] Run `pnpm install` inside `web/apps/accounts/` to install the new dependency
+- [x] Confirm `@ory/kratos-client-fetch` types are visible (e.g. `import type { FrontendApi } from "@ory/kratos-client-fetch"` resolves without error)
 
 ---
 
 ### Phase 1 — Boilerplate
 
-- [ ] Create `app/entry.client.tsx`
-  - [ ] Import `hydrateRoot` from `react-dom/client` and `HydratedRouter` from `react-router/dom`
-  - [ ] Call `hydrateRoot(document, <HydratedRouter />)`
-- [ ] Create `app/entry.server.tsx`
-  - [ ] Export default `handleRequest` function with signature `(request, responseStatusCode, responseHeaders, routerContext)`
-  - [ ] Use `renderToPipeableStream` + `ServerRouter` + `createReadableStreamFromReadable` to return a streaming `Response`
-  - [ ] Set `Content-Type: text/html` on the response
-- [ ] Create `app/root.tsx`
-  - [ ] Import `app.css` as a side-effect (`import "./app.css"`)
-  - [ ] Export `Layout({ children })` — wraps `children` in `<html>` with `<Meta />`, `<Links />`, `<Scripts />`, `<ScrollRestoration />`
-  - [ ] Export default `App` component — renders `<Outlet />`
-  - [ ] Export `ErrorBoundary` — handles root-level uncaught errors; branch on `isRouteErrorResponse` for HTTP errors vs unexpected exceptions; provide a link back to `/`
-- [ ] Create `app/routes.ts`
-  - [ ] Import `route` and `index` from `@react-router/dev/routes`
-  - [ ] Register all 8 route modules: `_index`, `login`, `registration`, `logout`, `settings`, `recovery`, `verification`, `error`
+- [x] Create `app/entry.client.tsx`
+  - [x] Import `hydrateRoot` from `react-dom/client` and `HydratedRouter` from `react-router/dom`
+  - [x] Call `hydrateRoot(document, <HydratedRouter />)`
+- [x] Create `app/entry.server.tsx`
+  - [x] Export default `handleRequest` function with signature `(request, responseStatusCode, responseHeaders, routerContext)`
+  - [x] Use `renderToPipeableStream` + `ServerRouter` + `createReadableStreamFromReadable` to return a streaming `Response`
+  - [x] Set `Content-Type: text/html` on the response
+- [x] Create `app/root.tsx`
+  - [x] Import `app.css` as a side-effect (`import "./app.css"`)
+  - [x] Export `Layout({ children })` — wraps `children` in `<html>` with `<Meta />`, `<Links />`, `<Scripts />`, `<ScrollRestoration />`
+  - [x] Export default `App` component — renders `<Outlet />`
+  - [x] Export `ErrorBoundary` — handles root-level uncaught errors; branch on `isRouteErrorResponse` for HTTP errors vs unexpected exceptions; provide a link back to `/`
+- [x] Create `app/routes.ts`
+  - [x] Import `route` and `index` from `@react-router/dev/routes`
+  - [x] Register all 8 route modules: `_index`, `login`, `registration`, `logout`, `settings`, `recovery`, `verification`, `error`
 
 ---
 
@@ -527,37 +527,37 @@ These must hold throughout the implementation:
 
 #### `app/lib/kratos.ts`
 
-- [ ] Declare `KRATOS_PUBLIC_URL` constant — `process.env.KRATOS_PUBLIC_URL ?? "http://kratos-public.identity.svc.cluster.local"`
-- [ ] Declare `KRATOS_BROWSER_URL` constant — `process.env.KRATOS_BROWSER_URL ?? "https://accounts.hss-science.org"`
-- [ ] Instantiate and export `frontend: FrontendApi` — `new FrontendApi(new Configuration({ basePath: KRATOS_PUBLIC_URL }))`
-- [ ] Export `getCookie(request: Request): string | undefined` — returns `request.headers.get("cookie") ?? undefined`
-- [ ] Export `initUrl(flow: string, returnTo?: string): string`
-  - [ ] Base: `${KRATOS_BROWSER_URL}/self-service/${flow}/browser`
-  - [ ] Append `?return_to=<encodeURIComponent(returnTo)>` only when `returnTo` is provided
+- [x] Declare `KRATOS_PUBLIC_URL` constant — `process.env.KRATOS_PUBLIC_URL ?? "http://kratos-public.identity.svc.cluster.local"`
+- [x] Declare `KRATOS_BROWSER_URL` constant — `process.env.KRATOS_BROWSER_URL ?? "https://accounts.hss-science.org"`
+- [x] Instantiate and export `frontend: FrontendApi` — `new FrontendApi(new Configuration({ basePath: KRATOS_PUBLIC_URL }))`
+- [x] Export `getCookie(request: Request): string | undefined` — returns `request.headers.get("cookie") ?? undefined`
+- [x] Export `initUrl(flow: string, returnTo?: string): string`
+  - [x] Base: `${KRATOS_BROWSER_URL}/self-service/${flow}/browser`
+  - [x] Append `?return_to=<encodeURIComponent(returnTo)>` only when `returnTo` is provided
 
 #### `app/lib/session.ts`
 
-- [ ] Export `getSession(request: Request): Promise<Session | null>`
-  - [ ] Call `frontend.toSession({ cookie: getCookie(request) })`
-  - [ ] Catch `ResponseError` — return `null` on status 401; rethrow on all other statuses
-  - [ ] Rethrow non-`ResponseError` errors unchanged
-- [ ] Export `requireSession(request: Request): Promise<Session>`
-  - [ ] Call `getSession(request)`
-  - [ ] If result is `null`, `throw redirect("/login")`
-  - [ ] Otherwise return the session
+- [x] Export `getSession(request: Request): Promise<Session | null>`
+  - [x] Call `frontend.toSession({ cookie: getCookie(request) })`
+  - [x] Catch `ResponseError` — return `null` on status 401; rethrow on all other statuses
+  - [x] Rethrow non-`ResponseError` errors unchanged
+- [x] Export `requireSession(request: Request): Promise<Session>`
+  - [x] Call `getSession(request)`
+  - [x] If result is `null`, `throw redirect("/login")`
+  - [x] Otherwise return the session
 
 #### `app/lib/errors.ts`
 
-- [ ] Export `handleFlowError(error: unknown, flowType: string, request: Request): Promise<never>`
-  - [ ] If `error` is not a `ResponseError` — rethrow as-is
-  - [ ] Parse body: `const body = await error.response.clone().json().catch(() => undefined)`
-  - [ ] Extract `errorId`: `body?.error?.id as string | undefined`
-  - [ ] **Case `session_already_available`**: `throw redirect("/settings")`
-  - [ ] **Case 410 / `self_service_flow_expired`**: `throw redirect(initUrl(flowType))`
-  - [ ] **Case 401 / `session_inactive`**: `throw redirect("/login")`
-  - [ ] **Case 403 / `session_refresh_required`**: `throw redirect(initUrl("login") + "?refresh=true&return_to=" + encodeURIComponent(request.url))`
-  - [ ] **Case 422 / `browser_location_change_required`**: parse body with `ErrorBrowserLocationChangeRequiredFromJSON`; if `redirectBrowserTo` is present `throw redirect(redirectBrowserTo)`, otherwise fall through to default
-  - [ ] **Default**: `throw data("Upstream error", { status: 502 })`
+- [x] Export `handleFlowError(error: unknown, flowType: string, request: Request): Promise<never>`
+  - [x] If `error` is not a `ResponseError` — rethrow as-is
+  - [x] Parse body: `const body = await error.response.clone().json().catch(() => undefined)`
+  - [x] Extract `errorId`: `body?.error?.id as string | undefined`
+  - [x] **Case `session_already_available`**: `throw redirect("/settings")`
+  - [x] **Case 410 / `self_service_flow_expired`**: `throw redirect(initUrl(flowType))`
+  - [x] **Case 401 / `session_inactive`**: `throw redirect("/login")`
+  - [x] **Case 403 / `session_refresh_required`**: `throw redirect(initUrl("login") + "?refresh=true&return_to=" + encodeURIComponent(request.url))`
+  - [x] **Case 422 / `browser_location_change_required`**: parse body with `ErrorBrowserLocationChangeRequiredFromJSON`; if `redirectBrowserTo` is present `throw redirect(redirectBrowserTo)`, otherwise fall through to default
+  - [x] **Default**: `throw data("Upstream error", { status: 502 })`
 
 ---
 
@@ -565,32 +565,32 @@ These must hold throughout the implementation:
 
 #### `app/components/FlowMessages.tsx`
 
-- [ ] Define props interface: `{ messages?: UiText[] }`
-- [ ] Return `null` when `messages` is empty or undefined
-- [ ] Render each `UiText` in a `<p>` element
-- [ ] Apply a Tailwind class based on `message.type`: `"error"` → red text, `"success"` → green text, `"info"` → default/muted
-- [ ] Render `message.text` as the text content (no HTML injection)
+- [x] Define props interface: `{ messages?: UiText[] }`
+- [x] Return `null` when `messages` is empty or undefined
+- [x] Render each `UiText` in a `<p>` element
+- [x] Apply a Tailwind class based on `message.type`: `"error"` → red text, `"success"` → green text, `"info"` → default/muted
+- [x] Render `message.text` as the text content (no HTML injection)
 
 #### `app/components/FlowForm.tsx`
 
-- [ ] Define props interface: `{ ui: UiContainer; submitLabel?: string }`
-- [ ] Render outer `<form action={ui.action} method={ui.method}>`
-- [ ] Render `<FlowMessages messages={ui.messages} />` at the top of the form (flow-level messages)
-- [ ] Group `ui.nodes` by `node.group` (preserving Kratos iteration order within each group)
-- [ ] For each group render a wrapping `<section>` or `<div>`; omit a visible heading for the `"default"` group
-- [ ] For each node dispatch by `node.type`:
-  - [ ] **`"input"`**:
-    - [ ] If `node.attributes.type !== "hidden"`: render `<label>` with text from `node.meta.label?.text`
-    - [ ] Render `<input>` with: `name`, `type`, `required`, `disabled`, `autoComplete`, `defaultValue` (from `node.attributes.value` for non-hidden; `value` for hidden)
-    - [ ] Render `<FlowMessages messages={node.messages} />` beneath the input
-  - [ ] **`"text"`**: render `<div>` with `(node.attributes as UiNodeTextAttributes).text.text`
-  - [ ] **`"img"`**: render `<img src={...} />` using `UiNodeImageAttributes`
-  - [ ] **`"div"`**: render a `<div>` passing through any id/class attributes — no crash if attributes are sparse
-  - [ ] **`"script"`**: render `<script>` with `src`, `integrity`, `crossOrigin`, `async` from `UiNodeScriptAttributes`
-  - [ ] **`"a"`**: render `<a>` with `href` and label text from `UiNodeAnchorAttributes`
-  - [ ] **Unknown type**: render nothing (no crash)
-- [ ] Use `${node.group}-${node.attributes.name ?? index}` as the React `key` for each node
-- [ ] Do not hardcode any field names anywhere in this component
+- [x] Define props interface: `{ ui: UiContainer; submitLabel?: string }`
+- [x] Render outer `<form action={ui.action} method={ui.method}>`
+- [x] Render `<FlowMessages messages={ui.messages} />` at the top of the form (flow-level messages)
+- [x] Group `ui.nodes` by `node.group` (preserving Kratos iteration order within each group)
+- [x] For each group render a wrapping `<section>` or `<div>`; omit a visible heading for the `"default"` group
+- [x] For each node dispatch by `node.type`:
+  - [x] **`"input"`**:
+    - [x] If `node.attributes.type !== "hidden"`: render `<label>` with text from `node.meta.label?.text`
+    - [x] Render `<input>` with: `name`, `type`, `required`, `disabled`, `autoComplete`, `defaultValue` (from `node.attributes.value` for non-hidden; `value` for hidden)
+    - [x] Render `<FlowMessages messages={node.messages} />` beneath the input
+  - [x] **`"text"`**: render `<div>` with `(node.attributes as UiNodeTextAttributes).text.text`
+  - [x] **`"img"`**: render `<img src={...} />` using `UiNodeImageAttributes`
+  - [x] **`"div"`**: render a `<div>` passing through any id/class attributes — no crash if attributes are sparse
+  - [x] **`"script"`**: render `<script>` with `src`, `integrity`, `crossOrigin`, `async` from `UiNodeScriptAttributes`
+  - [x] **`"a"`**: render `<a>` with `href` and label text from `UiNodeAnchorAttributes`
+  - [x] **Unknown type**: render nothing (no crash)
+- [x] Use `${node.group}-${node.attributes.name ?? index}` as the React `key` for each node
+- [x] Do not hardcode any field names anywhere in this component
 
 ---
 
@@ -598,110 +598,110 @@ These must hold throughout the implementation:
 
 #### `app/routes/_index.tsx`
 
-- [ ] Loader: call `getSession(request)`
-- [ ] If session is active → `throw redirect("/settings")`
-- [ ] Otherwise → `throw redirect(initUrl("login"))`
-- [ ] Export a minimal default component (or none — loader always redirects)
+- [x] Loader: call `getSession(request)`
+- [x] If session is active → `throw redirect("/settings")`
+- [x] Otherwise → `throw redirect(initUrl("login"))`
+- [x] Export a minimal default component (or none — loader always redirects)
 
 #### `app/routes/error.tsx`
 
-- [ ] Loader:
-  - [ ] Read `errorId = new URL(request.url).searchParams.get("id")`
-  - [ ] If missing → return `{ flowError: null }`
-  - [ ] Try `frontend.getFlowError({ id: errorId })`; catch all errors and return `{ flowError: null }`
-  - [ ] Return `{ flowError }`
-- [ ] Component:
-  - [ ] If `flowError` is null → render generic "Something went wrong" message
-  - [ ] Otherwise cast `flowError.error` as `{ code?: number; message?: string; reason?: string }` and display each field that is present
-  - [ ] Render a link back to `/`
+- [x] Loader:
+  - [x] Read `errorId = new URL(request.url).searchParams.get("id")`
+  - [x] If missing → return `{ flowError: null }`
+  - [x] Try `frontend.getFlowError({ id: errorId })`; catch all errors and return `{ flowError: null }`
+  - [x] Return `{ flowError }`
+- [x] Component:
+  - [x] If `flowError` is null → render generic "Something went wrong" message
+  - [x] Otherwise cast `flowError.error` as `{ code?: number; message?: string; reason?: string }` and display each field that is present
+  - [x] Render a link back to `/`
 
 #### `app/routes/login.tsx`
 
-- [ ] Loader:
-  - [ ] Read `flowId = url.searchParams.get("flow")`
-  - [ ] If missing → `throw redirect(initUrl("login"))`
-  - [ ] Call `frontend.getLoginFlow({ id: flowId, cookie: getCookie(request) })`
-  - [ ] Catch → `await handleFlowError(error, "login", request)`
-  - [ ] Return `{ flow }`
-- [ ] Component:
-  - [ ] Render `<h1>Sign in</h1>`
-  - [ ] Render `<FlowForm ui={loaderData.flow.ui} />`
-  - [ ] Render `<a href={initUrl("registration")}>Create account</a>`
-  - [ ] Render `<a href={initUrl("recovery")}>Forgot password?</a>`
+- [x] Loader:
+  - [x] Read `flowId = url.searchParams.get("flow")`
+  - [x] If missing → `throw redirect(initUrl("login"))`
+  - [x] Call `frontend.getLoginFlow({ id: flowId, cookie: getCookie(request) })`
+  - [x] Catch → `await handleFlowError(error, "login", request)`
+  - [x] Return `{ flow }`
+- [x] Component:
+  - [x] Render `<h1>Sign in</h1>`
+  - [x] Render `<FlowForm ui={loaderData.flow.ui} />`
+  - [x] Render `<a href={initUrl("registration")}>Create account</a>`
+  - [x] Render `<a href={initUrl("recovery")}>Forgot password?</a>`
 
 #### `app/routes/registration.tsx`
 
-- [ ] Loader:
-  - [ ] Read `flowId` from `?flow=`
-  - [ ] If missing → `throw redirect(initUrl("registration"))`
-  - [ ] Call `frontend.getRegistrationFlow({ id: flowId, cookie: getCookie(request) })`
-  - [ ] Catch → `await handleFlowError(error, "registration", request)`
-  - [ ] Return `{ flow }`
-- [ ] Component:
-  - [ ] Render `<h1>Create account</h1>`
-  - [ ] Render `<FlowForm ui={loaderData.flow.ui} />`
-  - [ ] Render `<a href={initUrl("login")}>Already have an account? Sign in</a>`
+- [x] Loader:
+  - [x] Read `flowId` from `?flow=`
+  - [x] If missing → `throw redirect(initUrl("registration"))`
+  - [x] Call `frontend.getRegistrationFlow({ id: flowId, cookie: getCookie(request) })`
+  - [x] Catch → `await handleFlowError(error, "registration", request)`
+  - [x] Return `{ flow }`
+- [x] Component:
+  - [x] Render `<h1>Create account</h1>`
+  - [x] Render `<FlowForm ui={loaderData.flow.ui} />`
+  - [x] Render `<a href={initUrl("login")}>Already have an account? Sign in</a>`
 
 #### `app/routes/logout.tsx`
 
-- [ ] Loader only (no component):
-  - [ ] Call `frontend.createBrowserLogoutFlow({ cookie: getCookie(request) })`
-  - [ ] Catch `ResponseError` with status 401 → `throw redirect("/login")`
-  - [ ] `throw redirect(logoutFlow.logout_url)`
+- [x] Loader only (no component):
+  - [x] Call `frontend.createBrowserLogoutFlow({ cookie: getCookie(request) })`
+  - [x] Catch `ResponseError` with status 401 → `throw redirect("/login")`
+  - [x] `throw redirect(logoutFlow.logout_url)`
 
 #### `app/routes/settings.tsx`
 
-- [ ] Loader:
-  - [ ] Call `requireSession(request)` — will redirect to `/login` automatically if unauthenticated
-  - [ ] Read `flowId` from `?flow=`
-  - [ ] If missing → `throw redirect(initUrl("settings"))`
-  - [ ] Call `frontend.getSettingsFlow({ id: flowId, cookie: getCookie(request) })`
-  - [ ] Catch:
-    - [ ] `ResponseError` status 403 with `error.id === "session_refresh_required"` → `throw redirect(initUrl("login") + "?refresh=true&return_to=" + encodeURIComponent(request.url))`
-    - [ ] Others → `await handleFlowError(error, "settings", request)`
-  - [ ] Return `{ flow, session }`
-- [ ] Component:
-  - [ ] Render `<h1>Account settings</h1>`
-  - [ ] Display current user email from `session.identity.traits` (cast as `{ email?: string }`)
-  - [ ] If `flow.state === "success"` → render a success banner ("Settings saved")
-  - [ ] Render `<FlowForm ui={loaderData.flow.ui} />`
-  - [ ] Render `<a href="/logout">Sign out</a>`
+- [x] Loader:
+  - [x] Call `requireSession(request)` — will redirect to `/login` automatically if unauthenticated
+  - [x] Read `flowId` from `?flow=`
+  - [x] If missing → `throw redirect(initUrl("settings"))`
+  - [x] Call `frontend.getSettingsFlow({ id: flowId, cookie: getCookie(request) })`
+  - [x] Catch:
+    - [x] `ResponseError` status 403 with `error.id === "session_refresh_required"` → `throw redirect(initUrl("login") + "?refresh=true&return_to=" + encodeURIComponent(request.url))`
+    - [x] Others → `await handleFlowError(error, "settings", request)`
+  - [x] Return `{ flow, session }`
+- [x] Component:
+  - [x] Render `<h1>Account settings</h1>`
+  - [x] Display current user email from `session.identity.traits` (cast as `{ email?: string }`)
+  - [x] If `flow.state === "success"` → render a success banner ("Settings saved")
+  - [x] Render `<FlowForm ui={loaderData.flow.ui} />`
+  - [x] Render `<a href="/logout">Sign out</a>`
 
 #### `app/routes/recovery.tsx`
 
-- [ ] Loader:
-  - [ ] Read `flowId` from `?flow=`
-  - [ ] If missing → `throw redirect(initUrl("recovery"))`
-  - [ ] Call `frontend.getRecoveryFlow({ id: flowId, cookie: getCookie(request) })`
-  - [ ] Catch → `await handleFlowError(error, "recovery", request)`
-  - [ ] Return `{ flow }`
-- [ ] Component — state-driven:
-  - [ ] `flow.state === "choose_method"` → render heading "Recover your account" + neutral guidance text + `<FlowForm ui={flow.ui} />`
-  - [ ] `flow.state === "sent_email"` → render heading "Check your email" + neutral guidance text + `<FlowForm ui={flow.ui} />`
-  - [ ] `flow.state === "passed_challenge"` → render "Redirecting…" (Kratos transitions to settings)
-  - [ ] Default → render "Redirecting…"
-  - [ ] Render `flow.ui.messages` verbatim using `<FlowMessages />` regardless of state (neutral by design)
+- [x] Loader:
+  - [x] Read `flowId` from `?flow=`
+  - [x] If missing → `throw redirect(initUrl("recovery"))`
+  - [x] Call `frontend.getRecoveryFlow({ id: flowId, cookie: getCookie(request) })`
+  - [x] Catch → `await handleFlowError(error, "recovery", request)`
+  - [x] Return `{ flow }`
+- [x] Component — state-driven:
+  - [x] `flow.state === "choose_method"` → render heading "Recover your account" + neutral guidance text + `<FlowForm ui={flow.ui} />`
+  - [x] `flow.state === "sent_email"` → render heading "Check your email" + neutral guidance text + `<FlowForm ui={flow.ui} />`
+  - [x] `flow.state === "passed_challenge"` → render "Redirecting…" (Kratos transitions to settings)
+  - [x] Default → render "Redirecting…"
+  - [x] Render `flow.ui.messages` verbatim using `<FlowMessages />` regardless of state (neutral by design)
 
 #### `app/routes/verification.tsx`
 
-- [ ] Loader:
-  - [ ] Read `flowId` from `?flow=`
-  - [ ] If missing → `throw redirect(initUrl("verification"))`
-  - [ ] Call `frontend.getVerificationFlow({ id: flowId, cookie: getCookie(request) })`
-  - [ ] Catch → `await handleFlowError(error, "verification", request)`
-  - [ ] Return `{ flow }`
-- [ ] Component — state-driven:
-  - [ ] `flow.state === "choose_method"` → render heading "Verify your email" + `<FlowForm ui={flow.ui} />`
-  - [ ] `flow.state === "sent_email"` → render heading "Enter verification code" + `<FlowForm ui={flow.ui} />`
-  - [ ] `flow.state === "passed_challenge"` → render heading "Email verified" + success message + `<a href="/settings">Go to settings</a>`
-  - [ ] Default → render fallback with link to `/`
+- [x] Loader:
+  - [x] Read `flowId` from `?flow=`
+  - [x] If missing → `throw redirect(initUrl("verification"))`
+  - [x] Call `frontend.getVerificationFlow({ id: flowId, cookie: getCookie(request) })`
+  - [x] Catch → `await handleFlowError(error, "verification", request)`
+  - [x] Return `{ flow }`
+- [x] Component — state-driven:
+  - [x] `flow.state === "choose_method"` → render heading "Verify your email" + `<FlowForm ui={flow.ui} />`
+  - [x] `flow.state === "sent_email"` → render heading "Enter verification code" + `<FlowForm ui={flow.ui} />`
+  - [x] `flow.state === "passed_challenge"` → render heading "Email verified" + success message + `<a href="/settings">Go to settings</a>`
+  - [x] Default → render fallback with link to `/`
 
 ---
 
 ### Phase 5 — Verification
 
-- [ ] Run `pnpm typecheck` (`react-router typegen && tsc`) — fix all TypeScript errors
-- [ ] Confirm every SSR Kratos call passes `cookie: getCookie(request)` — audit all 7 SDK call sites
-- [ ] Confirm no hardcoded field names exist anywhere in route or component files
-- [ ] Confirm every form in the app uses a plain HTML `<form>` (not React Router `<Form>`) with `action` and `method` taken from `flow.ui`
-- [ ] Confirm `routes.ts` paths match the URL conventions used by Kratos (`selfservice.flows.*.ui_url` config values: `/login`, `/registration`, `/settings`, `/recovery`, `/verification`, `/error`)
+- [x] Run `pnpm typecheck` (`react-router typegen && tsc`) — fix all TypeScript errors
+- [x] Confirm every SSR Kratos call passes `cookie: getCookie(request)` — audit all 7 SDK call sites
+- [x] Confirm no hardcoded field names exist anywhere in route or component files
+- [x] Confirm every form in the app uses a plain HTML `<form>` (not React Router `<Form>`) with `action` and `method` taken from `flow.ui`
+- [x] Confirm `routes.ts` paths match the URL conventions used by Kratos (`selfservice.flows.*.ui_url` config values: `/login`, `/registration`, `/settings`, `/recovery`, `/verification`, `/error`)
