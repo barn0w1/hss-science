@@ -14,10 +14,10 @@
 ### SSR browser flow pattern (applies to every flow)
 
 ```
-1. Browser navigates to Kratos init: KRATOS_BROWSER_URL/self-service/<flow>/browser
+1. Browser navigates to Kratos init: KRATOS_PUBLIC_URL/self-service/<flow>/browser
    → Kratos creates flow, sets anti-CSRF cookie, 303s to our UI: /login?flow=<id>
 
-2. Our loader fetches: GET KRATOS_PUBLIC_URL/self-service/<flow>/flows?id=<id>
+2. Our loader fetches: GET KRATOS_INTERNAL_URL/self-service/<flow>/flows?id=<id>
    (forwarding browser Cookie header)
    → Kratos returns flow object with ui.action, ui.method, ui.nodes, ui.messages
 
@@ -36,8 +36,8 @@
 
 | Variable | Deployment value | Purpose |
 |---|---|---|
-| `KRATOS_PUBLIC_URL` | `http://kratos-public.identity.svc.cluster.local` | SSR → Kratos (internal) |
-| `KRATOS_BROWSER_URL` | `https://accounts.hss-science.org` | Browser → Kratos (external) |
+| `KRATOS_INTERNAL_URL` | `http://kratos-public.identity.svc.cluster.local` | SSR → Kratos (internal) |
+| `KRATOS_PUBLIC_URL` | `https://accounts.hss-science.org` | Browser → Kratos (external) |
 
 Hardcode defaults matching the deployment values; allow override via `process.env`.
 
@@ -138,7 +138,7 @@ Standard Node SSR handler using `renderToPipeableStream` + `ServerRouter`. Boile
 export const frontend: FrontendApi
 
 // External browser-facing Kratos URL
-export const KRATOS_BROWSER_URL: string  // = process.env.KRATOS_BROWSER_URL ?? "https://accounts.hss-science.org"
+export const KRATOS_PUBLIC_URL: string  // = process.env.KRATOS_PUBLIC_URL ?? "https://accounts.hss-science.org"
 
 // Extract Cookie header string from a Request
 export function getCookie(request: Request): string | undefined
@@ -150,9 +150,9 @@ export function initUrl(flow: string, returnTo?: string): string
 ```
 
 **Implementation notes:**
-- Instantiate `new FrontendApi(new Configuration({ basePath: KRATOS_PUBLIC_URL }))`
+- Instantiate `new FrontendApi(new Configuration({ basePath: KRATOS_INTERNAL_URL }))`
 - `getCookie` reads `request.headers.get("cookie") ?? undefined`
-- `initUrl` builds `${KRATOS_BROWSER_URL}/self-service/${flow}/browser` and appends `?return_to=...` only if `returnTo` is provided
+- `initUrl` builds `${KRATOS_PUBLIC_URL}/self-service/${flow}/browser` and appends `?return_to=...` only if `returnTo` is provided
 
 ### 6.2 `app/lib/session.ts`
 
@@ -527,12 +527,12 @@ These must hold throughout the implementation:
 
 #### `app/lib/kratos.ts`
 
-- [x] Declare `KRATOS_PUBLIC_URL` constant — `process.env.KRATOS_PUBLIC_URL ?? "http://kratos-public.identity.svc.cluster.local"`
-- [x] Declare `KRATOS_BROWSER_URL` constant — `process.env.KRATOS_BROWSER_URL ?? "https://accounts.hss-science.org"`
-- [x] Instantiate and export `frontend: FrontendApi` — `new FrontendApi(new Configuration({ basePath: KRATOS_PUBLIC_URL }))`
+- [x] Declare `KRATOS_INTERNAL_URL` constant — `process.env.KRATOS_INTERNAL_URL ?? "http://kratos-public.identity.svc.cluster.local"`
+- [x] Declare `KRATOS_PUBLIC_URL` constant — `process.env.KRATOS_PUBLIC_URL ?? "https://accounts.hss-science.org"`
+- [x] Instantiate and export `frontend: FrontendApi` — `new FrontendApi(new Configuration({ basePath: KRATOS_INTERNAL_URL }))`
 - [x] Export `getCookie(request: Request): string | undefined` — returns `request.headers.get("cookie") ?? undefined`
 - [x] Export `initUrl(flow: string, returnTo?: string): string`
-  - [x] Base: `${KRATOS_BROWSER_URL}/self-service/${flow}/browser`
+  - [x] Base: `${KRATOS_PUBLIC_URL}/self-service/${flow}/browser`
   - [x] Append `?return_to=<encodeURIComponent(returnTo)>` only when `returnTo` is provided
 
 #### `app/lib/session.ts`
