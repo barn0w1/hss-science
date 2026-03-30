@@ -3,6 +3,12 @@ import type { Route } from "./+types/login";
 import { frontend, getCookie, initUrl } from "~/lib/kratos";
 import { handleFlowError } from "~/lib/errors";
 import { FlowForm } from "~/components/FlowForm";
+import { AuthCard } from "~/components/AuthCard";
+import { Alert, AlertDescription } from "~/components/ui/alert";
+
+export function meta(): Route.MetaDescriptors {
+  return [{ title: "Sign in — HSS Science" }];
+}
 
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
@@ -27,11 +33,38 @@ export default function Login({ loaderData }: Route.ComponentProps) {
   const { flow } = loaderData;
 
   return (
-    <div>
-      <h1>Sign in</h1>
+    <AuthCard
+      title="Sign in"
+      footer={
+        <>
+          <span>
+            Don&apos;t have an account?{" "}
+            <a href={initUrl("registration", flow.return_to ?? undefined)} className="underline underline-offset-4 text-foreground hover:text-foreground/80">
+              Create account
+            </a>
+          </span>
+          <a href={initUrl("recovery", flow.return_to ?? undefined)} className="underline underline-offset-4 hover:text-foreground">
+            Forgot password?
+          </a>
+        </>
+      }
+    >
       <FlowForm ui={flow.ui} />
-      <a href={initUrl("registration")}>Create account</a>
-      <a href={initUrl("recovery")}>Forgot password?</a>
-    </div>
+    </AuthCard>
+  );
+}
+
+export function ErrorBoundary() {
+  return (
+    <AuthCard title="Sign in">
+      <Alert variant="destructive">
+        <AlertDescription>
+          Something went wrong.{" "}
+          <a href="/login" className="underline">
+            Try again
+          </a>
+        </AlertDescription>
+      </Alert>
+    </AuthCard>
   );
 }

@@ -3,6 +3,12 @@ import type { Route } from "./+types/verification";
 import { frontend, getCookie, initUrl } from "~/lib/kratos";
 import { handleFlowError } from "~/lib/errors";
 import { FlowForm } from "~/components/FlowForm";
+import { AuthCard } from "~/components/AuthCard";
+import { Alert, AlertDescription } from "~/components/ui/alert";
+
+export function meta(): Route.MetaDescriptors {
+  return [{ title: "Verify email — HSS Science" }];
+}
 
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
@@ -28,36 +34,68 @@ export default function Verification({ loaderData }: Route.ComponentProps) {
 
   if (flow.state === "choose_method") {
     return (
-      <div>
-        <h1>Verify your email</h1>
+      <AuthCard
+        title="Verify your email"
+        description="Enter your email address to receive a verification code."
+      >
         <FlowForm ui={flow.ui} />
-      </div>
+      </AuthCard>
     );
   }
 
   if (flow.state === "sent_email") {
     return (
-      <div>
-        <h1>Enter verification code</h1>
+      <AuthCard
+        title="Enter verification code"
+        description="Check your inbox and enter the code below."
+      >
         <FlowForm ui={flow.ui} />
-      </div>
+      </AuthCard>
     );
   }
 
   if (flow.state === "passed_challenge") {
     return (
-      <div>
-        <h1>Email verified</h1>
-        <p>Your email address has been successfully verified.</p>
-        <a href="/settings">Go to settings</a>
-      </div>
+      <AuthCard
+        title="Email verified"
+        footer={
+          <a href="/settings" className="underline underline-offset-4 hover:text-foreground">
+            Go to settings
+          </a>
+        }
+      >
+        <p className="text-sm text-center text-muted-foreground">
+          Your email address has been successfully verified.
+        </p>
+      </AuthCard>
     );
   }
 
   return (
-    <div>
-      <p>Something went wrong.</p>
-      <a href="/">Go home</a>
-    </div>
+    <AuthCard
+      title="Verification"
+      footer={
+        <a href="/" className="underline underline-offset-4 hover:text-foreground">
+          Go home
+        </a>
+      }
+    >
+      <p className="text-sm text-center text-muted-foreground">Something went wrong.</p>
+    </AuthCard>
+  );
+}
+
+export function ErrorBoundary() {
+  return (
+    <AuthCard title="Verify email">
+      <Alert variant="destructive">
+        <AlertDescription>
+          Something went wrong.{" "}
+          <a href="/verification" className="underline">
+            Try again
+          </a>
+        </AlertDescription>
+      </Alert>
+    </AuthCard>
   );
 }

@@ -8,6 +8,8 @@ import {
   ScrollRestoration,
 } from "react-router";
 import type { Route } from "./+types/root";
+import { Alert, AlertDescription } from "~/components/ui/alert";
+import { Card, CardContent } from "~/components/ui/card";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -43,10 +45,24 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   }
 
   return (
-    <div>
-      <h1>{status ? `Error ${status}` : "Error"}</h1>
-      <p>{message}</p>
-      <a href="/">Go home</a>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+      <Card className="w-full max-w-md">
+        <CardContent className="pt-6">
+          <Alert variant="destructive">
+            <AlertDescription>
+              <strong>{status ? `Error ${status}` : "Error"}</strong>
+              <br />
+              {message}
+            </AlertDescription>
+          </Alert>
+          <a
+            href="/"
+            className="block mt-4 text-sm text-center underline underline-offset-4 text-muted-foreground hover:text-foreground"
+          >
+            Go home
+          </a>
+        </CardContent>
+      </Card>
     </div>
   );
 }
