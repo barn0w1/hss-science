@@ -3,6 +3,12 @@ import type { Route } from "./+types/registration";
 import { frontend, getCookie, initUrl } from "~/lib/kratos";
 import { handleFlowError } from "~/lib/errors";
 import { FlowForm } from "~/components/FlowForm";
+import { AuthCard } from "~/components/AuthCard";
+import { Alert, AlertDescription } from "~/components/ui/alert";
+
+export function meta(): Route.MetaDescriptors {
+  return [{ title: "Create account — HSS Science" }];
+}
 
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
@@ -27,10 +33,33 @@ export default function Registration({ loaderData }: Route.ComponentProps) {
   const { flow } = loaderData;
 
   return (
-    <div>
-      <h1>Create account</h1>
+    <AuthCard
+      title="Create account"
+      footer={
+        <span>
+          Already have an account?{" "}
+          <a href={initUrl("login", flow.return_to ?? undefined)} className="underline underline-offset-4 text-foreground hover:text-foreground/80">
+            Sign in
+          </a>
+        </span>
+      }
+    >
       <FlowForm ui={flow.ui} />
-      <a href={initUrl("login")}>Already have an account? Sign in</a>
-    </div>
+    </AuthCard>
+  );
+}
+
+export function ErrorBoundary() {
+  return (
+    <AuthCard title="Create account">
+      <Alert variant="destructive">
+        <AlertDescription>
+          Something went wrong.{" "}
+          <a href="/registration" className="underline">
+            Try again
+          </a>
+        </AlertDescription>
+      </Alert>
+    </AuthCard>
   );
 }

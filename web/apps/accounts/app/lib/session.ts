@@ -2,6 +2,7 @@ import { redirect } from "react-router";
 import type { Session } from "@ory/kratos-client-fetch";
 import { ResponseError } from "@ory/kratos-client-fetch";
 import { frontend, getCookie } from "./kratos";
+import { logger } from "./logger.server";
 
 export async function getSession(request: Request): Promise<Session | null> {
   try {
@@ -11,6 +12,9 @@ export async function getSession(request: Request): Promise<Session | null> {
       if (error.response.status === 401) {
         return null;
       }
+      logger.warn({ status: error.response.status }, "session check returned unexpected status");
+    } else {
+      logger.error({ err: error }, "session check failed with unexpected error");
     }
     throw error;
   }

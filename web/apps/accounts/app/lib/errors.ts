@@ -4,6 +4,7 @@ import {
   ErrorBrowserLocationChangeRequiredFromJSON,
 } from "@ory/kratos-client-fetch";
 import { initUrl } from "./kratos";
+import { logger } from "./logger.server";
 
 export async function handleFlowError(
   error: unknown,
@@ -11,6 +12,7 @@ export async function handleFlowError(
   request: Request,
 ): Promise<never> {
   if (!(error instanceof ResponseError)) {
+    logger.error({ err: error, flowType }, "flow: unexpected non-ResponseError");
     throw error;
   }
 
@@ -23,6 +25,7 @@ export async function handleFlowError(
     ?.id as string | undefined;
 
   if (errorId === "session_already_available") {
+    logger.info({ flowType }, "flow: session already available, redirecting to settings");
     throw redirect("/settings");
   }
 
@@ -30,10 +33,12 @@ export async function handleFlowError(
     error.response.status === 410 ||
     errorId === "self_service_flow_expired"
   ) {
+    logger.info({ flowType }, "flow: expired, reinitializing");
     throw redirect(initUrl(flowType));
   }
 
   if (error.response.status === 401 || errorId === "session_inactive") {
+    logger.info({ flowType }, "flow: session inactive, redirecting to login");
     throw redirect("/login");
   }
 
@@ -41,6 +46,7 @@ export async function handleFlowError(
     error.response.status === 403 ||
     errorId === "session_refresh_required"
   ) {
+    logger.info({ flowType }, "flow: privilege refresh required");
     throw redirect(
       initUrl("login") +
         "?refresh=true&return_to=" +
@@ -62,10 +68,13 @@ export async function handleFlowError(
       }
     }
     if (redirectBrowserTo) {
+      logger.info({ flowType, redirectBrowserTo }, "flow: browser location change required");
       throw redirect(redirectBrowserTo);
     }
+    logger.warn({ flowType, status: error.response.status, errorId }, "flow: browser_location_change_required without redirect_browser_to");
     throw data("Upstream error", { status: 502 });
   }
 
+  logger.warn({ flowType, status: error.response.status, errorId }, "flow: unhandled upstream error, returning 502");
   throw data("Upstream error", { status: 502 });
 }
