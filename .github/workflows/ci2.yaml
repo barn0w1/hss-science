@@ -124,7 +124,7 @@ jobs:
       - name: Type Check
         if: steps.filter.outputs.changed == 'true'
         working-directory: web/apps/${{ matrix.app }}
-        run: pnpm tsc --noEmit
+        run: pnpm typecheck
 
       # Lint
       - name: Lint
